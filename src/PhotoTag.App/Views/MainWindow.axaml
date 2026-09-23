@@ -1,0 +1,191 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PhotoTag.App.ViewModels"
+        xmlns:layout="using:Avalonia.Layout"
+        x:Class="PhotoTag.App.Views.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        Title="PhotoTag" Width="1280" Height="720" MinWidth="800" MinHeight="500"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.Styles>
+        <Style Selector="Button.tile">
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="VerticalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+        <Style Selector="Button.tile.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+        </Style>
+        <Style Selector="Button.tile.selected /template/ ContentPresenter">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+        </Style>
+        <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Opacity" Value="0.6" />
+        </Style>
+        <Style Selector="Border.chip">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Padding" Value="8,2" />
+            <Setter Property="Margin" Value="0,0,4,4" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <!-- Toolbar -->
+        <Border DockPanel.Dock="Top" Padding="8" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button Content="Open folder…" Click="OpenFolder_Click" />
+                <TextBlock Text="{Binding RootPath}" VerticalAlignment="Center" Opacity="0.7" />
+            </StackPanel>
+        </Border>
+
+        <!-- Status bar -->
+        <Border DockPanel.Dock="Bottom" Padding="10,4" BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <TextBlock Text="{Binding StatusText}" FontSize="12" />
+        </Border>
+
+        <Grid ColumnDefinitions="260,Auto,*,Auto,340">
+            <!-- Folder tree -->
+            <TreeView Grid.Column="0" ItemsSource="{Binding RootFolders}" SelectedItem="{Binding SelectedFolder}">
+                <TreeView.Styles>
+                    <Style Selector="TreeViewItem" x:DataType="vm:FolderNodeViewModel">
+                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                    </Style>
+                </TreeView.Styles>
+                <TreeView.ItemTemplate>
+                    <TreeDataTemplate x:DataType="vm:FolderNodeViewModel" ItemsSource="{Binding Children}">
+                        <TextBlock Text="{Binding Name}" />
+                    </TreeDataTemplate>
+                </TreeView.ItemTemplate>
+            </TreeView>
+
+            <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns" />
+
+            <!-- Thumbnail grid: ItemsRepeater only creates tiles for what's on screen. -->
+            <ScrollViewer Grid.Column="2">
+                <ItemsRepeater x:Name="PhotoGrid" Margin="8" ItemsSource="{Binding Photos}"
+                               ElementPrepared="PhotoGrid_ElementPrepared"
+                               ElementClearing="PhotoGrid_ElementClearing">
+                    <ItemsRepeater.Layout>
+                        <layout:UniformGridLayout MinItemWidth="150" MinItemHeight="176"
+                                                  MinColumnSpacing="6" MinRowSpacing="6"
+                                                  ItemsStretch="Uniform" />
+                    </ItemsRepeater.Layout>
+                    <ItemsRepeater.ItemTemplate>
+                        <DataTemplate x:DataType="vm:PhotoItemViewModel">
+                            <Button Classes="tile" Classes.selected="{Binding IsSelected}"
+                                    Command="{Binding $parent[ItemsRepeater].((vm:MainWindowViewModel)DataContext).SelectPhotoCommand}"
+                                    CommandParameter="{Binding}"
+                                    ToolTip.Tip="{Binding FileName}">
+                                <DockPanel>
+                                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding FileName}" FontSize="12"
+                                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="0,4,0,0" />
+                                    <Panel>
+                                        <TextBlock Text="Can't read this file" IsVisible="{Binding LoadFailed}"
+                                                   FontSize="11" Opacity="0.6"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                    </Panel>
+                                </DockPanel>
+                            </Button>
+                        </DataTemplate>
+                    </ItemsRepeater.ItemTemplate>
+                </ItemsRepeater>
+            </ScrollViewer>
+
+            <GridSplitter Grid.Column="3" Width="4" ResizeDirection="Columns" />
+
+            <!-- Details for the selected photo -->
+            <ScrollViewer Grid.Column="4">
+                <Panel>
+                    <TextBlock Text="Select a photo to see its details." Opacity="0.6" Margin="16"
+                               TextWrapping="Wrap"
+                               IsVisible="{Binding Details, Converter={x:Static ObjectConverters.IsNull}}" />
+                    <ContentControl Content="{Binding Details}">
+                        <ContentControl.ContentTemplate>
+                            <DataTemplate x:DataType="vm:PhotoDetailsViewModel">
+                                <StackPanel Margin="12" Spacing="12">
+                                    <!-- Thumbnail shows instantly; the sharper preview replaces it when ready. -->
+                                    <Panel MaxHeight="360">
+                                        <Image Source="{Binding Photo.Thumbnail}" Stretch="Uniform" />
+                                        <Image Source="{Binding Preview}" Stretch="Uniform" />
+                                    </Panel>
+
+                                    <StackPanel Spacing="2">
+                                        <SelectableTextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                                        <SelectableTextBlock Text="{Binding Folder}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <TextBlock Text="{Binding Error}" Foreground="OrangeRed" TextWrapping="Wrap"
+                                               IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                                    <StackPanel IsVisible="{Binding Title, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Classes="label" Text="Title" />
+                                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel IsVisible="{Binding Description, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Classes="label" Text="Description" />
+                                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
+                                    </StackPanel>
+
+                                    <StackPanel>
+                                        <TextBlock Classes="label" Text="Tags" />
+                                        <TextBlock Text="None yet" Opacity="0.6"
+                                                   IsVisible="{Binding !Keywords.Count}" />
+                                        <ItemsControl ItemsSource="{Binding Keywords}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="x:String">
+                                                    <Border Classes="chip">
+                                                        <TextBlock Text="{Binding}" FontSize="12" />
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                    </StackPanel>
+
+                                    <StackPanel IsVisible="{Binding Rating, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Classes="label" Text="Rating" />
+                                        <TextBlock Text="{Binding Rating}" />
+                                    </StackPanel>
+                                    <StackPanel IsVisible="{Binding DateTaken, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Classes="label" Text="Taken" />
+                                        <TextBlock Text="{Binding DateTaken}" TextWrapping="Wrap" />
+                                    </StackPanel>
+                                    <StackPanel IsVisible="{Binding Camera, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Classes="label" Text="Camera" />
+                                        <TextBlock Text="{Binding Camera}" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding Lens}" TextWrapping="Wrap" Opacity="0.8"
+                                                   IsVisible="{Binding Lens, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        <TextBlock Text="{Binding Exposure}" TextWrapping="Wrap" Opacity="0.8"
+                                                   IsVisible="{Binding Exposure, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    </StackPanel>
+                                    <StackPanel IsVisible="{Binding Dimensions, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Classes="label" Text="File" />
+                                        <TextBlock Text="{Binding Dimensions}" />
+                                    </StackPanel>
+                                    <StackPanel IsVisible="{Binding Location, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Classes="label" Text="Location" />
+                                        <SelectableTextBlock Text="{Binding Location}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </DataTemplate>
+                        </ContentControl.ContentTemplate>
+                    </ContentControl>
+                </Panel>
+            </ScrollViewer>
+        </Grid>
+    </DockPanel>
+</Window>
