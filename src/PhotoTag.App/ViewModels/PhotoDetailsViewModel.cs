@@ -18,19 +18,25 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly PhotoMetadataWriter? _writer;
     private readonly KeywordSuggestions _suggestions;
+    private readonly BulkOperations _operations;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private int _pendingSaves;
     private Task _lastSave = Task.CompletedTask;
     private bool _applying;
     private string _savedTitle = "";
     private string _savedDescription = "";
+    private long _fileSize;
 
-    public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions)
+    public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions,
+        BulkOperations operations)
     {
         Photo = photo;
         _writer = writer;
         _suggestions = suggestions;
+        _operations = operations;
         Stars = [.. Enumerable.Range(1, 5).Select(i => new StarViewModel(i))];
+        _operations.PropertyChanged += OnOperationsChanged;
+        _operations.Completed += OnOperationCompleted;
     }
 
     public PhotoItemViewModel Photo { get; }
@@ -50,8 +56,15 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     // --- Editable metadata ---------------------------------------------------------------
 
-    /// <summary>True once metadata has loaded and ExifTool is available.</summary>
-    [ObservableProperty] public partial bool CanEdit { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanEdit))]
+    public partial bool IsLoaded { get; private set; }
+
+    /// <summary>
+    /// True once metadata has loaded, if ExifTool is available and no bulk edit is running
+    /// (which might be rewriting this photo's tags).
+    /// </summary>
+    public bool CanEdit => IsLoaded && _writer is not null && !_operations.IsBusy;
 
     public ObservableCollection<string> Keywords { get; } = [];
     public IReadOnlyList<StarViewModel> Stars { get; }
@@ -80,8 +93,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
             var (metadata, size) = await metadataTask;
             if (!token.IsCancellationRequested)
             {
+                Photo.Metadata = metadata;
                 Apply(metadata, size);
-                CanEdit = _writer is not null;
+                IsLoaded = true;
             }
         }
         catch (OperationCanceledException) { }
@@ -171,6 +185,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         try
         {
             await writer.WriteAsync(Photo.Path, changes);
+            Photo.Metadata = null; // re-read next time it's needed
             if (changes.Title is { } title) _savedTitle = title;
             if (changes.Description is { } description) _savedDescription = description;
             if (changes.Keywords is { } keywords) _suggestions.Add(keywords);
@@ -202,8 +217,20 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         }
     }
 
+    private void OnOperationsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BulkOperations.IsBusy)) OnPropertyChanged(nameof(CanEdit));
+    }
+
+    // A bulk edit that included this photo may have changed its tags or rating.
+    private void OnOperationCompleted(object? sender, BulkResult result)
+    {
+        if (IsLoaded && result.After.TryGetValue(Photo.Path, out var metadata)) Apply(metadata, _fileSize);
+    }
+
     private void Apply(PhotoMetadata m, long fileSize)
     {
+        _fileSize = fileSize;
         var culture = CultureInfo.CurrentCulture;
 
         DateTaken = m.DateTaken?.ToString("dddd d MMMM yyyy, HH:mm", culture);
@@ -257,6 +284,8 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
+        _operations.PropertyChanged -= OnOperationsChanged;
+        _operations.Completed -= OnOperationCompleted;
         _cts.Cancel();
         _cts.Dispose();
         Preview?.Dispose();

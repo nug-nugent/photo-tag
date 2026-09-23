@@ -8,21 +8,24 @@
         WindowStartupLocation="CenterScreen">
 
     <Window.Styles>
-        <Style Selector="Button.tile">
+        <Style Selector="Border.tile">
             <Setter Property="Padding" Value="6" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderThickness" Value="2" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="HorizontalAlignment" Value="Stretch" />
-            <Setter Property="VerticalAlignment" Value="Stretch" />
-            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
         </Style>
-        <Style Selector="Button.tile.selected">
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+        <Style Selector="Border.tile:pointerover">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
         </Style>
-        <Style Selector="Button.tile.selected /template/ ContentPresenter">
+        <Style Selector="Border.tile.selected">
             <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListAccentLowBrush}" />
+        </Style>
+        <Style Selector="Border.chip.partial">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
         </Style>
         <Style Selector="TextBlock.label">
             <Setter Property="FontSize" Value="11" />
@@ -70,7 +73,23 @@
         <!-- Status bar -->
         <Border DockPanel.Dock="Bottom" Padding="10,4" BorderThickness="0,1,0,0"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-            <TextBlock Text="{Binding StatusText}" FontSize="12" />
+            <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
+                            IsVisible="{Binding Operations.IsBusy}">
+                    <ProgressBar Width="160" Minimum="0" Maximum="100" VerticalAlignment="Center"
+                                 Value="{Binding Operations.ProgressPercent}" />
+                    <Button x:Name="CancelBulkButton" Content="Cancel" Padding="10,2" FontSize="12"
+                            Command="{Binding Operations.CancelCommand}" />
+                </StackPanel>
+                <TextBlock DockPanel.Dock="Right" Text="{Binding SelectionText}" FontSize="12" Margin="12,0"
+                           VerticalAlignment="Center" />
+                <Panel VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                               IsVisible="{Binding !Operations.IsBusy}" />
+                    <TextBlock Text="{Binding Operations.ProgressText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                               IsVisible="{Binding Operations.IsBusy}" />
+                </Panel>
+            </DockPanel>
         </Border>
 
         <Grid ColumnDefinitions="260,Auto,*,Auto,340">
@@ -90,8 +109,9 @@
 
             <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns" />
 
-            <!-- Thumbnail grid: ItemsRepeater only creates tiles for what's on screen. -->
-            <ScrollViewer Grid.Column="2">
+            <!-- Thumbnail grid: ItemsRepeater only creates tiles for what's on screen.
+                 Focusable so arrow keys, Shift+arrows, Ctrl/⌘+A and Esc work once a tile is clicked. -->
+            <ScrollViewer x:Name="GridScroller" Grid.Column="2" Focusable="True" KeyDown="Grid_KeyDown">
                 <ItemsRepeater x:Name="PhotoGrid" Margin="8" ItemsSource="{Binding Photos}"
                                ElementPrepared="PhotoGrid_ElementPrepared"
                                ElementClearing="PhotoGrid_ElementClearing">
@@ -102,9 +122,8 @@
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
                         <DataTemplate x:DataType="vm:PhotoItemViewModel">
-                            <Button Classes="tile" Classes.selected="{Binding IsSelected}"
-                                    Command="{Binding $parent[ItemsRepeater].((vm:MainWindowViewModel)DataContext).SelectPhotoCommand}"
-                                    CommandParameter="{Binding}"
+                            <Border Classes="tile" Classes.selected="{Binding IsSelected}"
+                                    PointerPressed="Tile_PointerPressed"
                                     ToolTip.Tip="{Binding FileName}">
                                 <DockPanel>
                                     <TextBlock DockPanel.Dock="Bottom" Text="{Binding FileName}" FontSize="12"
@@ -116,7 +135,7 @@
                                         <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
                                     </Panel>
                                 </DockPanel>
-                            </Button>
+                            </Border>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
@@ -131,7 +150,7 @@
                                TextWrapping="Wrap"
                                IsVisible="{Binding Details, Converter={x:Static ObjectConverters.IsNull}}" />
                     <ContentControl Content="{Binding Details}">
-                        <ContentControl.ContentTemplate>
+                        <ContentControl.DataTemplates>
                             <DataTemplate x:DataType="vm:PhotoDetailsViewModel">
                                 <StackPanel Margin="12" Spacing="12">
                                     <!-- Thumbnail shows instantly; the sharper preview replaces it when ready. -->
@@ -245,7 +264,85 @@
                                     </StackPanel>
                                 </StackPanel>
                             </DataTemplate>
-                        </ContentControl.ContentTemplate>
+                            <DataTemplate x:DataType="vm:BulkDetailsViewModel">
+                                <StackPanel Margin="12" Spacing="12">
+                                    <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" FontSize="16" />
+                                    <TextBlock Text="{Binding LoadingText}" Opacity="0.7" TextWrapping="Wrap"
+                                               IsVisible="{Binding LoadingText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
+                                        <TextBlock TextWrapping="Wrap" FontSize="12"
+                                                   Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
+                                    </Border>
+
+                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
+                                        <TextBlock Classes="label" Text="Tags" />
+                                        <TextBlock Text="Tags on only some of these photos show a count. Use + to add one to all of them, ✕ to remove it from all."
+                                                   FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                                        <ItemsControl ItemsSource="{Binding Keywords}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <WrapPanel />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:BulkKeywordViewModel">
+                                                    <Border Classes="chip" Classes.partial="{Binding !IsOnAll}" ToolTip.Tip="{Binding ToolTip}">
+                                                        <StackPanel Orientation="Horizontal" Spacing="2">
+                                                            <TextBlock Text="{Binding Keyword}" FontSize="12" VerticalAlignment="Center" />
+                                                            <TextBlock Text="{Binding CountText}" FontSize="11" Opacity="0.7" Margin="4,0,0,0"
+                                                                       VerticalAlignment="Center" IsVisible="{Binding !IsOnAll}" />
+                                                            <Button Classes="chipRemove chipAddAll" Content="+"
+                                                                    ToolTip.Tip="Add to all selected photos"
+                                                                    IsVisible="{Binding !IsOnAll}"
+                                                                    IsEnabled="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).CanEdit}"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).ApplyToAllCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                            <Button Classes="chipRemove" Content="✕"
+                                                                    ToolTip.Tip="Remove from all selected photos"
+                                                                    IsEnabled="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).CanEdit}"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).RemoveKeywordCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </StackPanel>
+                                                    </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <AutoCompleteBox x:Name="BulkTagBox" PlaceholderText="Add a tag to all of them…"
+                                                         IsEnabled="{Binding CanEdit}"
+                                                         Text="{Binding NewKeyword, Mode=TwoWay}"
+                                                         ItemsSource="{Binding KeywordSuggestions}"
+                                                         FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
+                                            <AutoCompleteBox.KeyBindings>
+                                                <KeyBinding Gesture="Enter" Command="{Binding AddKeywordCommand}" />
+                                            </AutoCompleteBox.KeyBindings>
+                                        </AutoCompleteBox>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
+                                        <TextBlock Classes="label" Text="Rating" />
+                                        <ItemsControl ItemsSource="{Binding Stars}" IsEnabled="{Binding CanEdit}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StarViewModel">
+                                                    <Button Classes="star" Content="{Binding Glyph}"
+                                                            Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).SetRatingCommand}"
+                                                            CommandParameter="{Binding Value}" />
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <TextBlock Text="{Binding RatingNote}" FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                                                   IsVisible="{Binding RatingNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    </StackPanel>
+
+                                    <TextBlock Text="Titles and descriptions are edited one photo at a time." FontSize="11"
+                                               Opacity="0.6" TextWrapping="Wrap" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </ContentControl.DataTemplates>
                     </ContentControl>
                 </Panel>
             </ScrollViewer>

@@ -9,12 +9,21 @@ namespace PhotoTag.App.ViewModels;
 /// (<see cref="Realize"/>) and released when it scrolls away (<see cref="Release"/>),
 /// so memory stays flat no matter how many photos are in the folder.
 /// </summary>
-public partial class PhotoItemViewModel(string path, ThumbnailCache thumbnails) : ViewModelBase
+public partial class PhotoItemViewModel(string path, int index, ThumbnailCache thumbnails) : ViewModelBase
 {
     private CancellationTokenSource? _loading;
 
     public string Path { get; } = path;
     public string FileName { get; } = System.IO.Path.GetFileName(path);
+
+    /// <summary>Position in the folder's photo list, for range selection and keyboard moves.</summary>
+    public int Index { get; } = index;
+
+    /// <summary>
+    /// Metadata last read from (or written to) the file this session, so re-selecting photos
+    /// doesn't re-read them. Null when unknown or invalidated by a write.
+    /// </summary>
+    public PhotoMetadata? Metadata { get; set; }
 
     [ObservableProperty]
     public partial Bitmap? Thumbnail { get; private set; }
