@@ -68,7 +68,9 @@ if (archive is null)
 
 var target = Path.Combine(publishDir, "exiftool");
 if (Directory.Exists(target)) Directory.Delete(target, recursive: true);
-var staging = Path.Combine(cache, "extract-" + Guid.NewGuid().ToString("N"));
+// Unpack beside the publish folder, not in the temp folder: Directory.Move can't cross drives, and
+// on GitHub's Windows runners the temp folder (C:) and the workspace (D:) are different drives.
+var staging = Path.Combine(Path.GetDirectoryName(Path.GetFullPath(target))!, ".exiftool-extract-" + Guid.NewGuid().ToString("N"));
 
 if (isWindows)
 {
