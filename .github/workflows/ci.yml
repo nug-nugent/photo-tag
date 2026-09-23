@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  # Tests that need ExifTool skip locally when it's missing; in CI they must run.
+  PHOTOTAG_REQUIRE_EXIFTOOL: 1
+
+jobs:
+  build:
+    name: ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest, ubuntu-latest]
+
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Install ExifTool (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libimage-exiftool-perl
+
+      - name: Install ExifTool (macOS)
+        if: runner.os == 'macOS'
+        run: brew install exiftool
+
+      - name: Install ExifTool (Windows)
+        if: runner.os == 'Windows'
+        run: choco install exiftool --no-progress -y
+
+      - name: ExifTool version
+        run: exiftool -ver
+
+      - name: Restore
+        run: dotnet restore PhotoTag.slnx
+
+      - name: Build
+        run: dotnet build PhotoTag.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --project tests/PhotoTag.Core.Tests --configuration Release --no-build
