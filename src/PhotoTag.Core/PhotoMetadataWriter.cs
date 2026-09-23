@@ -19,16 +19,25 @@ public sealed record MetadataChanges
 /// <summary>
 /// Writes tags and captions into photo files via ExifTool. Values are written to XMP (read by
 /// Lightroom, digiKam, Windows, macOS…), and for JPEGs also to IPTC for older software, so the
-/// two never disagree. Pixel data is never touched, and file modified times are preserved.
+/// two never disagree. Pixel data is never touched.
 /// </summary>
 public sealed class PhotoMetadataWriter(ExifTool exifTool)
 {
+    /// <summary>
+    /// Keep each file's "date modified" when saving tags. Off by default: backup and sync tools
+    /// usually spot changes by size and modified time, and many tag edits (a rating from 3 to 4,
+    /// one tag swapped for another of the same length) don't change the size, so with this on
+    /// those edits would never reach the backup.
+    /// </summary>
+    public bool PreserveModifiedTime { get; set; }
+
     public async Task WriteAsync(string path, MetadataChanges changes, CancellationToken cancellationToken = default)
     {
         if (changes.IsEmpty) return;
         if (!File.Exists(path)) throw new FileNotFoundException("Photo not found.", path);
 
-        var output = await exifTool.ExecuteAsync(BuildArguments(path, changes), cancellationToken).ConfigureAwait(false);
+        var output = await exifTool.ExecuteAsync(BuildArguments(path, changes, PreserveModifiedTime), cancellationToken)
+            .ConfigureAwait(false);
         if (!output.Contains("1 image files updated", StringComparison.Ordinal)
             && !output.Contains("1 image files unchanged", StringComparison.Ordinal))
         {
@@ -43,7 +52,7 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-    internal static List<string> BuildArguments(string path, MetadataChanges changes)
+    internal static List<string> BuildArguments(string path, MetadataChanges changes, bool preserveModifiedTime = false)
     {
         var isJpeg = Path.GetExtension(path).ToLowerInvariant() is ".jpg" or ".jpeg";
 
@@ -52,9 +61,9 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             "-charset", "filename=utf8", // file names are passed as UTF-8
             "-E",                         // values are HTML-escaped, so they can contain newlines
             "-m",                         // don't refuse to write because of minor quirks in existing metadata
-            "-P",                         // keep the file's modified time
             "-overwrite_original_in_place", // no *_original backups; keeps created time and attributes
         ];
+        if (preserveModifiedTime) args.Add("-P");
 
         if (changes.Keywords is { } keywords)
         {

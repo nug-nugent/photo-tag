@@ -17,6 +17,9 @@ public sealed class AppSettings
 
     public string? LastFolder { get; set; }
 
+    /// <summary>Keep photos' "date modified" when saving tags. See PhotoMetadataWriter.PreserveModifiedTime.</summary>
+    public bool PreserveModifiedTime { get; set; }
+
     public static AppSettings Load(string? filePath = null)
     {
         filePath ??= DefaultFilePath;
