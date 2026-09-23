@@ -21,23 +21,48 @@ if (args.Length != 2)
 var (rid, publishDir) = (args[0], args[1]);
 var config = JsonDocument.Parse(File.ReadAllText(Path.Combine("build", "exiftool.json"))).RootElement;
 var isWindows = rid.StartsWith("win-", StringComparison.Ordinal);
-var package = config.GetProperty(isWindows ? "windows" : "perl");
-var file = package.GetProperty("file").GetString()!;
-var expected = package.GetProperty("sha256").GetString()!;
-var url = config.GetProperty("mirror").GetString()!.Replace("{file}", file);
+var sources = config.GetProperty(isWindows ? "windows" : "perl").GetProperty("sources").EnumerateArray()
+    .Select(s => (Url: s.GetProperty("url").GetString()!, Sha256: s.GetProperty("sha256").GetString()!))
+    .ToList();
 
 var cache = Path.Combine(Path.GetTempPath(), "phototag-exiftool");
 Directory.CreateDirectory(cache);
-var archive = Path.Combine(cache, file);
-if (!File.Exists(archive) || Sha256(archive) != expected)
+
+// Try each source in turn (with a retry each) until one gives a file matching its checksum.
+string? archive = null;
+using (var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) })
 {
-    Console.WriteLine($"Downloading {url}");
-    using var http = new HttpClient { Timeout = TimeSpan.FromMinutes(5) };
-    File.WriteAllBytes(archive, await http.GetByteArrayAsync(url));
+    http.DefaultRequestHeaders.UserAgent.ParseAdd("PhotoTag-build/1.0 (+https://github.com/nug-nugent/photo-tag)");
+    foreach (var (url, expected) in sources)
+    {
+        var candidate = Path.Combine(cache, expected + Path.GetExtension(new Uri(url).AbsolutePath));
+        if (File.Exists(candidate) && Sha256(candidate) == expected)
+        {
+            Console.WriteLine($"Using cached {url}");
+            archive = candidate;
+            break;
+        }
+
+        for (var attempt = 1; attempt <= 2 && archive is null; attempt++)
+        {
+            try
+            {
+                Console.WriteLine($"Downloading {url}");
+                File.WriteAllBytes(candidate, await http.GetByteArrayAsync(url));
+                if (Sha256(candidate) == expected) archive = candidate;
+                else Console.WriteLine("  checksum mismatch; ignoring this copy");
+            }
+            catch (Exception e) when (e is HttpRequestException or TaskCanceledException)
+            {
+                Console.WriteLine($"  failed: {e.Message}");
+            }
+        }
+        if (archive is not null) break;
+    }
 }
-if (Sha256(archive) != expected)
+if (archive is null)
 {
-    Console.Error.WriteLine($"{file}: checksum mismatch; refusing to bundle it.");
+    Console.Error.WriteLine("Couldn't get a copy of ExifTool matching the pinned checksums from any source.");
     return 1;
 }
 

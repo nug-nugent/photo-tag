@@ -1,13 +1,17 @@
 {
-  "comment": "The ExifTool bundled with releases. To update: change the version and both checksums (from https://exiftool.org/checksums.txt).",
+  "comment": "The ExifTool bundled with releases. Sources are tried in order; each must match its SHA-256. SourceForge checksums are published at https://exiftool.org/checksums.txt. SourceForge's web pages block GitHub's build servers, so its file servers are used directly; the GitHub tag archive (Perl version only) is a fallback with its own checksum.",
   "version": "13.59",
   "windows": {
-    "file": "exiftool-13.59_64.zip",
-    "sha256": "44b512b25af500724ba579d0a53c8fc5851628b692dd5e5d94ae4a15c2cba9ec"
+    "sources": [
+      { "url": "https://downloads.sourceforge.net/project/exiftool/exiftool-13.59_64.zip", "sha256": "44b512b25af500724ba579d0a53c8fc5851628b692dd5e5d94ae4a15c2cba9ec" },
+      { "url": "https://master.dl.sourceforge.net/project/exiftool/exiftool-13.59_64.zip", "sha256": "44b512b25af500724ba579d0a53c8fc5851628b692dd5e5d94ae4a15c2cba9ec" }
+    ]
   },
   "perl": {
-    "file": "Image-ExifTool-13.59.tar.gz",
-    "sha256": "668ea3acececb7235fbd0f4900e72d5f12c9b07e5c778fd36cb1e9b5828fd65a"
-  },
-  "mirror": "https://sourceforge.net/projects/exiftool/files/{file}/download"
+    "sources": [
+      { "url": "https://downloads.sourceforge.net/project/exiftool/Image-ExifTool-13.59.tar.gz", "sha256": "668ea3acececb7235fbd0f4900e72d5f12c9b07e5c778fd36cb1e9b5828fd65a" },
+      { "url": "https://master.dl.sourceforge.net/project/exiftool/Image-ExifTool-13.59.tar.gz", "sha256": "668ea3acececb7235fbd0f4900e72d5f12c9b07e5c778fd36cb1e9b5828fd65a" },
+      { "url": "https://github.com/exiftool/exiftool/archive/refs/tags/13.59.tar.gz", "sha256": "87d3317882fdae9cb4dcfe57a96a378d0132ffc02c731315bf128b19ddcf7aac" }
+    ]
+  }
 }
