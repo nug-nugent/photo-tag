@@ -82,6 +82,21 @@
                                   IsChecked="{Binding ShowUntagged, Mode=TwoWay}" />
                     <Button x:Name="ClearSearchButton" Content="✕" ToolTip.Tip="Clear search (Esc)"
                             IsVisible="{Binding IsSearching}" Command="{Binding ClearSearchCommand}" />
+                    <Button x:Name="SettingsButton" Content="⚙" ToolTip.Tip="Settings">
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight">
+                                <StackPanel Width="340" Spacing="6">
+                                    <TextBlock Text="Saving tags" FontWeight="SemiBold" />
+                                    <CheckBox x:Name="PreserveModifiedTimeBox" IsEnabled="{Binding CanEditTags}"
+                                              IsChecked="{Binding PreserveModifiedTime, Mode=TwoWay}">
+                                        <TextBlock TextWrapping="Wrap" Text="Keep each photo's “date modified” when saving tags" />
+                                    </CheckBox>
+                                    <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                                               Text="Leave this off if you back up your photos. Many backup and sync tools only copy files whose date modified has changed, so with it on, some edits (a new rating, say) would never be backed up." />
+                                </StackPanel>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <Button Content="Open folder…" Click="OpenFolder_Click" />

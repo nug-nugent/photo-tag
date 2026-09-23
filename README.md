@@ -19,7 +19,13 @@ Early days. Today it can:
   every subfolder or list the untagged photos, and tag suggestions cover your whole library
 
 Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs, also as IPTC for older
-software. Pixels are never re-encoded, and each file's modified time is preserved.
+software. Pixels are never re-encoded.
+
+Because tags live inside the photo files, **backing up the files backs up the tags**. Saving tags updates each
+file's "date modified" so backup and sync tools notice the change: many edits (a new rating, one tag swapped for
+another of the same length) leave the file size unchanged, so without the date change some tools would skip them.
+If you'd rather keep the original dates, turn on *Keep each photo's "date modified"* under ⚙ Settings, but check
+first that your backup tool compares file contents or checksums, not just dates and sizes.
 
 ## Running
 

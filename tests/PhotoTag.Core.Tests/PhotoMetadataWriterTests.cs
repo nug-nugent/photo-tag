@@ -102,24 +102,54 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
     }
 
     [Fact]
-    public async Task PreservesPixels_ExistingExif_AndModifiedTime()
+    public async Task PreservesPixels_AndExistingExif()
     {
         var writer = fixture.RequireWriter();
         var exif = new TestImages.Exif { Make = "Canon", Model = "Canon EOS R6", DateTimeOriginal = "2021:05:01 12:00:00", Orientation = 6 };
         var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(300, 200, exif));
-        var modified = new DateTime(2021, 5, 1, 12, 0, 0, DateTimeKind.Utc);
-        File.SetLastWriteTimeUtc(path, modified);
         using var before = SKBitmap.Decode(path);
 
         await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Tagged"] }, Ct);
 
         using var after = SKBitmap.Decode(path);
         Assert.Equal(before.Bytes, after.Bytes);
-        Assert.Equal(modified, File.GetLastWriteTimeUtc(path));
         var metadata = PhotoMetadata.Read(path);
         Assert.Equal("Canon EOS R6", metadata.CameraModel);
         Assert.Equal(new DateTime(2021, 5, 1, 12, 0, 0), metadata.DateTaken);
         Assert.Empty(Directory.GetFiles(_dir.Path, "*_original"));
+    }
+
+    [Fact]
+    public async Task ByDefault_EvenSameSizeEdits_UpdateModifiedTime_SoBackupsNotice()
+    {
+        var writer = fixture.RequireWriter();
+        var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(64, 64));
+        await writer.WriteAsync(path, new MetadataChanges { Rating = 3 }, Ct);
+        var old = new DateTime(2021, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(path, old);
+        var size = new FileInfo(path).Length;
+
+        await writer.WriteAsync(path, new MetadataChanges { Rating = 4 }, Ct);
+
+        // The case backup tools miss if the date is kept: same size, so only the date shows the change.
+        Assert.Equal(size, new FileInfo(path).Length);
+        Assert.True(File.GetLastWriteTimeUtc(path) > old.AddYears(1), "modified time should have moved to now");
+        Assert.Equal(4, PhotoMetadata.Read(path).Rating);
+    }
+
+    [Fact]
+    public async Task PreserveModifiedTime_KeepsTheOriginalDate()
+    {
+        var writer = fixture.RequireWriter();
+        writer.PreserveModifiedTime = true;
+        var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(64, 64));
+        var old = new DateTime(2021, 5, 1, 12, 0, 0, DateTimeKind.Utc);
+        File.SetLastWriteTimeUtc(path, old);
+
+        await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Tagged"], Rating = 2 }, Ct);
+
+        Assert.Equal(old, File.GetLastWriteTimeUtc(path));
+        Assert.Equal(["Tagged"], PhotoMetadata.Read(path).Keywords);
     }
 
     [Fact]
@@ -188,6 +218,8 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
         var jpg = PhotoMetadataWriter.BuildArguments("a.JPG", new MetadataChanges { Keywords = [] });
         Assert.Contains("-IPTC:Keywords=", jpg);
         Assert.Contains("-XMP-dc:Subject=", jpg);
+        Assert.DoesNotContain("-P", jpg);
+        Assert.Contains("-P", PhotoMetadataWriter.BuildArguments("a.jpg", new MetadataChanges { Rating = 1 }, preserveModifiedTime: true));
     }
 
     [Fact]

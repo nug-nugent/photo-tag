@@ -36,6 +36,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _thumbnails = thumbnails;
         _settings = settings;
         _writer = writer;
+        if (writer is not null) writer.PreserveModifiedTime = settings.PreserveModifiedTime;
         Library = new LibraryViewModel(index, _keywordSuggestions);
         Library.CountsChanged += (_, _) => _ = RefreshFolderCountsAsync();
         Operations = new BulkOperations(writer, _keywordSuggestions);
@@ -97,6 +98,24 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _settings.LastFolder = path;
         _settings.Save();
     }
+
+    // --- Settings ------------------------------------------------------------------------
+
+    /// <summary>Whether saving tags keeps each photo's "date modified". Saved in settings.json.</summary>
+    public bool PreserveModifiedTime
+    {
+        get => _settings.PreserveModifiedTime;
+        set
+        {
+            if (value == _settings.PreserveModifiedTime) return;
+            _settings.PreserveModifiedTime = value;
+            if (_writer is not null) _writer.PreserveModifiedTime = value;
+            _settings.Save();
+            OnPropertyChanged();
+        }
+    }
+
+    public bool CanEditTags => _writer is not null;
 
     private async Task RefreshFolderCountsAsync()
     {

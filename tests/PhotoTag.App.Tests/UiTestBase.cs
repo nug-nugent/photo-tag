@@ -21,6 +21,8 @@ public abstract class UiTestBase : IAsyncDisposable
 
     protected string DirPath => _dir.Path;
 
+    protected string SettingsPath => Path.Combine(_appData.Path, "settings.json");
+
     /// <summary>Ctrl, or ⌘ where the platform uses it, as a raw input modifier.</summary>
     protected static RawInputModifiers CommandKey =>
         Application.Current?.PlatformSettings?.HotkeyConfiguration.CommandModifiers == KeyModifiers.Meta
@@ -48,7 +50,7 @@ public abstract class UiTestBase : IAsyncDisposable
 
     protected async Task<(MainWindow Window, MainWindowViewModel Vm)> OpenAsync(PhotoMetadataWriter? writer)
     {
-        var settings = AppSettings.Load(Path.Combine(_appData.Path, "settings.json"));
+        var settings = AppSettings.Load(SettingsPath);
         var thumbnails = new ThumbnailCache(Path.Combine(_appData.Path, "thumbnails"));
         var index = new LibraryIndex(Path.Combine(_appData.Path, $"library{_opened.Count}.db"));
         var vm = new MainWindowViewModel(thumbnails, settings, writer, index);
