@@ -15,13 +15,21 @@ Early days. Today it can:
 - Edit tags, title, description and rating. Changes are written straight into the photo file.
 - Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and add, remove or rate them all at once,
   with progress and Cancel in the status bar
+- Show and tag camera RAW files (Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2,
+  Pentax PEF, DNG…). RAW+JPEG pairs appear as one photo.
 - Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search by tag across
   every subfolder or list the untagged photos, and tag suggestions cover your whole library
 
 Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs, also as IPTC for older
 software. Pixels are never re-encoded.
 
-Because tags live inside the photo files, **backing up the files backs up the tags**. Saving tags updates each
+**Camera RAW files are never modified.** Their tags go in an `.xmp` sidecar beside them (`IMG_0001.CR2` →
+`IMG_0001.xmp`), as Lightroom and Capture One do; darktable-style `IMG_0001.CR2.xmp` sidecars are read too. When a
+RAW+JPEG pair is tagged, the JPEG gets the tags inside it and the RAW gets them in its sidecar. RAW previews are the
+full-colour JPEG the camera embeds in every RAW file, so they look like the camera's own JPEG rather than an edited
+conversion; showing them needs ExifTool.
+
+Because tags live inside the photo files (or their sidecars), **backing up the files backs up the tags**. Saving tags updates each
 file's "date modified" so backup and sync tools notice the change: many edits (a new rating, one tag swapped for
 another of the same length) leave the file size unchanged, so without the date change some tools would skip them.
 If you'd rather keep the original dates, turn on *Keep each photo's "date modified"* under ⚙ Settings, but check
@@ -46,6 +54,8 @@ dotnet test --solution PhotoTag.slnx
 ```
 
 Tests that need ExifTool skip when it isn't installed. CI sets `PHOTOTAG_REQUIRE_EXIFTOOL=1`, so there they fail instead.
+RAW tests use public-domain (CC0) sample files from seven cameras, courtesy of [raw.pixls.us](https://raw.pixls.us). They're
+listed with checksums in `tests/samples/raw-samples.json` and downloaded (about 60 MB) into `tests/.samples/` on first use.
 To use a specific ExifTool, set `PHOTOTAG_EXIFTOOL` to its full path.
 
 ## How it's put together
@@ -73,5 +83,4 @@ To use a specific ExifTool, set `PHOTOTAG_EXIFTOOL` to its full path.
 
 ## Roadmap
 
-1. **More formats**: HEIC and camera RAW, probably via embedded previews.
-2. **Packaging** for Windows, macOS and Linux, with ExifTool bundled.
+1. **Packaging** for Windows, macOS and Linux, with ExifTool bundled.

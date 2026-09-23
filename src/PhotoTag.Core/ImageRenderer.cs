@@ -17,15 +17,35 @@ public static class ImageRenderer
     /// </summary>
     public static byte[] Render(string path, int maxSize, int jpegQuality = 85)
     {
+        using var stream = File.OpenRead(path);
+        return Render(stream, maxSize, jpegQuality, fallbackOrigin: null, description: path);
+    }
+
+    /// <summary>
+    /// Renders encoded image bytes, e.g. a JPEG preview extracted from a RAW file.
+    /// <paramref name="fallbackOrigin"/> is used when the image carries no orientation of its own
+    /// (embedded previews usually don't; the RAW's orientation applies to them).
+    /// </summary>
+    public static byte[] Render(byte[] encoded, int maxSize, SKEncodedOrigin? fallbackOrigin = null, int jpegQuality = 85)
+    {
+        using var stream = new MemoryStream(encoded, writable: false);
+        return Render(stream, maxSize, jpegQuality, fallbackOrigin, description: "embedded preview");
+    }
+
+    private static byte[] Render(Stream stream, int maxSize, int jpegQuality, SKEncodedOrigin? fallbackOrigin, string description)
+    {
         ArgumentOutOfRangeException.ThrowIfLessThan(maxSize, 1);
 
-        using var stream = File.OpenRead(path);
         using var codec = SKCodec.Create(stream)
-            ?? throw new InvalidDataException($"Unsupported or corrupt image: {path}");
+            ?? throw new InvalidDataException($"Unsupported or corrupt image: {description}");
+
+        var origin = codec.EncodedOrigin == SKEncodedOrigin.TopLeft && fallbackOrigin is { } fallback
+            ? fallback
+            : codec.EncodedOrigin;
 
         using var decoded = Decode(codec, maxSize);
         using var resized = FitWithin(decoded, maxSize);
-        using var oriented = ApplyOrientation(resized, codec.EncodedOrigin);
+        using var oriented = ApplyOrientation(resized, origin);
 
         var hasAlpha = codec.Info.AlphaType != SKAlphaType.Opaque;
         using var data = oriented.Encode(

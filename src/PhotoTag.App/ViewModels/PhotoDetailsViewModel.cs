@@ -19,6 +19,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private readonly PhotoMetadataWriter? _writer;
     private readonly KeywordSuggestions _suggestions;
     private readonly BulkOperations _operations;
+    private readonly PhotoRenderer _renderer;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private int _pendingSaves;
     private Task _lastSave = Task.CompletedTask;
@@ -28,9 +29,10 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private long _fileSize;
 
     public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions,
-        BulkOperations operations)
+        BulkOperations operations, PhotoRenderer renderer)
     {
         Photo = photo;
+        _renderer = renderer;
         _writer = writer;
         _suggestions = suggestions;
         _operations = operations;
@@ -43,6 +45,18 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     public string FileName => Photo.FileName;
     public string? Folder => System.IO.Path.GetDirectoryName(Photo.Path);
     public bool ExifToolMissing => _writer is null;
+
+    /// <summary>Where tags are saved, for RAW files and RAW+JPEG pairs; null for ordinary images.</summary>
+    public string? FilesNote => Photo.File switch
+    {
+        { Companions: [var raw] } => $"Shot as RAW+JPEG. Tags are saved in this JPEG and in {SidecarName(raw)} beside {System.IO.Path.GetFileName(raw)}.",
+        { Companions.Count: > 1 } => $"Shot with {Photo.File.Companions.Count} RAW files. Tags are saved in this JPEG and in each RAW's .xmp sidecar.",
+        var f when PhotoFiles.IsRaw(f.Path) => $"RAW file. Tags are saved in {SidecarName(f.Path)} beside it; the RAW itself is never changed.",
+        _ => null,
+    };
+
+    private static string SidecarName(string raw) =>
+        System.IO.Path.GetFileName(PhotoFiles.FindSidecar(raw) ?? PhotoFiles.NewSidecarPath(raw));
     public ObservableCollection<string> KeywordSuggestions => _suggestions.Items;
 
     [ObservableProperty] public partial Bitmap? Preview { get; private set; }
@@ -89,7 +103,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
         // Start both at once; metadata is usually ready well before the preview.
         var metadataTask = Task.Run(() => (Metadata: PhotoMetadata.Read(path), Size: new FileInfo(path).Length), token);
-        var previewTask = Task.Run(() => new Bitmap(new MemoryStream(ImageRenderer.Render(path, PreviewSize))), token);
+        var previewTask = Task.Run(async () => new Bitmap(new MemoryStream(await _renderer.RenderAsync(path, PreviewSize, token))), token);
 
         try
         {
@@ -187,7 +201,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         await _saveGate.WaitAsync();
         try
         {
-            await writer.WriteAsync(Photo.Path, changes);
+            await writer.WriteAsync(Photo.File, changes); // a RAW+JPEG pair gets both
             Photo.Metadata = null; // re-read next time it's needed
             Saved?.Invoke(this, EventArgs.Empty);
             if (changes.Title is { } title) _savedTitle = title;

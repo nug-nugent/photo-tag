@@ -9,12 +9,17 @@ namespace PhotoTag.App.ViewModels;
 /// (<see cref="Realize"/>) and released when it scrolls away (<see cref="Release"/>),
 /// so memory stays flat no matter how many photos are in the folder.
 /// </summary>
-public partial class PhotoItemViewModel(string path, int index, ThumbnailCache thumbnails) : ViewModelBase
+public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCache thumbnails) : ViewModelBase
 {
     private CancellationTokenSource? _loading;
 
-    public string Path { get; } = path;
-    public string FileName { get; } = System.IO.Path.GetFileName(path);
+    /// <summary>The photo's files: one, or a RAW+JPEG pair (shown and indexed as the JPEG).</summary>
+    public PhotoFile File { get; } = file;
+    public string Path => File.Path;
+    public string FileName { get; } = System.IO.Path.GetFileName(file.Path);
+
+    /// <summary>"RAW", "RAW+JPEG", or null for an ordinary image.</summary>
+    public string? Badge { get; } = file.Companions.Count > 0 ? "RAW+JPEG" : PhotoFiles.IsRaw(file.Path) ? "RAW" : null;
 
     /// <summary>Position in the folder's photo list, for range selection and keyboard moves.</summary>
     public int Index { get; } = index;
@@ -34,6 +39,9 @@ public partial class PhotoItemViewModel(string path, int index, ThumbnailCache t
     [ObservableProperty]
     public partial bool LoadFailed { get; private set; }
 
+    [ObservableProperty]
+    public partial string? LoadFailedText { get; private set; }
+
     /// <summary>Called on the UI thread when the tile becomes visible.</summary>
     public async void Realize()
     {
@@ -51,8 +59,14 @@ public partial class PhotoItemViewModel(string path, int index, ThumbnailCache t
         catch (OperationCanceledException)
         {
         }
+        catch (PreviewUnavailableException e)
+        {
+            LoadFailedText = e.Message;
+            LoadFailed = true;
+        }
         catch (Exception)
         {
+            LoadFailedText = "Can't read this file";
             LoadFailed = true;
         }
         finally

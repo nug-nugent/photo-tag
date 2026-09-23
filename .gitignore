@@ -17,3 +17,6 @@ Thumbs.db
 # Test results
 TestResults/
 *.trx
+
+# Downloaded test samples (see tests/samples/raw-samples.json)
+tests/.samples/

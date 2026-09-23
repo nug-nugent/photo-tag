@@ -54,7 +54,7 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     }
 
     private async Task RunAsync(IReadOnlyList<PhotoItemViewModel> photos, string verb,
-        Func<BulkMetadataEditor, IReadOnlyList<string>, IProgress<BulkProgress>, CancellationToken, Task<BulkResult>> operation)
+        Func<BulkMetadataEditor, IReadOnlyList<PhotoFile>, IProgress<BulkProgress>, CancellationToken, Task<BulkResult>> operation)
     {
         if (_editor is null || IsBusy || photos.Count == 0) return;
 
@@ -73,7 +73,7 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
 
         try
         {
-            var result = await operation(_editor, photos.Select(p => p.Path).ToList(), progress, cts.Token);
+            var result = await operation(_editor, photos.Select(p => p.File).ToList(), progress, cts.Token);
 
             foreach (var photo in photos)
                 if (result.After.TryGetValue(photo.Path, out var metadata)) photo.Metadata = metadata;

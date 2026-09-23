@@ -17,6 +17,8 @@
   <ItemGroup>
     <!-- Shared JPEG/EXIF builder from the core tests. -->
     <Compile Include="..\PhotoTag.Core.Tests\TestImages.cs" Link="TestImages.cs" />
+    <Compile Include="..\PhotoTag.Core.Tests\RawSamples.cs" Link="RawSamples.cs" />
+    <None Include="..\samples\raw-samples.json" Link="raw-samples.json" CopyToOutputDirectory="PreserveNewest" />
     <Using Include="Xunit" />
   </ItemGroup>
 </Project>

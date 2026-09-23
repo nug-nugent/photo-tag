@@ -30,44 +30,86 @@ public sealed record PhotoMetadata
     /// <summary>Keywords/tags, merged from IPTC Keywords and XMP dc:subject.</summary>
     public IReadOnlyList<string> Keywords { get; init; } = [];
 
-    /// <summary>Make and model, without repeating the make when the model already includes it.</summary>
-    public string? Camera => (CameraMake, CameraModel) switch
+    /// <summary>
+    /// Brand and model, e.g. "Canon EOS R6" or "NIKON Z5_2". Uses the first word of the make, so
+    /// "NIKON CORPORATION" + "NIKON Z5_2" doesn't repeat itself and "RICOH IMAGING COMPANY, LTD."
+    /// becomes "RICOH".
+    /// </summary>
+    public string? Camera
     {
-        (null, null) => null,
-        (null, var model) => model,
-        (var make, null) => make,
-        var (make, model) when model.StartsWith(make, StringComparison.OrdinalIgnoreCase) => model,
-        var (make, model) => $"{make} {model}",
-    };
+        get
+        {
+            var brand = CameraMake?.Split(' ', ',')[0];
+            return (brand, CameraModel) switch
+            {
+                (null, null) => null,
+                (null, var model) => model,
+                (_, null) => CameraMake,
+                var (b, model) when model.StartsWith(b, StringComparison.OrdinalIgnoreCase) => model,
+                var (b, model) => $"{b} {model}",
+            };
+        }
+    }
 
+    /// <summary>
+    /// Reads a photo's metadata. For a RAW file with an .xmp sidecar, the sidecar's tags, title,
+    /// description and rating replace whatever is embedded in the RAW: the sidecar is where
+    /// PhotoTag, Lightroom and similar apps save edits.
+    /// </summary>
     public static PhotoMetadata Read(string path)
+    {
+        var metadata = ReadEmbedded(path);
+        if (PhotoFiles.IsRaw(path) && PhotoFiles.FindSidecar(path) is { } sidecar)
+        {
+            var xmp = new XmpReader().Extract(File.ReadAllBytes(sidecar)).GetXmpProperties();
+            metadata = metadata with
+            {
+                Keywords = ReadKeywords(null, xmp),
+                Title = Clean(Xmp(xmp, "dc:title[1]")),
+                Description = Clean(Xmp(xmp, "dc:description[1]")),
+                Rating = int.TryParse(Xmp(xmp, "xmp:Rating"), out var rating) && rating > 0 ? rating : null,
+            };
+        }
+        return metadata;
+    }
+
+    /// <summary>Metadata stored inside the file itself, ignoring any sidecar.</summary>
+    public static PhotoMetadata ReadEmbedded(string path)
     {
         var directories = ImageMetadataReader.ReadMetadata(path);
 
         var ifd0 = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
-        var subIfd = directories.OfType<ExifSubIfdDirectory>().FirstOrDefault();
+        // RAW files have several sub-IFDs (the raw data, previews, the real EXIF block and so on);
+        // take each value from the first one that has it.
+        var subIfds = directories.OfType<ExifSubIfdDirectory>().ToList();
         var gps = directories.OfType<GpsDirectory>().FirstOrDefault();
         var iptc = directories.OfType<IptcDirectory>().FirstOrDefault();
         var xmp = directories.OfType<XmpDirectory>().FirstOrDefault()?.GetXmpProperties()
                   ?? new Dictionary<string, string>();
 
-        var (width, height) = ReadDimensions(directories, subIfd);
+        string? SubIfdString(int tag) => subIfds.Select(d => Clean(d.GetString(tag))).FirstOrDefault(v => v is not null);
+        string? SubIfdDescription(int tag) => subIfds.Select(d => Clean(d.GetDescription(tag))).FirstOrDefault(v => v is not null);
+        DateTime? SubIfdDate(int tag) => subIfds.Select(d => ReadDate(d, tag)).FirstOrDefault(v => v is not null);
+        int? SubIfdInt(int tag) => subIfds.Select(d => d.TryGetInt32(tag, out var v) ? v : (int?)null).FirstOrDefault(v => v is not null);
+
+        var (width, height) = ReadDimensions(path, directories, subIfds, PhotoFiles.IsRaw(path));
         var location = gps?.GetGeoLocation();
 
         return new PhotoMetadata
         {
             Width = width,
             Height = height,
-            DateTaken = ReadDate(subIfd, ExifDirectoryBase.TagDateTimeOriginal)
-                        ?? ReadDate(subIfd, ExifDirectoryBase.TagDateTimeDigitized)
+            DateTaken = SubIfdDate(ExifDirectoryBase.TagDateTimeOriginal)
+                        ?? SubIfdDate(ExifDirectoryBase.TagDateTimeDigitized)
                         ?? ReadDate(ifd0, ExifDirectoryBase.TagDateTime),
             CameraMake = Clean(ifd0?.GetString(ExifDirectoryBase.TagMake)),
             CameraModel = Clean(ifd0?.GetString(ExifDirectoryBase.TagModel)),
-            LensModel = Clean(subIfd?.GetString(ExifDirectoryBase.TagLensModel)),
-            ExposureTime = Clean(subIfd?.GetDescription(ExifDirectoryBase.TagExposureTime)),
-            FNumber = Clean(subIfd?.GetDescription(ExifDirectoryBase.TagFNumber)),
-            Iso = subIfd is not null && subIfd.TryGetInt32(ExifDirectoryBase.TagIsoEquivalent, out var iso) ? iso : null,
-            FocalLength = Clean(subIfd?.GetDescription(ExifDirectoryBase.TagFocalLength)),
+            // Cameras record "----" and f/0 when a manual or adapted lens reports nothing.
+            LensModel = SubIfdString(ExifDirectoryBase.TagLensModel) is { } lens && lens.Trim('-', ' ').Length > 0 ? lens : null,
+            ExposureTime = SubIfdDescription(ExifDirectoryBase.TagExposureTime),
+            FNumber = SubIfdDescription(ExifDirectoryBase.TagFNumber) is { } f && f != "f/0.0" ? f : null,
+            Iso = SubIfdInt(ExifDirectoryBase.TagIsoEquivalent),
+            FocalLength = SubIfdDescription(ExifDirectoryBase.TagFocalLength),
             Title = Clean(Xmp(xmp, "dc:title[1]") ?? iptc?.GetString(IptcDirectory.TagObjectName)),
             Description = Clean(Xmp(xmp, "dc:description[1]")
                                 ?? iptc?.GetString(IptcDirectory.TagCaption)
@@ -79,8 +121,24 @@ public sealed record PhotoMetadata
         };
     }
 
-    private static (int?, int?) ReadDimensions(IReadOnlyList<MetadataExtractor.Directory> directories, ExifSubIfdDirectory? subIfd)
+    private static (int?, int?) ReadDimensions(string path, IReadOnlyList<MetadataExtractor.Directory> directories,
+        IReadOnlyList<ExifSubIfdDirectory> subIfds, bool isRaw)
     {
+        // A RAW's JPEG directory describes its embedded preview, not the photo: use the EXIF size,
+        // else the largest image the TIFF structure describes.
+        if (isRaw)
+        {
+            if (FujifilmRaf.TryReadSize(path) is { } rafSize) return rafSize;
+            foreach (var d in subIfds)
+                if (d.TryGetInt32(ExifDirectoryBase.TagExifImageWidth, out var w) && d.TryGetInt32(ExifDirectoryBase.TagExifImageHeight, out var h))
+                    return (w, h);
+            var largest = directories.OfType<ExifDirectoryBase>()
+                .Select(d => d.TryGetInt32(ExifDirectoryBase.TagImageWidth, out var w) && d.TryGetInt32(ExifDirectoryBase.TagImageHeight, out var h) ? (W: w, H: h) : (W: 0, H: 0))
+                .DefaultIfEmpty()
+                .MaxBy(size => (long)size.W * size.H);
+            if (largest.W > 0) return (largest.W, largest.H);
+        }
+
         if (directories.OfType<JpegDirectory>().FirstOrDefault() is { } jpeg)
             return (jpeg.GetImageWidth(), jpeg.GetImageHeight());
         if (directories.OfType<PngDirectory>().FirstOrDefault() is { } png
@@ -89,9 +147,9 @@ public sealed record PhotoMetadata
         if (directories.OfType<WebPDirectory>().FirstOrDefault() is { } webp
             && webp.TryGetInt32(WebPDirectory.TagImageWidth, out var ww) && webp.TryGetInt32(WebPDirectory.TagImageHeight, out var wh))
             return (ww, wh);
-        if (subIfd is not null
-            && subIfd.TryGetInt32(ExifDirectoryBase.TagExifImageWidth, out var ew) && subIfd.TryGetInt32(ExifDirectoryBase.TagExifImageHeight, out var eh))
-            return (ew, eh);
+        foreach (var d in subIfds)
+            if (d.TryGetInt32(ExifDirectoryBase.TagExifImageWidth, out var ew) && d.TryGetInt32(ExifDirectoryBase.TagExifImageHeight, out var eh))
+                return (ew, eh);
         return (null, null);
     }
 
@@ -122,4 +180,46 @@ public sealed record PhotoMetadata
         var trimmed = value?.Trim().TrimEnd('\0').Trim();
         return string.IsNullOrEmpty(trimmed) ? null : trimmed;
     }
+}
+
+/// <summary>
+/// Fujifilm RAF files wrap an embedded JPEG whose EXIF gives the preview's size, not the
+/// photo's; the real size is in RAF's own header, which MetadataExtractor doesn't read.
+/// </summary>
+internal static class FujifilmRaf
+{
+    private const ushort RawImageCroppedSize = 0x111;
+
+    public static (int?, int?)? TryReadSize(string path)
+    {
+        if (!path.EndsWith(".raf", StringComparison.OrdinalIgnoreCase)) return null;
+        try
+        {
+            using var file = File.OpenRead(path);
+            using var reader = new BinaryReader(file);
+            if (!"FUJIFILMCCD-RAW"u8.SequenceEqual(reader.ReadBytes(15))) return null;
+
+            file.Position = 0x5C; // offset of the header directory
+            file.Position = ReadUInt32BigEndian(reader);
+            var count = ReadUInt32BigEndian(reader);
+            for (var i = 0; i < count && i < 1000; i++)
+            {
+                var tag = ReadUInt16BigEndian(reader);
+                var size = ReadUInt16BigEndian(reader);
+                if (tag == RawImageCroppedSize && size == 4)
+                {
+                    int a = ReadUInt16BigEndian(reader), b = ReadUInt16BigEndian(reader);
+                    return (Math.Max(a, b), Math.Min(a, b)); // sensor data is always landscape
+                }
+                file.Position += size;
+            }
+        }
+        catch (Exception e) when (e is IOException or EndOfStreamException or UnauthorizedAccessException)
+        {
+        }
+        return null;
+    }
+
+    private static uint ReadUInt32BigEndian(BinaryReader reader) => System.Buffers.Binary.BinaryPrimitives.ReadUInt32BigEndian(reader.ReadBytes(4));
+    private static ushort ReadUInt16BigEndian(BinaryReader reader) => System.Buffers.Binary.BinaryPrimitives.ReadUInt16BigEndian(reader.ReadBytes(2));
 }

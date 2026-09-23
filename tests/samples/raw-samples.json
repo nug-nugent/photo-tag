@@ -1,0 +1,61 @@
+{
+  "source": "https://raw.pixls.us \u2014 public domain (CC0) camera samples",
+  "samples": [
+    {
+      "file": "Canon-EOS-R6.cr3",
+      "camera": "Canon EOS R6",
+      "url": "https://raw.pixls.us/getfile.php/4659/nice/Canon - EOS R6 - 3:2.CR3",
+      "sha256": "74abb0a113d075ad9887a058082f40dd2a938c4813a08474d82356f11a027778",
+      "megabytes": 5.03,
+      "license": "CC0 1.0 (raw.pixls.us)"
+    },
+    {
+      "file": "Canon-EOS-40D.cr2",
+      "camera": "Canon EOS 40D",
+      "url": "https://raw.pixls.us/getfile.php/2101/nice/Canon - EOS 40D - RAW (3:2).CR2",
+      "sha256": "775c806358fedddec7622113a5e399a3330bd5a65e35e37ae1108d8bf58067be",
+      "megabytes": 10.43,
+      "license": "CC0 1.0 (raw.pixls.us)"
+    },
+    {
+      "file": "Nikon-Z5-2.nef",
+      "camera": "Nikon Z5_2",
+      "url": "https://raw.pixls.us/getfile.php/7737/nice/Nikon - Z5_2 - 8bit compressed (3:2).NEF",
+      "sha256": "196971ea960cfa6f5c0a19cebe515ac118e079c57ceeef850ab3a4995dc7d20f",
+      "megabytes": 5.89,
+      "license": "CC0 1.0 (raw.pixls.us)"
+    },
+    {
+      "file": "Sony-ILCE-7S.arw",
+      "camera": "Sony ILCE-7S",
+      "url": "https://raw.pixls.us/getfile.php/1582/nice/Sony - ILCE-7S - 14bit 14bit compressed (3:2).ARW",
+      "sha256": "a35ebb2fbec929daa5beb20d1ce5c15a8aac7b1a7a231455387f3df8a7442e07",
+      "megabytes": 5.88,
+      "license": "CC0 1.0 (raw.pixls.us)"
+    },
+    {
+      "file": "Fujifilm-X-S10.raf",
+      "camera": "Fujifilm X-S10",
+      "url": "https://raw.pixls.us/getfile.php/4190/nice/Fujifilm - X-S10 - 14bit 14bit compressed (3:2).RAF",
+      "sha256": "9419d1408ebf850395e5dd563beb96309466546252caf541466034c9cb7e9724",
+      "megabytes": 17.81,
+      "license": "CC0 1.0 (raw.pixls.us)"
+    },
+    {
+      "file": "Ricoh-GR.dng",
+      "camera": "Ricoh GR",
+      "url": "https://raw.pixls.us/getfile.php/996/nice/Ricoh - GR - 12bit (4:3).DNG",
+      "sha256": "7ceec1ea31c56b6e0414202504581b915f17818ffe018b4c8bba1393332c405e",
+      "megabytes": 11.57,
+      "license": "CC0 1.0 (raw.pixls.us)"
+    },
+    {
+      "file": "Panasonic-DMC-LX7.rw2",
+      "camera": "Panasonic DMC-LX7",
+      "url": "https://raw.pixls.us/getfile.php/7010/nice/Panasonic - DMC-LX7 - 3:2.RW2",
+      "sha256": "18dfc3877e944020299635a8c2fad61fca2485b1c9b67645a495ee870a86e599",
+      "megabytes": 3.24,
+      "license": "CC0 1.0 (raw.pixls.us)"
+    }
+  ]
+}

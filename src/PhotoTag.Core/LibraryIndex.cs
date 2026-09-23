@@ -59,7 +59,9 @@ public sealed class LibraryIndex : IDisposable
         CancellationToken cancellationToken = default)
     {
         root = NormalizeFolder(root);
-        var files = await Task.Run(() => PhotoFiles.EnumeratePhotosRecursive(root).ToList(), cancellationToken).ConfigureAwait(false);
+        // One entry per photo: a RAW+JPEG pair is indexed once, under its JPEG.
+        var files = await Task.Run(() => PhotoFiles.EnumeratePhotosRecursive(root).Select(p => p.Path).ToList(), cancellationToken)
+            .ConfigureAwait(false);
         var known = await Task.Run(() => LoadFileStamps(root), cancellationToken).ConfigureAwait(false);
 
         var seen = new HashSet<string>(files, PathComparer);
@@ -71,15 +73,14 @@ public sealed class LibraryIndex : IDisposable
             {
                 try
                 {
-                    var info = new FileInfo(path);
-                    var stamp = (info.Length, info.LastWriteTimeUtc.Ticks);
+                    var stamp = PhotoFiles.GetStamp(path); // includes a RAW's sidecar
                     if (known.TryGetValue(path, out var existing) && existing == stamp)
                     {
                         Interlocked.Increment(ref unchanged);
                     }
                     else
                     {
-                        pending.Enqueue((path, ReadOrEmpty(path), stamp.Length, stamp.Ticks));
+                        pending.Enqueue((path, ReadOrEmpty(path), stamp.Size, stamp.Ticks));
                         Interlocked.Increment(ref updated);
                         if (pending.Count >= BatchSize) await FlushAsync(pending, ct).ConfigureAwait(false);
                     }
@@ -100,9 +101,9 @@ public sealed class LibraryIndex : IDisposable
     public async Task UpdateAsync(IEnumerable<(string Path, PhotoMetadata Metadata)> photos)
     {
         var rows = photos
-            .Select(p => (p.Path, p.Metadata, Info: new FileInfo(p.Path)))
-            .Where(p => p.Info.Exists)
-            .Select(p => (p.Path, p.Metadata, p.Info.Length, p.Info.LastWriteTimeUtc.Ticks))
+            .Where(p => File.Exists(p.Path))
+            .Select(p => (p.Path, p.Metadata, Stamp: PhotoFiles.GetStamp(p.Path)))
+            .Select(p => (p.Path, p.Metadata, p.Stamp.Size, p.Stamp.Ticks))
             .ToList();
         if (rows.Count > 0) await WriteAsync(rows).ConfigureAwait(false);
     }

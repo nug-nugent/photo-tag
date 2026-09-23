@@ -22,6 +22,12 @@
             <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
             <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListAccentLowBrush}" />
         </Style>
+        <Style Selector="Border.badge">
+            <Setter Property="Background" Value="#CC000000" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Padding" Value="5,1" />
+            <Setter Property="TextElement.Foreground" Value="White" />
+        </Style>
         <Style Selector="Border.chip.partial">
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
@@ -170,10 +176,14 @@
                                     <TextBlock DockPanel.Dock="Bottom" Text="{Binding FileName}" FontSize="12"
                                                TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="0,4,0,0" />
                                     <Panel>
-                                        <TextBlock Text="Can't read this file" IsVisible="{Binding LoadFailed}"
-                                                   FontSize="11" Opacity="0.6"
+                                        <TextBlock Text="{Binding LoadFailedText}" IsVisible="{Binding LoadFailed}"
+                                                   FontSize="11" Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center"
                                                    HorizontalAlignment="Center" VerticalAlignment="Center" />
                                         <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
+                                        <Border Classes="badge" IsVisible="{Binding Badge, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
+                                            <TextBlock Text="{Binding Badge}" FontSize="10" FontWeight="SemiBold" />
+                                        </Border>
                                     </Panel>
                                 </DockPanel>
                             </Border>
@@ -203,6 +213,8 @@
                                     <StackPanel Spacing="2">
                                         <SelectableTextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextWrapping="Wrap" />
                                         <SelectableTextBlock Text="{Binding Folder}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
+                                        <TextBlock Text="{Binding FilesNote}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                   IsVisible="{Binding FilesNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                     </StackPanel>
 
                                     <TextBlock Text="{Binding Error}" Foreground="OrangeRed" TextWrapping="Wrap"

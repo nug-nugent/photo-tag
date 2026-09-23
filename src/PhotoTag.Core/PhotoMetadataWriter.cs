@@ -17,9 +17,10 @@ public sealed record MetadataChanges
 }
 
 /// <summary>
-/// Writes tags and captions into photo files via ExifTool. Values are written to XMP (read by
-/// Lightroom, digiKam, Windows, macOS…), and for JPEGs also to IPTC for older software, so the
-/// two never disagree. Pixel data is never touched.
+/// Writes tags and captions via ExifTool. Values are written to XMP (read by Lightroom, digiKam,
+/// Windows, macOS…), and for JPEGs also to IPTC for older software, so the two never disagree.
+/// Pixel data is never touched. Camera RAW files are never modified at all: their tags go in an
+/// .xmp sidecar beside them (IMG_0001.CR2 → IMG_0001.xmp), as Lightroom does.
 /// </summary>
 public sealed class PhotoMetadataWriter(ExifTool exifTool)
 {
@@ -31,11 +32,48 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
     /// </summary>
     public bool PreserveModifiedTime { get; set; }
 
+    /// <summary>Writes the same changes to every file of a shot (a RAW+JPEG pair gets both).</summary>
+    public async Task WriteAsync(PhotoFile photo, MetadataChanges changes, CancellationToken cancellationToken = default)
+    {
+        foreach (var path in photo.AllPaths) await WriteAsync(path, changes, cancellationToken).ConfigureAwait(false);
+    }
+
     public async Task WriteAsync(string path, MetadataChanges changes, CancellationToken cancellationToken = default)
     {
         if (changes.IsEmpty) return;
         if (!File.Exists(path)) throw new FileNotFoundException("Photo not found.", path);
 
+        if (!PhotoFiles.IsRaw(path))
+        {
+            await WriteFileAsync(path, changes, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        if (PhotoFiles.FindSidecar(path) is { } existing)
+        {
+            await WriteFileAsync(existing, changes, cancellationToken).ConfigureAwait(false);
+            return;
+        }
+
+        // First edit of this RAW: create its sidecar. Once it exists, the sidecar's values replace
+        // what's embedded in the RAW, so copy those across first, or a new rating would hide the
+        // RAW's existing tags.
+        var sidecar = PhotoFiles.NewSidecarPath(path);
+        var seeded = SeedFromEmbedded(path, changes);
+        await File.WriteAllTextAsync(sidecar, EmptyXmpPacket, CancellationToken.None).ConfigureAwait(false);
+        try
+        {
+            await WriteFileAsync(sidecar, seeded, cancellationToken).ConfigureAwait(false);
+        }
+        catch
+        {
+            File.Delete(sidecar); // an empty sidecar would hide the RAW's own tags
+            throw;
+        }
+    }
+
+    private async Task WriteFileAsync(string path, MetadataChanges changes, CancellationToken cancellationToken)
+    {
         var output = await exifTool.ExecuteAsync(BuildArguments(path, changes, PreserveModifiedTime), cancellationToken)
             .ConfigureAwait(false);
         if (!output.Contains("1 image files updated", StringComparison.Ordinal)
@@ -44,6 +82,36 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             throw new ExifToolException($"ExifTool didn't update the file: {output.Trim()}");
         }
     }
+
+    private static MetadataChanges SeedFromEmbedded(string rawPath, MetadataChanges changes)
+    {
+        PhotoMetadata embedded;
+        try
+        {
+            embedded = PhotoMetadata.ReadEmbedded(rawPath);
+        }
+        catch (Exception e) when (e is IOException or MetadataExtractor.ImageProcessingException)
+        {
+            return changes;
+        }
+
+        return changes with
+        {
+            Keywords = changes.Keywords ?? (embedded.Keywords.Count > 0 ? embedded.Keywords : null),
+            Title = changes.Title ?? embedded.Title,
+            Description = changes.Description ?? embedded.Description,
+            Rating = changes.Rating ?? embedded.Rating,
+        };
+    }
+
+    private const string EmptyXmpPacket = """
+        <?xpacket begin="﻿" id="W5M0MpCehiHzreSzNTczkc9d"?>
+        <x:xmpmeta xmlns:x="adobe:ns:meta/">
+         <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">
+         </rdf:RDF>
+        </x:xmpmeta>
+        <?xpacket end="w"?>
+        """;
 
     /// <summary>Trims, drops blanks and removes case-insensitive duplicates, keeping the first spelling.</summary>
     public static IReadOnlyList<string> NormalizeKeywords(IEnumerable<string> keywords) =>
