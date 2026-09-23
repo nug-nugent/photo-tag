@@ -13,6 +13,8 @@ Early days. Today it can:
 - Show a virtualized thumbnail grid that stays responsive with thousands of photos
 - Show a details panel for the selected photo: preview, date taken, camera, exposure, size and GPS
 - Edit tags, title, description and rating. Changes are written straight into the photo file.
+- Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and add, remove or rate them all at once,
+  with progress and Cancel in the status bar
 
 Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs, also as IPTC for older
 software. Pixels are never re-encoded, and each file's modified time is preserved.
@@ -60,8 +62,7 @@ To use a specific ExifTool, set `PHOTOTAG_EXIFTOOL` to its full path.
 
 ## Roadmap
 
-1. **Keyboard navigation and multi-select**, including applying tags to many photos at once.
-2. **SQLite index** of tags per folder, for tag counts in the tree, search/filter across folders, and tag suggestions
+1. **SQLite index** of tags per folder, for tag counts in the tree, search/filter across folders, and tag suggestions
    from your whole library (today suggestions only cover tags seen this session).
-3. **More formats**: HEIC and camera RAW, probably via embedded previews.
-4. **Packaging** for Windows, macOS and Linux, with ExifTool bundled.
+2. **More formats**: HEIC and camera RAW, probably via embedded previews.
+3. **Packaging** for Windows, macOS and Linux, with ExifTool bundled.
