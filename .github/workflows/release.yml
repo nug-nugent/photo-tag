@@ -1,0 +1,149 @@
+name: Release
+
+# Push a tag like v0.2.0 to build, check and publish a release for every platform.
+# Pull requests that touch packaging (and manual runs) do a trial: every package is built and
+# checked and kept as a workflow artifact, but nothing is published.
+on:
+  push:
+    tags: ['v*']
+  pull_request:
+    paths:
+      - .github/workflows/release.yml
+      - .github/release-notes.md
+      - build/**
+      - dotnet-tools.json
+      - Directory.Build.props
+      - Directory.Packages.props
+      - src/PhotoTag.App/PhotoTag.App.csproj
+      - src/PhotoTag.App/Program.cs
+      - src/PhotoTag.App/SelfCheck.cs
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+  IS_RELEASE: ${{ startsWith(github.ref, 'refs/tags/v') }}
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - id: version
+        run: |
+          if [[ "$IS_RELEASE" == "true" ]]; then v="${GITHUB_REF_NAME#v}"; else v="0.0.0-trial.${GITHUB_RUN_NUMBER}"; fi
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]] || { echo "::error::'$v' isn't a version like 1.2.3"; exit 1; }
+          echo "version=$v" >> "$GITHUB_OUTPUT"
+          echo "Version: $v"
+
+  draft:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" --draft --title "PhotoTag ${{ needs.version.outputs.version }}" \
+            --notes-file .github/release-notes.md --generate-notes
+
+  package:
+    needs: [version, draft]
+    if: ${{ !cancelled() && needs.version.result == 'success' && needs.draft.result != 'failure' }}
+    name: ${{ matrix.rid }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { rid: win-x64,   os: windows-latest, exe: PhotoTag.exe, icon: icon.ico }
+          - { rid: win-arm64, os: windows-11-arm, exe: PhotoTag.exe, icon: icon.ico }
+          - { rid: osx-arm64, os: macos-latest,   exe: PhotoTag,     icon: icon.icns }
+          - { rid: osx-x64,   os: macos-15-intel, exe: PhotoTag,     icon: icon.icns }
+          - { rid: linux-x64, os: ubuntu-latest,  exe: PhotoTag,     icon: icon.png }
+    defaults:
+      run:
+        shell: bash
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      RID: ${{ matrix.rid }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Restore tools (vpk)
+        run: dotnet tool restore
+
+      - name: Publish
+        run: dotnet publish src/PhotoTag.App -c Release -r "$RID" --self-contained -p:Version="$VERSION" -o publish
+
+      - name: Bundle ExifTool
+        run: dotnet run build/BundleExifTool.cs -- "$RID" publish
+
+      - name: Download previous release (for delta updates)
+        if: env.IS_RELEASE == 'true'
+        continue-on-error: true # there's nothing to download before the first release
+        run: dotnet vpk download github --repoUrl "https://github.com/${{ github.repository }}" --channel "$RID" --outputDir releases --token "${{ github.token }}"
+
+      - name: Package
+        run: |
+          dotnet vpk pack --packId PhotoTag --packVersion "$VERSION" --packDir publish --mainExe "${{ matrix.exe }}" \
+            --packTitle PhotoTag --packAuthors "David Huggett" --icon "src/PhotoTag.App/Assets/${{ matrix.icon }}" \
+            --channel "$RID" --outputDir releases
+          ls -la releases
+
+      # Launch the packaged app itself, as a user would get it, and check its moving parts work here.
+      - name: Check the package runs
+        run: |
+          case "$RID" in
+            win-*)
+              unzip -q "releases/PhotoTag-$RID-Portable.zip" -d portable
+              app=$(find portable -path '*current*' -name PhotoTag.exe | head -1) ;;
+            osx-*)
+              ditto -x -k "releases/PhotoTag-$RID-Portable.zip" portable
+              app=$(find portable -path '*.app/Contents/MacOS/PhotoTag' | head -1) ;;
+            linux-*)
+              app=$(find releases -name '*.AppImage' | head -1)
+              chmod +x "$app"
+              export APPIMAGE_EXTRACT_AND_RUN=1 ;; # runners have no FUSE
+          esac
+          echo "Running $app"
+          # Hide any system ExifTool so the check proves the bundled one works.
+          PATH="$(echo "$PATH" | tr ':' '\n' | grep -vi exiftool | paste -sd: -)" "$app" --self-check "$PWD/self-check.json" || status=$?
+          cat self-check.json
+          exit ${status:-0}
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: PhotoTag-${{ matrix.rid }}
+          path: releases/
+          if-no-files-found: error
+
+      - name: Upload to the draft release
+        if: env.IS_RELEASE == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Only this version's files (the download step may have added the previous version's package).
+          files=$(find releases -maxdepth 1 -type f \( ! -name "PhotoTag-*-full.nupkg" -o -name "PhotoTag-$VERSION-*" \) | sort)
+          echo "$files"
+          gh release upload "$GITHUB_REF_NAME" $files --clobber
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: package
+    runs-on: ubuntu-latest
+    steps:
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --repo "${{ github.repository }}" --draft=false --latest

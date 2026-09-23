@@ -20,6 +20,9 @@ public sealed class AppSettings
     /// <summary>Keep photos' "date modified" when saving tags. See PhotoMetadataWriter.PreserveModifiedTime.</summary>
     public bool PreserveModifiedTime { get; set; }
 
+    /// <summary>Check GitHub Releases for a new version at startup (installed copies only).</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
     public static AppSettings Load(string? filePath = null)
     {
         filePath ??= DefaultFilePath;

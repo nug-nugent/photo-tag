@@ -33,8 +33,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private int _anchorIndex = -1;
 
     public MainWindowViewModel(ThumbnailCache thumbnails, AppSettings settings, PhotoMetadataWriter? writer, LibraryIndex index,
-        PhotoRenderer? renderer = null)
+        PhotoRenderer? renderer = null, IAppUpdater? updater = null)
     {
+        Updates = new UpdatesViewModel(updater ?? new NoUpdates(), settings);
         _renderer = renderer ?? PhotoRenderer.ImagesOnly;
         _thumbnails = thumbnails;
         _settings = settings;
@@ -50,6 +51,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public ObservableCollection<FolderNodeViewModel> RootFolders { get; } = [];
     public BulkOperations Operations { get; }
     public LibraryViewModel Library { get; }
+    public UpdatesViewModel Updates { get; }
     public ObservableCollection<string> KeywordSuggestions => _keywordSuggestions.Items;
 
     [ObservableProperty] public partial string? RootPath { get; private set; }

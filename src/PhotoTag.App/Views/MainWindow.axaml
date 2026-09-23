@@ -4,7 +4,7 @@
         xmlns:layout="using:Avalonia.Layout"
         x:Class="PhotoTag.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
-        Title="PhotoTag" Width="1280" Height="720" MinWidth="800" MinHeight="500"
+        Title="PhotoTag" Icon="/Assets/icon-256.png" Width="1280" Height="720" MinWidth="800" MinHeight="500"
         WindowStartupLocation="CenterScreen">
 
     <Window.Styles>
@@ -99,6 +99,12 @@
                                     </CheckBox>
                                     <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
                                                Text="Leave this off if you back up your photos. Many backup and sync tools only copy files whose date modified has changed, so with it on, some edits (a new rating, say) would never be backed up." />
+                                    <Separator Margin="0,6" />
+                                    <TextBlock Text="Updates" FontWeight="SemiBold" />
+                                    <CheckBox x:Name="CheckForUpdatesBox" IsEnabled="{Binding Updates.CanUpdate}"
+                                              IsChecked="{Binding Updates.CheckAutomatically, Mode=TwoWay}"
+                                              Content="Check for new versions when PhotoTag starts" />
+                                    <TextBlock Text="{Binding Updates.VersionText}" FontSize="11" Opacity="0.7" />
                                 </StackPanel>
                             </Flyout>
                         </Button.Flyout>
@@ -116,6 +122,12 @@
         <Border DockPanel.Dock="Bottom" Padding="10,4" BorderThickness="0,1,0,0"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
             <DockPanel>
+                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0"
+                            IsVisible="{Binding Updates.IsUpdateReady}">
+                    <TextBlock Text="{Binding Updates.ReadyText}" FontSize="12" VerticalAlignment="Center" />
+                    <Button x:Name="RestartToUpdateButton" Content="Restart to update" Padding="10,2" FontSize="12"
+                            Classes="accent" Command="{Binding Updates.RestartToUpdateCommand}" />
+                </StackPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8"
                             IsVisible="{Binding Operations.IsBusy}">
                     <ProgressBar Width="160" Minimum="0" Maximum="100" VerticalAlignment="Center"
