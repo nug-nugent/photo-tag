@@ -76,6 +76,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial string? SaveStatus { get; private set; }
     [ObservableProperty] public partial bool SaveFailed { get; private set; }
 
+    /// <summary>Raised on the UI thread after each successful save.</summary>
+    public event EventHandler? Saved;
+
     /// <summary>Completes when every save started so far has finished (saves run in order).</summary>
     public Task SaveCompletion => _lastSave;
 
@@ -186,6 +189,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         {
             await writer.WriteAsync(Photo.Path, changes);
             Photo.Metadata = null; // re-read next time it's needed
+            Saved?.Invoke(this, EventArgs.Empty);
             if (changes.Title is { } title) _savedTitle = title;
             if (changes.Description is { } description) _savedDescription = description;
             if (changes.Keywords is { } keywords) _suggestions.Add(keywords);

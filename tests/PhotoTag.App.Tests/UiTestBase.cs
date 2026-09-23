@@ -13,9 +13,11 @@ using PhotoTag.Core.Tests;
 namespace PhotoTag.App.Tests;
 
 /// <summary>Helpers for driving the real main window headlessly.</summary>
-public abstract class UiTestBase : IDisposable
+public abstract class UiTestBase : IAsyncDisposable
 {
     private readonly TempDir _dir = new();
+    private readonly TempDir _appData = new(); // index, settings and thumbnails live outside the library
+    private readonly List<(MainWindowViewModel Vm, LibraryIndex Index)> _opened = [];
 
     protected string DirPath => _dir.Path;
 
@@ -25,8 +27,12 @@ public abstract class UiTestBase : IDisposable
             ? RawInputModifiers.Meta
             : RawInputModifiers.Control;
 
-    protected string Photo(string name, params string[] keywords) =>
-        TestImages.Write(DirPath, name, TestImages.Jpeg(120, 90, xmpKeywords: keywords.Length > 0 ? keywords : null));
+    /// <summary>Creates a test photo; <paramref name="name"/> may include subfolders.</summary>
+    protected string Photo(string name, params string[] keywords)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(DirPath, name))!);
+        return TestImages.Write(DirPath, name, TestImages.Jpeg(120, 90, xmpKeywords: keywords.Length > 0 ? keywords : null));
+    }
 
     protected static ExifTool RequireExifTool()
     {
@@ -42,9 +48,11 @@ public abstract class UiTestBase : IDisposable
 
     protected async Task<(MainWindow Window, MainWindowViewModel Vm)> OpenAsync(PhotoMetadataWriter? writer)
     {
-        var settings = AppSettings.Load(Path.Combine(DirPath, "settings.json"));
-        var thumbnails = new ThumbnailCache(Path.Combine(DirPath, ".cache"));
-        var vm = new MainWindowViewModel(thumbnails, settings, writer);
+        var settings = AppSettings.Load(Path.Combine(_appData.Path, "settings.json"));
+        var thumbnails = new ThumbnailCache(Path.Combine(_appData.Path, "thumbnails"));
+        var index = new LibraryIndex(Path.Combine(_appData.Path, $"library{_opened.Count}.db"));
+        var vm = new MainWindowViewModel(thumbnails, settings, writer, index);
+        _opened.Add((vm, index));
         // Tall enough that the whole details panel and all test tiles are on screen.
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 2400 };
         window.Show();
@@ -90,6 +98,18 @@ public abstract class UiTestBase : IDisposable
         Dispatcher.UIThread.RunJobs();
     }
 
+    protected static async Task WaitForAsync(Func<Task<bool>> condition, int timeoutMs = 15000)
+    {
+        var stopwatch = Stopwatch.StartNew();
+        while (!await condition())
+        {
+            if (stopwatch.ElapsedMilliseconds > timeoutMs) throw new TimeoutException("Condition not met in time.");
+            Dispatcher.UIThread.RunJobs();
+            await Task.Delay(20);
+        }
+        Dispatcher.UIThread.RunJobs();
+    }
+
     protected static void Click(Window window, Control control, RawInputModifiers modifiers = RawInputModifiers.None)
     {
         Dispatcher.UIThread.RunJobs();
@@ -114,9 +134,16 @@ public abstract class UiTestBase : IDisposable
         window.FocusManager?.GetFocusedElement() is Visual focused
         && (focused == control || focused.GetVisualAncestors().Contains(control));
 
-    public void Dispose()
+    public async ValueTask DisposeAsync()
     {
+        foreach (var (vm, index) in _opened)
+        {
+            vm.Dispose(); // cancels any scan still running
+            await vm.Library.ScanCompletion;
+            index.Dispose();
+        }
         _dir.Dispose();
+        _appData.Dispose();
         GC.SuppressFinalize(this);
     }
 }
