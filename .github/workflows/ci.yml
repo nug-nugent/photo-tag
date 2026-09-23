@@ -16,8 +16,9 @@ concurrency:
 env:
   DOTNET_NOLOGO: true
   DOTNET_CLI_TELEMETRY_OPTOUT: true
-  # Tests that need ExifTool skip locally when it's missing; in CI they must run.
+  # Tests that need ExifTool or the RAW samples skip locally when they're missing; in CI they must run.
   PHOTOTAG_REQUIRE_EXIFTOOL: 1
+  PHOTOTAG_REQUIRE_SAMPLES: 1
 
 jobs:
   build:
@@ -34,6 +35,13 @@ jobs:
       - uses: actions/setup-dotnet@v6
         with:
           global-json-file: global.json
+
+      # Public-domain camera RAW files the tests download (see tests/samples/raw-samples.json).
+      - name: Cache RAW test samples
+        uses: actions/cache@v6
+        with:
+          path: tests/.samples
+          key: raw-samples-${{ hashFiles('tests/samples/raw-samples.json') }}
 
       - name: Install ExifTool (Linux)
         if: runner.os == 'Linux'

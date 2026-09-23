@@ -14,7 +14,7 @@ public sealed class ExifToolFixture : IAsyncDisposable
     public ExifTool? ExifTool { get; }
 
     /// <summary>Skips the test when ExifTool isn't installed, unless CI says it must be.</summary>
-    public PhotoMetadataWriter RequireWriter()
+    public ExifTool RequireExifTool()
     {
         if (ExifTool is null)
         {
@@ -22,8 +22,10 @@ public sealed class ExifToolFixture : IAsyncDisposable
                 Assert.Fail("ExifTool is required (PHOTOTAG_REQUIRE_EXIFTOOL=1) but wasn't found.");
             Assert.Skip("ExifTool isn't installed.");
         }
-        return new PhotoMetadataWriter(ExifTool);
+        return ExifTool;
     }
+
+    public PhotoMetadataWriter RequireWriter() => new(RequireExifTool());
 
     public async ValueTask DisposeAsync()
     {

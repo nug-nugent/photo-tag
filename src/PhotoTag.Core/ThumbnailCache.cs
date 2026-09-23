@@ -15,12 +15,14 @@ public sealed class ThumbnailCache : IDisposable
 {
     private readonly string _cacheDirectory;
     private readonly int _size;
+    private readonly PhotoRenderer _renderer;
     private readonly SemaphoreSlim _gate;
 
-    public ThumbnailCache(string cacheDirectory, int size = 320, int? maxConcurrency = null)
+    public ThumbnailCache(string cacheDirectory, PhotoRenderer? renderer = null, int size = 320, int? maxConcurrency = null)
     {
         _cacheDirectory = cacheDirectory;
         _size = size;
+        _renderer = renderer ?? PhotoRenderer.ImagesOnly;
         _gate = new SemaphoreSlim(maxConcurrency ?? Math.Max(2, Environment.ProcessorCount - 1));
         Directory.CreateDirectory(cacheDirectory);
     }
@@ -42,8 +44,7 @@ public sealed class ThumbnailCache : IDisposable
             if (File.Exists(cachePath)) return cachePath;
 
             cancellationToken.ThrowIfCancellationRequested();
-            var bytes = await Task.Run(() => ImageRenderer.Render(photoPath, _size), cancellationToken)
-                .ConfigureAwait(false);
+            var bytes = await _renderer.RenderAsync(photoPath, _size, cancellationToken).ConfigureAwait(false);
 
             // Write-then-rename so a crash never leaves a half-written thumbnail behind.
             Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);

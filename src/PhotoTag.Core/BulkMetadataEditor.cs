@@ -28,6 +28,20 @@ public sealed record BulkResult
 public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
 {
     public Task<BulkResult> AddKeywordsAsync(IReadOnlyList<string> paths, IReadOnlyList<string> keywords,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        AddKeywordsAsync(Singles(paths), keywords, progress, cancellationToken);
+
+    public Task<BulkResult> RemoveKeywordsAsync(IReadOnlyList<string> paths, IReadOnlyList<string> keywords,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        RemoveKeywordsAsync(Singles(paths), keywords, progress, cancellationToken);
+
+    public Task<BulkResult> SetRatingAsync(IReadOnlyList<string> paths, int rating,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        SetRatingAsync(Singles(paths), rating, progress, cancellationToken);
+
+    private static IReadOnlyList<PhotoFile> Singles(IReadOnlyList<string> paths) => [.. paths.Select(PhotoFile.Single)];
+
+    public Task<BulkResult> AddKeywordsAsync(IReadOnlyList<PhotoFile> paths, IReadOnlyList<string> keywords,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         var toAdd = PhotoMetadataWriter.NormalizeKeywords(keywords);
@@ -38,7 +52,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         }, progress, cancellationToken);
     }
 
-    public Task<BulkResult> RemoveKeywordsAsync(IReadOnlyList<string> paths, IReadOnlyList<string> keywords,
+    public Task<BulkResult> RemoveKeywordsAsync(IReadOnlyList<PhotoFile> paths, IReadOnlyList<string> keywords,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         var toRemove = new HashSet<string>(PhotoMetadataWriter.NormalizeKeywords(keywords), StringComparer.OrdinalIgnoreCase);
@@ -50,7 +64,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
     }
 
     /// <summary>Sets every photo's rating; 0 clears it.</summary>
-    public Task<BulkResult> SetRatingAsync(IReadOnlyList<string> paths, int rating,
+    public Task<BulkResult> SetRatingAsync(IReadOnlyList<PhotoFile> paths, int rating,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(rating);
@@ -61,46 +75,51 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
     }
 
     /// <param name="plan">Given a photo's current metadata, the change to make, or null for none.</param>
-    private async Task<BulkResult> ApplyAsync(IReadOnlyList<string> paths, Func<PhotoMetadata, MetadataChanges?> plan,
+    private async Task<BulkResult> ApplyAsync(IReadOnlyList<PhotoFile> photos, Func<PhotoMetadata, MetadataChanges?> plan,
         IProgress<BulkProgress>? progress, CancellationToken cancellationToken)
     {
         int changed = 0, unchanged = 0, done = 0;
         var failures = new List<BulkFailure>();
         var after = new Dictionary<string, PhotoMetadata>(StringComparer.Ordinal);
 
-        foreach (var path in paths)
+        foreach (var photo in photos)
         {
             if (cancellationToken.IsCancellationRequested)
                 return new BulkResult { Changed = changed, Unchanged = unchanged, Failures = failures, Cancelled = true, After = after };
 
             try
             {
-                var current = await Task.Run(() => PhotoMetadata.Read(path), CancellationToken.None).ConfigureAwait(false);
-                var changes = plan(current);
-                if (changes is null)
+                // Each file of a RAW+JPEG pair is planned against its own current values, so a pair
+                // whose files disagree still ends up with the change in both.
+                var anyChanged = false;
+                foreach (var path in photo.AllPaths)
                 {
-                    unchanged++;
-                    after[path] = current;
-                }
-                else
-                {
-                    // Not cancellable mid-write: see ExifTool.ExecuteAsync.
-                    await writer.WriteAsync(path, changes, CancellationToken.None).ConfigureAwait(false);
-                    changed++;
-                    after[path] = current with
+                    var current = await Task.Run(() => PhotoMetadata.Read(path), CancellationToken.None).ConfigureAwait(false);
+                    var changes = plan(current);
+                    if (changes is not null)
                     {
-                        Keywords = changes.Keywords is { } k ? PhotoMetadataWriter.NormalizeKeywords(k) : current.Keywords,
-                        Rating = changes.Rating is { } r ? (r == 0 ? null : r) : current.Rating,
-                    };
+                        // Not cancellable mid-write: see ExifTool.ExecuteAsync.
+                        await writer.WriteAsync(path, changes, CancellationToken.None).ConfigureAwait(false);
+                        anyChanged = true;
+                        current = current with
+                        {
+                            Keywords = changes.Keywords is { } k ? PhotoMetadataWriter.NormalizeKeywords(k) : current.Keywords,
+                            Rating = changes.Rating is { } r ? (r == 0 ? null : r) : current.Rating,
+                        };
+                    }
+                    if (path == photo.Path) after[path] = current;
                 }
+
+                if (anyChanged) changed++;
+                else unchanged++;
             }
             catch (Exception e) when (e is ExifToolException or IOException or UnauthorizedAccessException
                                           or MetadataExtractor.ImageProcessingException)
             {
-                failures.Add(new BulkFailure(path, e.Message));
+                failures.Add(new BulkFailure(photo.Path, e.Message));
             }
 
-            progress?.Report(new BulkProgress(++done, paths.Count));
+            progress?.Report(new BulkProgress(++done, photos.Count));
         }
 
         return new BulkResult { Changed = changed, Unchanged = unchanged, Failures = failures, After = after };

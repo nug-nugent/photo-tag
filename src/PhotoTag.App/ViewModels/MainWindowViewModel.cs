@@ -26,13 +26,16 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly ThumbnailCache _thumbnails;
     private readonly AppSettings _settings;
     private readonly PhotoMetadataWriter? _writer;
+    private readonly PhotoRenderer _renderer;
     private readonly KeywordSuggestions _keywordSuggestions = new();
     private readonly HashSet<PhotoItemViewModel> _selection = [];
     private CancellationTokenSource? _photosLoad;
     private int _anchorIndex = -1;
 
-    public MainWindowViewModel(ThumbnailCache thumbnails, AppSettings settings, PhotoMetadataWriter? writer, LibraryIndex index)
+    public MainWindowViewModel(ThumbnailCache thumbnails, AppSettings settings, PhotoMetadataWriter? writer, LibraryIndex index,
+        PhotoRenderer? renderer = null)
     {
+        _renderer = renderer ?? PhotoRenderer.ImagesOnly;
         _thumbnails = thumbnails;
         _settings = settings;
         _writer = writer;
@@ -177,7 +180,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         PhotosLoading = ShowPhotosAsync(async () =>
             {
                 var paths = await Library.Index.SearchAsync(root, query);
-                return await Task.Run(() => paths.Where(File.Exists).ToList()); // the index may lag deletions
+                // The index may lag deletions; results need their RAW companions to be tagged as pairs.
+                return await Task.Run(() => paths.Where(File.Exists).Select(PhotoFiles.WithCompanions).ToList());
             },
             count => count == 0 ? $"No {description}" : $"{count:N0} {description} in {Path.GetFileName(root)}");
     }
@@ -281,7 +285,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 break;
             case 1:
                 var photo = _selection.First();
-                var details = new PhotoDetailsViewModel(photo, _writer, _keywordSuggestions, Operations);
+                var details = new PhotoDetailsViewModel(photo, _writer, _keywordSuggestions, Operations, _renderer);
                 details.Saved += (_, _) => _ = Library.PhotoChangedAsync(photo.Path);
                 Details = details;
                 _ = details.LoadAsync();
@@ -320,7 +324,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     }
 
     /// <summary>Replaces the grid's photos with a folder's contents or search results.</summary>
-    private async Task ShowPhotosAsync(Func<Task<IReadOnlyList<string>>> load, Func<int, string> describe)
+    private async Task ShowPhotosAsync(Func<Task<IReadOnlyList<PhotoFile>>> load, Func<int, string> describe)
     {
         _photosLoad?.Cancel();
         _photosLoad?.Dispose();

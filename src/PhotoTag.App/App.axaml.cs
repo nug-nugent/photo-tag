@@ -16,13 +16,16 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var settings = AppSettings.Load();
-            var thumbnails = new ThumbnailCache(ThumbnailCache.DefaultDirectory);
             // Tag editing needs ExifTool. Without it the app still browses, read-only.
             var exifToolPath = ExifTool.Locate(AppContext.BaseDirectory);
             var exifTool = exifToolPath is null ? null : new ExifTool(exifToolPath);
             var writer = exifTool is null ? null : new PhotoMetadataWriter(exifTool);
+            // A second ExifTool for RAW previews, so loading thumbnails never waits behind saving tags.
+            var previewTool = exifToolPath is null ? null : new ExifTool(exifToolPath);
+            var renderer = new PhotoRenderer(previewTool is null ? null : new RawPreviewExtractor(previewTool));
+            var thumbnails = new ThumbnailCache(ThumbnailCache.DefaultDirectory, renderer);
             var index = new LibraryIndex(LibraryIndex.DefaultPath);
-            var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index);
+            var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index, renderer);
 
             // Optional: a folder passed on the command line wins over the last-used one.
             var startFolder = desktop.Args is [var arg, ..] ? arg : settings.LastFolder;
@@ -36,6 +39,7 @@ public partial class App : Application
                 index.Dispose();
                 // Waits for any in-flight write to finish, then stops ExifTool.
                 exifTool?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(10));
+                previewTool?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(10));
             };
         }
 
