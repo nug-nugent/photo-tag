@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="Avalonia.Headless.XUnit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PhotoTag.App\PhotoTag.App.csproj" />
+    <ProjectReference Include="..\..\src\PhotoTag.Core\PhotoTag.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shared JPEG/EXIF builder from the core tests. -->
+    <Compile Include="..\PhotoTag.Core.Tests\TestImages.cs" Link="TestImages.cs" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+</Project>

@@ -4,6 +4,7 @@
     <Project Path="src/PhotoTag.Core/PhotoTag.Core.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/PhotoTag.App.Tests/PhotoTag.App.Tests.csproj" />
     <Project Path="tests/PhotoTag.Core.Tests/PhotoTag.Core.Tests.csproj" />
   </Folder>
 </Solution>

@@ -18,6 +18,8 @@
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
 
     <!-- Tests -->
-    <PackageVersion Include="xunit.v3" Version="4.0.1" />
+    <!-- Held at 3.x: Avalonia.Headless.XUnit 12 is built against xunit.v3 3.2.2 and fails with 4.x. -->
+    <PackageVersion Include="xunit.v3" Version="3.2.2" />
+    <PackageVersion Include="Avalonia.Headless.XUnit" Version="$(AvaloniaVersion)" />
   </ItemGroup>
 </Project>

@@ -34,6 +34,27 @@
             <Setter Property="Padding" Value="8,2" />
             <Setter Property="Margin" Value="0,0,4,4" />
         </Style>
+        <Style Selector="Button.chipRemove">
+            <Setter Property="Padding" Value="4,0" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="FontSize" Value="10" />
+            <Setter Property="Background" Value="Transparent" />
+        </Style>
+        <Style Selector="Button.star">
+            <Setter Property="Padding" Value="2,0" />
+            <Setter Property="FontSize" Value="22" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="Foreground" Value="Goldenrod" />
+        </Style>
+        <Style Selector="Border.notice">
+            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="10,8" />
+        </Style>
+        <Style Selector="TextBlock.error">
+            <Setter Property="Foreground" Value="OrangeRed" />
+            <Setter Property="Opacity" Value="1" />
+        </Style>
     </Window.Styles>
 
     <DockPanel>
@@ -127,19 +148,14 @@
                                     <TextBlock Text="{Binding Error}" Foreground="OrangeRed" TextWrapping="Wrap"
                                                IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
 
-                                    <StackPanel IsVisible="{Binding Title, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                        <TextBlock Classes="label" Text="Title" />
-                                        <TextBlock Text="{Binding Title}" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <StackPanel IsVisible="{Binding Description, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                        <TextBlock Classes="label" Text="Description" />
-                                        <TextBlock Text="{Binding Description}" TextWrapping="Wrap" />
-                                    </StackPanel>
+                                    <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
+                                        <TextBlock TextWrapping="Wrap" FontSize="12"
+                                                   Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
+                                    </Border>
 
-                                    <StackPanel>
+                                    <!-- Tags: chips with a remove button, plus a box to add more (Enter, or comma-separated). -->
+                                    <StackPanel Spacing="4">
                                         <TextBlock Classes="label" Text="Tags" />
-                                        <TextBlock Text="None yet" Opacity="0.6"
-                                                   IsVisible="{Binding !Keywords.Count}" />
                                         <ItemsControl ItemsSource="{Binding Keywords}">
                                             <ItemsControl.ItemsPanel>
                                                 <ItemsPanelTemplate>
@@ -149,17 +165,64 @@
                                             <ItemsControl.ItemTemplate>
                                                 <DataTemplate x:DataType="x:String">
                                                     <Border Classes="chip">
-                                                        <TextBlock Text="{Binding}" FontSize="12" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="2">
+                                                            <TextBlock Text="{Binding}" FontSize="12" VerticalAlignment="Center" />
+                                                            <Button Classes="chipRemove" Content="✕"
+                                                                    ToolTip.Tip="Remove tag"
+                                                                    IsVisible="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).CanEdit}"
+                                                                    Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).RemoveKeywordCommand}"
+                                                                    CommandParameter="{Binding}" />
+                                                        </StackPanel>
                                                     </Border>
+                                                </DataTemplate>
+                                            </ItemsControl.ItemTemplate>
+                                        </ItemsControl>
+                                        <AutoCompleteBox x:Name="NewTagBox" PlaceholderText="Add a tag…"
+                                                         IsEnabled="{Binding CanEdit}"
+                                                         Text="{Binding NewKeyword, Mode=TwoWay}"
+                                                         ItemsSource="{Binding KeywordSuggestions}"
+                                                         FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
+                                            <AutoCompleteBox.KeyBindings>
+                                                <KeyBinding Gesture="Enter" Command="{Binding AddKeywordCommand}" />
+                                            </AutoCompleteBox.KeyBindings>
+                                        </AutoCompleteBox>
+                                    </StackPanel>
+
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="label" Text="Rating" />
+                                        <ItemsControl ItemsSource="{Binding Stars}" IsEnabled="{Binding CanEdit}">
+                                            <ItemsControl.ItemsPanel>
+                                                <ItemsPanelTemplate>
+                                                    <StackPanel Orientation="Horizontal" />
+                                                </ItemsPanelTemplate>
+                                            </ItemsControl.ItemsPanel>
+                                            <ItemsControl.ItemTemplate>
+                                                <DataTemplate x:DataType="vm:StarViewModel">
+                                                    <Button Classes="star" Content="{Binding Glyph}"
+                                                            ToolTip.Tip="Click again to clear"
+                                                            Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).SetRatingCommand}"
+                                                            CommandParameter="{Binding Value}" />
                                                 </DataTemplate>
                                             </ItemsControl.ItemTemplate>
                                         </ItemsControl>
                                     </StackPanel>
 
-                                    <StackPanel IsVisible="{Binding Rating, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                        <TextBlock Classes="label" Text="Rating" />
-                                        <TextBlock Text="{Binding Rating}" />
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="label" Text="Title" />
+                                        <TextBox x:Name="TitleBox" IsEnabled="{Binding CanEdit}" PlaceholderText="Add a title"
+                                                 Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                                     </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="label" Text="Description" />
+                                        <TextBox x:Name="DescriptionBox" IsEnabled="{Binding CanEdit}" PlaceholderText="Add a description"
+                                                 AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="8"
+                                                 Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                    </StackPanel>
+
+                                    <TextBlock Text="{Binding SaveStatus}" FontSize="12" TextWrapping="Wrap"
+                                               Classes.error="{Binding SaveFailed}" Opacity="0.7"
+                                               IsVisible="{Binding SaveStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
                                     <StackPanel IsVisible="{Binding DateTaken, Converter={x:Static ObjectConverters.IsNotNull}}">
                                         <TextBlock Classes="label" Text="Taken" />
                                         <TextBlock Text="{Binding DateTaken}" TextWrapping="Wrap" />
