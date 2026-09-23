@@ -32,6 +32,19 @@ public static class PhotoFiles
         return photos;
     }
 
+    /// <summary>Photos anywhere under <paramref name="root"/>, skipping hidden and inaccessible folders.</summary>
+    public static IEnumerable<string> EnumeratePhotosRecursive(string root)
+    {
+        if (!Directory.Exists(root)) return [];
+        var options = new EnumerationOptions
+        {
+            IgnoreInaccessible = true,
+            AttributesToSkip = FileAttributes.Hidden | FileAttributes.System,
+            RecurseSubdirectories = true,
+        };
+        return Directory.EnumerateFiles(root, "*", options).Where(IsSupported);
+    }
+
     /// <summary>Immediate subfolders of <paramref name="folder"/>, sorted by name.</summary>
     public static IReadOnlyList<string> EnumerateSubfolders(string folder)
     {

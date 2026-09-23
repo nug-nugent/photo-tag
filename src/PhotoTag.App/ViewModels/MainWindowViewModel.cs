@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using PhotoTag.Core;
 
 namespace PhotoTag.App.ViewModels;
@@ -27,20 +28,25 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly PhotoMetadataWriter? _writer;
     private readonly KeywordSuggestions _keywordSuggestions = new();
     private readonly HashSet<PhotoItemViewModel> _selection = [];
-    private CancellationTokenSource? _folderLoad;
+    private CancellationTokenSource? _photosLoad;
     private int _anchorIndex = -1;
 
-    public MainWindowViewModel(ThumbnailCache thumbnails, AppSettings settings, PhotoMetadataWriter? writer)
+    public MainWindowViewModel(ThumbnailCache thumbnails, AppSettings settings, PhotoMetadataWriter? writer, LibraryIndex index)
     {
         _thumbnails = thumbnails;
         _settings = settings;
         _writer = writer;
+        Library = new LibraryViewModel(index, _keywordSuggestions);
+        Library.CountsChanged += (_, _) => _ = RefreshFolderCountsAsync();
         Operations = new BulkOperations(writer, _keywordSuggestions);
         Operations.Summary += (_, summary) => StatusText = summary;
+        Operations.Completed += (_, result) => _ = Library.PhotosChangedAsync(result.After);
     }
 
     public ObservableCollection<FolderNodeViewModel> RootFolders { get; } = [];
     public BulkOperations Operations { get; }
+    public LibraryViewModel Library { get; }
+    public ObservableCollection<string> KeywordSuggestions => _keywordSuggestions.Items;
 
     [ObservableProperty] public partial string? RootPath { get; private set; }
     [ObservableProperty] public partial FolderNodeViewModel? SelectedFolder { get; set; }
@@ -60,13 +66,16 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial string StatusText { get; private set; } = "Open a folder to get started.";
 
     /// <summary>
-    /// A plain list, replaced wholesale per folder, so the grid gets one reset
+    /// A plain list, replaced wholesale per folder or search, so the grid gets one reset
     /// notification instead of one per photo.
     /// </summary>
     [ObservableProperty] public partial IReadOnlyList<PhotoItemViewModel> Photos { get; private set; } = [];
 
     /// <summary>Selected photos in folder order.</summary>
     public IReadOnlyList<PhotoItemViewModel> SelectedPhotos => [.. _selection.OrderBy(p => p.Index)];
+
+    /// <summary>Completes when the current folder or search results have loaded. For tests.</summary>
+    public Task PhotosLoading { get; private set; } = Task.CompletedTask;
 
     public void OpenRoot(string path)
     {
@@ -79,13 +88,92 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
         RootPath = path;
         RootFolders.Clear();
-        var root = FolderNodeViewModel.CreateRoot(path);
+        var root = FolderNodeViewModel.CreateRoot(path, Library.Index);
         RootFolders.Add(root);
         root.IsExpanded = true;
         SelectedFolder = root;
+        Library.StartScan(path);
 
         _settings.LastFolder = path;
         _settings.Save();
+    }
+
+    private async Task RefreshFolderCountsAsync()
+    {
+        foreach (var root in RootFolders.ToList()) await root.RefreshCountsAsync();
+    }
+
+    // --- Search --------------------------------------------------------------------------
+
+    /// <summary>Tags to search for, comma-separated; photos must have all of them.</summary>
+    [ObservableProperty] public partial string? SearchText { get; set; }
+
+    /// <summary>Show photos with no tags at all, to find what still needs tagging.</summary>
+    [ObservableProperty] public partial bool ShowUntagged { get; set; }
+
+    [ObservableProperty] public partial bool IsSearching { get; private set; }
+
+    // Tag search and "Untagged" are alternatives: switching one on switches the other off.
+    private bool _changingFilters;
+
+    /// <summary>Enter in the search box.</summary>
+    [RelayCommand]
+    private void Search()
+    {
+        _changingFilters = true;
+        ShowUntagged = false;
+        _changingFilters = false;
+        RunSearch();
+    }
+
+    partial void OnShowUntaggedChanged(bool value)
+    {
+        if (_changingFilters) return;
+        if (value)
+        {
+            SearchText = null;
+            RunSearch();
+        }
+        else if (IsSearching)
+        {
+            ClearSearch();
+        }
+    }
+
+    private void RunSearch()
+    {
+        var keywords = PhotoMetadataWriter.NormalizeKeywords((SearchText ?? "").Split(','));
+        if (RootPath is null || (keywords.Count == 0 && !ShowUntagged))
+        {
+            ClearSearch();
+            return;
+        }
+
+        IsSearching = true;
+        SelectedFolder = null; // the grid now shows results from the whole library, not one folder
+        var root = RootPath;
+        var query = new PhotoQuery { Keywords = keywords, UntaggedOnly = ShowUntagged };
+        var description = ShowUntagged ? "untagged photos" : $"photos tagged {string.Join(" + ", keywords)}";
+
+        PhotosLoading = ShowPhotosAsync(async () =>
+            {
+                var paths = await Library.Index.SearchAsync(root, query);
+                return await Task.Run(() => paths.Where(File.Exists).ToList()); // the index may lag deletions
+            },
+            count => count == 0 ? $"No {description}" : $"{count:N0} {description} in {Path.GetFileName(root)}");
+    }
+
+    /// <summary>Esc in the search box, or the clear button: back to the folder view.</summary>
+    [RelayCommand]
+    private void ClearSearch()
+    {
+        var wasSearching = IsSearching;
+        IsSearching = false;
+        _changingFilters = true;
+        SearchText = null;
+        ShowUntagged = false;
+        _changingFilters = false;
+        if (wasSearching && SelectedFolder is null && RootFolders.FirstOrDefault() is { } root) SelectedFolder = root;
     }
 
     // --- Selection -----------------------------------------------------------------------
@@ -173,7 +261,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 Details = null;
                 break;
             case 1:
-                var details = new PhotoDetailsViewModel(_selection.First(), _writer, _keywordSuggestions, Operations);
+                var photo = _selection.First();
+                var details = new PhotoDetailsViewModel(photo, _writer, _keywordSuggestions, Operations);
+                details.Saved += (_, _) => _ = Library.PhotoChangedAsync(photo.Path);
                 Details = details;
                 _ = details.LoadAsync();
                 break;
@@ -187,47 +277,62 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     // --- Folders -------------------------------------------------------------------------
 
-    partial void OnSelectedFolderChanged(FolderNodeViewModel? value) => _ = LoadFolderAsync(value);
-
-    private async Task LoadFolderAsync(FolderNodeViewModel? folder)
+    partial void OnSelectedFolderChanged(FolderNodeViewModel? value)
     {
-        _folderLoad?.Cancel();
-        _folderLoad?.Dispose();
-        var cts = _folderLoad = new CancellationTokenSource();
+        if (value is null) return; // search results are showing
+        if (IsSearching)
+        {
+            IsSearching = false;
+            _changingFilters = true;
+            SearchText = null;
+            ShowUntagged = false;
+            _changingFilters = false;
+        }
+        if (value.IsPlaceholder) return;
+
+        PhotosLoading = ShowPhotosAsync(
+            () => Task.Run(() => PhotoFiles.EnumeratePhotos(value.Path)),
+            count => count switch
+            {
+                0 => $"No photos in {value.Name}",
+                1 => $"1 photo in {value.Name}",
+                var n => $"{n:N0} photos in {value.Name}",
+            });
+    }
+
+    /// <summary>Replaces the grid's photos with a folder's contents or search results.</summary>
+    private async Task ShowPhotosAsync(Func<Task<IReadOnlyList<string>>> load, Func<int, string> describe)
+    {
+        _photosLoad?.Cancel();
+        _photosLoad?.Dispose();
+        var cts = _photosLoad = new CancellationTokenSource();
 
         ClearSelection();
         CurrentPhoto = null;
         _anchorIndex = -1;
         foreach (var photo in Photos) photo.Release();
         Photos = [];
+        StatusText = "Loading…";
 
-        if (folder is null || folder.IsPlaceholder) return;
-
-        StatusText = $"Reading {folder.Name}…";
         try
         {
-            var files = await Task.Run(() => PhotoFiles.EnumeratePhotos(folder.Path), cts.Token);
+            var files = await load();
             if (cts.IsCancellationRequested) return;
 
             Photos = files.Select((f, i) => new PhotoItemViewModel(f, i, _thumbnails)).ToList();
-            StatusText = files.Count switch
-            {
-                0 => $"No photos in {folder.Name}",
-                1 => $"1 photo in {folder.Name}",
-                var n => $"{n:N0} photos in {folder.Name}",
-            };
+            StatusText = describe(files.Count);
         }
-        catch (OperationCanceledException) { }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            StatusText = $"Couldn't read {folder.Name}: {e.Message}";
+            if (!cts.IsCancellationRequested) StatusText = $"Couldn't load photos: {e.Message}";
         }
     }
 
     public void Dispose()
     {
-        _folderLoad?.Cancel();
-        _folderLoad?.Dispose();
+        _photosLoad?.Cancel();
+        _photosLoad?.Dispose();
+        Library.Cancel();
         (Details as IDisposable)?.Dispose();
         foreach (var photo in Photos) photo.Release();
     }
