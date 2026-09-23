@@ -17,7 +17,11 @@ public partial class App : Application
         {
             var settings = AppSettings.Load();
             var thumbnails = new ThumbnailCache(ThumbnailCache.DefaultDirectory);
-            var viewModel = new MainWindowViewModel(thumbnails, settings);
+            // Tag editing needs ExifTool. Without it the app still browses, read-only.
+            var exifToolPath = ExifTool.Locate(AppContext.BaseDirectory);
+            var exifTool = exifToolPath is null ? null : new ExifTool(exifToolPath);
+            var writer = exifTool is null ? null : new PhotoMetadataWriter(exifTool);
+            var viewModel = new MainWindowViewModel(thumbnails, settings, writer);
 
             // Optional: a folder passed on the command line wins over the last-used one.
             var startFolder = desktop.Args is [var arg, ..] ? arg : settings.LastFolder;
@@ -28,6 +32,8 @@ public partial class App : Application
             {
                 viewModel.Dispose();
                 thumbnails.Dispose();
+                // Waits for any in-flight write to finish, then stops ExifTool.
+                exifTool?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(10));
             };
         }
 

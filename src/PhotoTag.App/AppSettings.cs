@@ -1,29 +1,37 @@
 using System.Text.Json;
+using System.Text.Json.Serialization;
 
 namespace PhotoTag.App;
 
 /// <summary>Per-user settings, stored as JSON next to the thumbnail cache.</summary>
 public sealed class AppSettings
 {
-    private static readonly string FilePath = Path.Combine(
+    public static readonly string DefaultFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhotoTag", "settings.json");
 
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
+    /// <summary>Where <see cref="Save"/> writes. Tests point this at a temp file.</summary>
+    [JsonIgnore]
+    public string FilePath { get; private set; } = DefaultFilePath;
+
     public string? LastFolder { get; set; }
 
-    public static AppSettings Load()
+    public static AppSettings Load(string? filePath = null)
     {
+        filePath ??= DefaultFilePath;
+        var settings = new AppSettings();
         try
         {
-            if (File.Exists(FilePath))
-                return JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(FilePath)) ?? new AppSettings();
+            if (File.Exists(filePath))
+                settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(filePath)) ?? settings;
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
         {
             // A corrupt or unreadable settings file shouldn't stop the app starting.
         }
-        return new AppSettings();
+        settings.FilePath = filePath;
+        return settings;
     }
 
     public void Save()

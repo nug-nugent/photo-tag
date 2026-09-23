@@ -5,8 +5,10 @@ using PhotoTag.Core;
 
 namespace PhotoTag.App.ViewModels;
 
-public partial class MainWindowViewModel(ThumbnailCache thumbnails, AppSettings settings) : ViewModelBase, IDisposable
+public partial class MainWindowViewModel(ThumbnailCache thumbnails, AppSettings settings, PhotoMetadataWriter? writer)
+    : ViewModelBase, IDisposable
 {
+    private readonly KeywordSuggestions _keywordSuggestions = new();
     private CancellationTokenSource? _folderLoad;
 
     public ObservableCollection<FolderNodeViewModel> RootFolders { get; } = [];
@@ -54,7 +56,7 @@ public partial class MainWindowViewModel(ThumbnailCache thumbnails, AppSettings 
         newValue?.IsSelected = true;
 
         Details?.Dispose();
-        Details = newValue is null ? null : new PhotoDetailsViewModel(newValue);
+        Details = newValue is null ? null : new PhotoDetailsViewModel(newValue, writer, _keywordSuggestions);
         if (Details is not null) _ = Details.LoadAsync();
     }
 

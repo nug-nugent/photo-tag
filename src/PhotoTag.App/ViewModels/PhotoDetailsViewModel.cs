@@ -1,20 +1,43 @@
+using System.Collections.ObjectModel;
 using System.Globalization;
 using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using MetadataExtractor;
 using PhotoTag.Core;
 
 namespace PhotoTag.App.ViewModels;
 
-/// <summary>The side panel for the selected photo: a larger preview plus its metadata.</summary>
-public partial class PhotoDetailsViewModel(PhotoItemViewModel photo) : ViewModelBase, IDisposable
+/// <summary>
+/// The side panel for the selected photo: a larger preview, its metadata, and editors for
+/// tags, title, description and rating. Edits are written to the file straight away.
+/// </summary>
+public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 {
     private const int PreviewSize = 1200;
     private readonly CancellationTokenSource _cts = new();
+    private readonly PhotoMetadataWriter? _writer;
+    private readonly KeywordSuggestions _suggestions;
+    private readonly SemaphoreSlim _saveGate = new(1, 1);
+    private int _pendingSaves;
+    private Task _lastSave = Task.CompletedTask;
+    private bool _applying;
+    private string _savedTitle = "";
+    private string _savedDescription = "";
 
-    public PhotoItemViewModel Photo { get; } = photo;
+    public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions)
+    {
+        Photo = photo;
+        _writer = writer;
+        _suggestions = suggestions;
+        Stars = [.. Enumerable.Range(1, 5).Select(i => new StarViewModel(i))];
+    }
+
+    public PhotoItemViewModel Photo { get; }
     public string FileName => Photo.FileName;
     public string? Folder => System.IO.Path.GetDirectoryName(Photo.Path);
+    public bool ExifToolMissing => _writer is null;
+    public ObservableCollection<string> KeywordSuggestions => _suggestions.Items;
 
     [ObservableProperty] public partial Bitmap? Preview { get; private set; }
     [ObservableProperty] public partial string? Error { get; private set; }
@@ -23,11 +46,25 @@ public partial class PhotoDetailsViewModel(PhotoItemViewModel photo) : ViewModel
     [ObservableProperty] public partial string? Lens { get; private set; }
     [ObservableProperty] public partial string? Exposure { get; private set; }
     [ObservableProperty] public partial string? Dimensions { get; private set; }
-    [ObservableProperty] public partial string? Title { get; private set; }
-    [ObservableProperty] public partial string? Description { get; private set; }
-    [ObservableProperty] public partial string? Rating { get; private set; }
     [ObservableProperty] public partial string? Location { get; private set; }
-    [ObservableProperty] public partial IReadOnlyList<string> Keywords { get; private set; } = [];
+
+    // --- Editable metadata ---------------------------------------------------------------
+
+    /// <summary>True once metadata has loaded and ExifTool is available.</summary>
+    [ObservableProperty] public partial bool CanEdit { get; private set; }
+
+    public ObservableCollection<string> Keywords { get; } = [];
+    public IReadOnlyList<StarViewModel> Stars { get; }
+
+    [ObservableProperty] public partial string? NewKeyword { get; set; }
+    [ObservableProperty] public partial string? Title { get; set; }
+    [ObservableProperty] public partial string? Description { get; set; }
+    [ObservableProperty] public partial int Rating { get; private set; }
+    [ObservableProperty] public partial string? SaveStatus { get; private set; }
+    [ObservableProperty] public partial bool SaveFailed { get; private set; }
+
+    /// <summary>Completes when every save started so far has finished (saves run in order).</summary>
+    public Task SaveCompletion => _lastSave;
 
     public async Task LoadAsync()
     {
@@ -41,7 +78,11 @@ public partial class PhotoDetailsViewModel(PhotoItemViewModel photo) : ViewModel
         try
         {
             var (metadata, size) = await metadataTask;
-            if (!token.IsCancellationRequested) Apply(metadata, size);
+            if (!token.IsCancellationRequested)
+            {
+                Apply(metadata, size);
+                CanEdit = _writer is not null;
+            }
         }
         catch (OperationCanceledException) { }
         catch (Exception e) when (e is ImageProcessingException or IOException or InvalidDataException)
@@ -66,6 +107,101 @@ public partial class PhotoDetailsViewModel(PhotoItemViewModel photo) : ViewModel
         }
     }
 
+    [RelayCommand]
+    private async Task AddKeyword()
+    {
+        // "beach, family" adds both.
+        var toAdd = (NewKeyword ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Where(k => !Keywords.Contains(k, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        NewKeyword = "";
+        if (toAdd.Count == 0) return;
+
+        foreach (var keyword in toAdd) Keywords.Add(keyword);
+        await SaveAsync(new MetadataChanges { Keywords = [.. Keywords] });
+    }
+
+    [RelayCommand]
+    private async Task RemoveKeyword(string keyword)
+    {
+        if (!Keywords.Remove(keyword)) return;
+        await SaveAsync(new MetadataChanges { Keywords = [.. Keywords] });
+    }
+
+    /// <summary>Clicking the current rating again clears it.</summary>
+    [RelayCommand]
+    private async Task SetRating(int stars)
+    {
+        SetRatingDisplay(stars == Rating ? 0 : stars);
+        await SaveAsync(new MetadataChanges { Rating = Rating });
+    }
+
+    // Title and description bind with UpdateSourceTrigger=LostFocus, so these fire once per edit.
+    partial void OnTitleChanged(string? value)
+    {
+        if (_applying || NormalizeText(value) == _savedTitle) return;
+        _ = SaveAsync(new MetadataChanges { Title = NormalizeText(value) });
+    }
+
+    partial void OnDescriptionChanged(string? value)
+    {
+        if (_applying || NormalizeText(value) == _savedDescription) return;
+        _ = SaveAsync(new MetadataChanges { Description = NormalizeText(value) });
+    }
+
+    // Text boxes use the platform's line endings (\r\n on Windows); files store \n.
+    private static string NormalizeText(string? value) => (value ?? "").ReplaceLineEndings("\n").Trim();
+
+    private Task SaveAsync(MetadataChanges changes)
+    {
+        if (_writer is null) return Task.CompletedTask;
+        return _lastSave = SaveCoreAsync(_writer, changes);
+    }
+
+    private async Task SaveCoreAsync(PhotoMetadataWriter writer, MetadataChanges changes)
+    {
+        _pendingSaves++;
+        SaveFailed = false;
+        SaveStatus = "Saving…";
+
+        // Saves for one photo run in order. They aren't cancelled when the photo is
+        // deselected: a half-finished write is worse than a late one.
+        await _saveGate.WaitAsync();
+        try
+        {
+            await writer.WriteAsync(Photo.Path, changes);
+            if (changes.Title is { } title) _savedTitle = title;
+            if (changes.Description is { } description) _savedDescription = description;
+            if (changes.Keywords is { } keywords) _suggestions.Add(keywords);
+            if (!SaveFailed) SaveStatus = _pendingSaves == 1 ? "Saved" : "Saving…";
+        }
+        catch (Exception e) when (e is ExifToolException or IOException or UnauthorizedAccessException)
+        {
+            SaveFailed = true;
+            SaveStatus = $"Couldn't save: {e.Message}";
+            await ReloadAsync(); // show what's actually in the file
+        }
+        finally
+        {
+            _pendingSaves--;
+            _saveGate.Release();
+        }
+    }
+
+    private async Task ReloadAsync()
+    {
+        try
+        {
+            var path = Photo.Path;
+            var (metadata, size) = await Task.Run(() => (PhotoMetadata.Read(path), new FileInfo(path).Length));
+            Apply(metadata, size);
+        }
+        catch (Exception e) when (e is ImageProcessingException or IOException)
+        {
+        }
+    }
+
     private void Apply(PhotoMetadata m, long fileSize)
     {
         var culture = CultureInfo.CurrentCulture;
@@ -77,13 +213,33 @@ public partial class PhotoDetailsViewModel(PhotoItemViewModel photo) : ViewModel
         Dimensions = JoinNonEmpty(" · ",
             m.Width is { } w && m.Height is { } h ? $"{w:N0} × {h:N0}" : null,
             FormatBytes(fileSize));
-        Title = m.Title;
-        Description = m.Description;
-        Rating = m.Rating is > 0 and <= 5 ? new string('★', m.Rating.Value) + new string('☆', 5 - m.Rating.Value) : null;
         Location = m.Latitude is { } lat && m.Longitude is { } lon
             ? string.Create(CultureInfo.InvariantCulture, $"{lat:F5}, {lon:F5}")
             : null;
-        Keywords = m.Keywords;
+
+        _applying = true;
+        try
+        {
+            Keywords.Clear();
+            foreach (var keyword in m.Keywords) Keywords.Add(keyword);
+            _suggestions.Add(m.Keywords);
+
+            _savedTitle = NormalizeText(m.Title);
+            _savedDescription = NormalizeText(m.Description);
+            Title = m.Title;
+            Description = m.Description;
+            SetRatingDisplay(m.Rating is >= 0 and <= 5 ? m.Rating.Value : 0);
+        }
+        finally
+        {
+            _applying = false;
+        }
+    }
+
+    private void SetRatingDisplay(int rating)
+    {
+        Rating = rating;
+        foreach (var star in Stars) star.IsFilled = star.Value <= rating;
     }
 
     private static string? JoinNonEmpty(string separator, params string?[] parts)
@@ -106,4 +262,15 @@ public partial class PhotoDetailsViewModel(PhotoItemViewModel photo) : ViewModel
         Preview?.Dispose();
         Preview = null;
     }
+}
+
+public partial class StarViewModel(int value) : ViewModelBase
+{
+    public int Value { get; } = value;
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(Glyph))]
+    public partial bool IsFilled { get; set; }
+
+    public string Glyph => IsFilled ? "★" : "☆";
 }
