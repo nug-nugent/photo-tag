@@ -1,5 +1,7 @@
 # PhotoTag
 
+[![CI](https://github.com/nug-nugent/photo-tag/actions/workflows/ci.yml/badge.svg)](https://github.com/nug-nugent/photo-tag/actions/workflows/ci.yml)
+
 A fast, cross-platform desktop app for browsing and tagging photo folders.
 Built with [Avalonia](https://avaloniaui.net/) on .NET 10, so it runs on Windows, macOS and Linux.
 
