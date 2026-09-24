@@ -52,6 +52,11 @@ dotnet run --project src/PhotoTag.App
 - **RAW files are never modified**: tags go in `IMG_0001.xmp` sidecars (Lightroom naming; darktable's `IMG_0001.CR2.xmp`
   is read too). A new sidecar is seeded with tags already embedded in the RAW. RAW previews are the camera's embedded JPEG.
 - **RAW+JPEG pairs are one photo** (shown and indexed as the JPEG; edits go to both).
+- **Favourites, not star ratings.** The owner chose a single ♥ favourite over 1–5★ ratings. It's stored as
+  `xmp:Rating = 5` (unfavouriting clears it), so other apps show favourites as 5★ and 5★ photos from elsewhere are
+  favourites. Lower ratings set in other apps are preserved until the photo is favourited: `PhotoMetadata.Rating` and
+  `MetadataChanges.Rating` are `internal` for that (e.g. seeding a new RAW sidecar), and the UI only sees
+  `IsFavourite`/`Favourite`. Don't bring back a rating UI without the owner.
 - **No HEIC support.** The owner decided against it (it would need Magick.NET, ~30 MB per platform).
 - **Saving tags updates "date modified"** so backup tools notice; keeping it is an opt-in setting.
 - **PhotoTag doesn't do backups.** The owner plans a NAS with snapshots and off-site copies; PhotoTag should work well

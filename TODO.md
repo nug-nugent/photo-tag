@@ -51,7 +51,7 @@ measure first-scan and thumbnail speed.
 **Why:** moving photos from the PC to the NAS, or the same share appearing as `Z:\` one day and `\\nas\photos` the next,
 makes the index treat everything as new files.
 **What:** detect or let the user declare "this folder is now at that path" and rewrite `photos.path`/`folder` in the index
-(keeping tags, ratings, counts) instead of rescanning from scratch.
+(keeping tags, favourites, counts) instead of rescanning from scratch.
 **Where:** `LibraryIndex` (schema v1; bump `user_version` if the schema changes).
 
 ### 2.3 Notice changes made outside PhotoTag (M)
@@ -60,9 +60,9 @@ the details panel and the index when files or sidecars change.
 
 ## 3. Tagging features
 
-### 3.1 Rating filter and text search in the UI (S)
-`PhotoQuery.MinRating` already exists in Core but has no UI. Add a "★ and up" filter next to *Untagged*, and consider
-searching titles, descriptions and file names too (`LibraryIndex` stores title/description already).
+### 3.1 Text search in the UI (S)
+Search only matches whole tags (plus the *Untagged* and *♥ Favourites* toggles). Consider searching titles,
+descriptions and file names too (`LibraryIndex` stores title/description already).
 
 ### 3.2 Tag management (M)
 A panel listing every tag with its count (`LibraryIndex.GetKeywordsAsync`), with **rename**, **merge** (e.g. "beach" into
@@ -70,7 +70,7 @@ A panel listing every tag with its count (`LibraryIndex.GetKeywordsAsync`), with
 bulk edits.
 
 ### 3.3 Bulk title/description (S)
-The bulk panel only does tags and rating (`BulkDetailsViewModel`). Add "set title/description on all" with a clear
+The bulk panel only does tags and favourites (`BulkDetailsViewModel`). Add "set title/description on all" with a clear
 warning that it overwrites.
 
 ### 3.4 Undo (M)
@@ -89,7 +89,11 @@ The original WPF prototype planned People, Location, Town, County and Region fie
 
 ### 4.1 Large viewer (M)
 Double-click (or Enter/Space) opens a full-window view with ←/→ to move between photos, using `PhotoRenderer` at screen
-size. Rating shortcuts (0–5 keys) there and in the grid would make tagging much faster.
+size. A favourite shortcut (e.g. F) there and in the grid would make tagging much faster.
+
+### 4.4 Show favourites in the grid (S)
+Thumbnails don't show whether a photo is a favourite. Add a small ♥ on favourite tiles, from `PhotoItemViewModel.Metadata`
+or the index, without slowing down scrolling (the grid is virtualized; see `ElementPrepared`).
 
 ### 4.2 Sort and group (S)
 Sort the grid by file name (current) or date taken (from the index), optionally grouped by day.
