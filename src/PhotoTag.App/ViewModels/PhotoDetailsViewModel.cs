@@ -163,6 +163,8 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         await SaveAsync(new MetadataChanges { Keywords = [.. Keywords] });
     }
 
+    partial void OnIsFavouriteChanged(bool value) => Photo.IsFavourite = value; // the grid tile's ♥
+
     [RelayCommand]
     private async Task ToggleFavourite()
     {
@@ -275,7 +277,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
             _savedDescription = NormalizeText(m.Description);
             Title = m.Title;
             Description = m.Description;
-            IsFavourite = m.IsFavourite;
+            IsFavourite = Photo.IsFavourite = m.IsFavourite; // the file wins over a stale index
         }
         finally
         {

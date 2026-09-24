@@ -91,10 +91,6 @@ The original WPF prototype planned People, Location, Town, County and Region fie
 Double-click (or Enter/Space) opens a full-window view with ←/→ to move between photos, using `PhotoRenderer` at screen
 size. A favourite shortcut (e.g. F) there and in the grid would make tagging much faster.
 
-### 4.4 Show favourites in the grid (S)
-Thumbnails don't show whether a photo is a favourite. Add a small ♥ on favourite tiles, from `PhotoItemViewModel.Metadata`
-or the index, without slowing down scrolling (the grid is virtualized; see `ElementPrepared`).
-
 ### 4.2 Sort and group (S)
 Sort the grid by file name (current) or date taken (from the index), optionally grouped by day.
 

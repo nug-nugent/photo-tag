@@ -43,6 +43,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (writer is not null) writer.PreserveModifiedTime = settings.PreserveModifiedTime;
         Library = new LibraryViewModel(index, _keywordSuggestions);
         Library.CountsChanged += (_, _) => _ = RefreshFolderCountsAsync();
+        Library.CountsChanged += (_, _) => _ = RefreshFavouritesAsync(Photos);
         Operations = new BulkOperations(writer, _keywordSuggestions);
         Operations.Summary += (_, summary) => StatusText = summary;
         Operations.Completed += (_, result) => _ = Library.PhotosChangedAsync(result.After);
@@ -362,13 +363,26 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             var files = await load();
             if (cts.IsCancellationRequested) return;
 
-            Photos = files.Select((f, i) => new PhotoItemViewModel(f, i, _thumbnails)).ToList();
+            var photos = files.Select((f, i) => new PhotoItemViewModel(f, i, _thumbnails)).ToList();
+            Photos = photos;
             StatusText = describe(files.Count);
+            await RefreshFavouritesAsync(photos);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             if (!cts.IsCancellationRequested) StatusText = $"Couldn't load photos: {e.Message}";
         }
+    }
+
+    /// <summary>
+    /// Marks the grid's favourites from the index: one query rather than a file read per tile, which
+    /// matters on network shares. Runs again whenever the index changes (a scan finishing, an edit).
+    /// </summary>
+    private async Task RefreshFavouritesAsync(IReadOnlyList<PhotoItemViewModel> photos)
+    {
+        if (RootPath is not { } root || photos.Count == 0) return;
+        var favourites = await Library.Index.GetFavouritesAsync(root);
+        foreach (var photo in photos) photo.IsFavourite = favourites.Contains(photo.Path);
     }
 
     public void Dispose()

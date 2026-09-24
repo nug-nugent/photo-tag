@@ -76,7 +76,11 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
             var result = await operation(_editor, photos.Select(p => p.File).ToList(), progress, cts.Token);
 
             foreach (var photo in photos)
-                if (result.After.TryGetValue(photo.Path, out var metadata)) photo.Metadata = metadata;
+                if (result.After.TryGetValue(photo.Path, out var metadata))
+                {
+                    photo.Metadata = metadata;
+                    photo.IsFavourite = metadata.IsFavourite;
+                }
 
             Summary?.Invoke(this, Summarize(result));
             Completed?.Invoke(this, result);

@@ -153,6 +153,21 @@ public sealed class LibraryIndex : IDisposable
         return results;
     });
 
+    /// <summary>Paths of every favourite under <paramref name="root"/>, so the grid can mark them without reading files.</summary>
+    public Task<IReadOnlySet<string>> GetFavouritesAsync(string root) => Task.Run<IReadOnlySet<string>>(() =>
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT path FROM photos WHERE {UnderFolder("folder")} AND rating >= @favouriteRating";
+        AddFolderParameters(command, NormalizeFolder(root));
+        command.Parameters.AddWithValue("@favouriteRating", PhotoMetadataWriter.FavouriteRating);
+
+        var paths = new HashSet<string>(PathComparer);
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) paths.Add(reader.GetString(0));
+        return paths;
+    });
+
     /// <summary>Every tag in the index (or under <paramref name="root"/>) with how many photos have it.</summary>
     public Task<IReadOnlyList<KeywordCount>> GetKeywordsAsync(string? root = null) => Task.Run<IReadOnlyList<KeywordCount>>(() =>
     {

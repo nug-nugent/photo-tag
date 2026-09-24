@@ -19,7 +19,7 @@ macOS open **System Settings → Privacy & Security** and click **Open Anyway**.
 Early days. Today it can:
 
 - Browse a folder tree (subfolders load lazily, off the UI thread)
-- Show a virtualized thumbnail grid that stays responsive with thousands of photos
+- Show a virtualized thumbnail grid that stays responsive with thousands of photos, with a ♥ on favourites
 - Show a details panel for the selected photo: preview, date taken, camera, exposure, size and GPS
 - Edit tags, title and description, and mark favourites (♥). Changes are written straight into the photo file.
 - Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and tag or favourite them all at

@@ -200,6 +200,11 @@
                                                 HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
                                             <TextBlock Text="{Binding Badge}" FontSize="10" FontWeight="SemiBold" />
                                         </Border>
+                                        <Border Classes="badge tileHeart" IsVisible="{Binding IsFavourite}"
+                                                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4"
+                                                ToolTip.Tip="Favourite">
+                                            <TextBlock Text="♥" FontSize="12" Foreground="Crimson" />
+                                        </Border>
                                     </Panel>
                                 </DockPanel>
                             </Border>

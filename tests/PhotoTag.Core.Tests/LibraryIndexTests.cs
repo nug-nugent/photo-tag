@@ -131,6 +131,9 @@ public sealed class LibraryIndexTests : IDisposable
         Assert.Empty(await _index.SearchAsync(_library, new PhotoQuery { FavouritesOnly = true, Keywords = ["Dog"] }));
         Assert.Equal([plain], await _index.SearchAsync(_library, new PhotoQuery { FavouritesOnly = true, UntaggedOnly = true }));
         Assert.Equal([dog], await _index.SearchAsync(_library, new PhotoQuery { Keywords = ["Dog"] }));
+
+        Assert.Equal([beach, plain], (await _index.GetFavouritesAsync(_library)).Order());
+        Assert.Equal([plain], await _index.GetFavouritesAsync(Path.Combine(_library, "sub")));
     }
 
     [Fact]
