@@ -72,6 +72,15 @@ public sealed class TagManagerTests : UiTestBase
         Assert.Equal(["Beach"], vm.Photos.Single(p => p.Path == a).Metadata?.Keywords);
         Assert.DoesNotContain("Dog", vm.KeywordSuggestions);
         await WaitForAsync(() => vm.RootFolders.Single().CountText == "4 · 3 tagged");
+
+        // Undo brings the deleted tag back everywhere.
+        flyout.Hide();
+        Click(window, Find<Button>(window, "UndoButton"));
+        await WaitForAsync(() => !vm.Operations.IsBusy);
+        Assert.Equal(["Beach", "Dog"], PhotoMetadata.Read(a).Keywords);
+        Assert.Equal(["Dog"], PhotoMetadata.Read(d).Keywords);
+        Assert.Contains("Dog", vm.KeywordSuggestions);
+        await WaitForAsync(() => vm.RootFolders.Single().CountText == "4 · 4 tagged");
         window.Close();
     }
 

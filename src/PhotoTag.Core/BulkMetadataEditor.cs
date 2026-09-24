@@ -4,6 +4,9 @@ public readonly record struct BulkProgress(int Done, int Total);
 
 public sealed record BulkFailure(string Path, string Error);
 
+/// <summary>One file a bulk edit wrote: <paramref name="Photo"/> is the photo it belongs to (the JPEG, for a RAW+JPEG pair).</summary>
+public sealed record BulkChange(string Photo, string Path, PhotoMetadata Before, PhotoMetadata After);
+
 public sealed record BulkResult
 {
     /// <summary>Photos whose metadata was written.</summary>
@@ -15,6 +18,12 @@ public sealed record BulkResult
     public IReadOnlyList<BulkFailure> Failures { get; init; } = [];
 
     public bool Cancelled { get; init; }
+
+    /// <summary>Every file that was written, with its metadata before and after, so the edit can be undone.</summary>
+    public IReadOnlyList<BulkChange> Written { get; init; } = [];
+
+    /// <summary>For an undo: photos edited again since, so left as they are.</summary>
+    public int ChangedSince { get; init; }
 
     /// <summary>The metadata of every photo that was read, as it is after the operation.</summary>
     public IReadOnlyDictionary<string, PhotoMetadata> After { get; init; } = new Dictionary<string, PhotoMetadata>();
@@ -96,18 +105,71 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
             current => current.IsFavourite == favourite ? null : new MetadataChanges { Favourite = favourite },
             progress, cancellationToken);
 
-    /// <param name="plan">Given a photo's current metadata, the change to make, or null for none.</param>
-    private async Task<BulkResult> ApplyAsync(IReadOnlyList<PhotoFile> photos, Func<PhotoMetadata, MetadataChanges?> plan,
+    /// <summary>
+    /// Puts back the tags and favourites an earlier edit changed. A file whose tags or rating have
+    /// changed again since is left alone (counted in <see cref="BulkResult.ChangedSince"/>), so undo
+    /// never throws away later work.
+    /// </summary>
+    public async Task<BulkResult> UndoAsync(IReadOnlyList<BulkChange> changes,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var byPath = changes.ToDictionary(c => c.Path, StringComparer.Ordinal);
+        var photos = changes.GroupBy(c => c.Photo, StringComparer.Ordinal)
+            .Select(g => new PhotoFile(g.Key, [.. g.Select(c => c.Path).Where(p => p != g.Key)]))
+            .ToList();
+        var changedSince = new HashSet<string>(StringComparer.Ordinal);
+
+        var result = await ApplyAsync(photos, (path, current) =>
+        {
+            if (!byPath.TryGetValue(path, out var change)) return null; // e.g. only the RAW of a pair was written
+            if (!SameTagsAndRating(current, change.After))
+            {
+                changedSince.Add(change.Photo);
+                return null;
+            }
+            return Restore(change.Before, current);
+        }, progress, cancellationToken).ConfigureAwait(false);
+
+        return result with { ChangedSince = changedSince.Count };
+    }
+
+    private static bool SameTagsAndRating(PhotoMetadata a, PhotoMetadata b) =>
+        a.Rating == b.Rating && a.Keywords.SequenceEqual(b.Keywords, StringComparer.Ordinal);
+
+    // Bulk edits only change tags and favourites, so that's all there is to put back.
+    private static MetadataChanges? Restore(PhotoMetadata before, PhotoMetadata current)
+    {
+        var keywords = before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal) ? null : before.Keywords;
+        var changes = new MetadataChanges { Keywords = keywords };
+        if (before.Rating != current.Rating)
+        {
+            changes = before.Rating switch
+            {
+                null => changes with { Favourite = false },
+                PhotoMetadataWriter.FavouriteRating => changes with { Favourite = true },
+                var rating => changes with { Rating = rating }, // e.g. 4★ from another app
+            };
+        }
+        return changes.IsEmpty ? null : changes;
+    }
+
+    private Task<BulkResult> ApplyAsync(IReadOnlyList<PhotoFile> photos, Func<PhotoMetadata, MetadataChanges?> plan,
+        IProgress<BulkProgress>? progress, CancellationToken cancellationToken) =>
+        ApplyAsync(photos, (_, current) => plan(current), progress, cancellationToken);
+
+    /// <param name="plan">Given a file and its current metadata, the change to make, or null for none.</param>
+    private async Task<BulkResult> ApplyAsync(IReadOnlyList<PhotoFile> photos, Func<string, PhotoMetadata, MetadataChanges?> plan,
         IProgress<BulkProgress>? progress, CancellationToken cancellationToken)
     {
         int changed = 0, unchanged = 0, done = 0;
         var failures = new List<BulkFailure>();
         var after = new Dictionary<string, PhotoMetadata>(StringComparer.Ordinal);
+        var written = new List<BulkChange>();
 
         foreach (var photo in photos)
         {
             if (cancellationToken.IsCancellationRequested)
-                return new BulkResult { Changed = changed, Unchanged = unchanged, Failures = failures, Cancelled = true, After = after };
+                return new BulkResult { Changed = changed, Unchanged = unchanged, Failures = failures, Cancelled = true, After = after, Written = written };
 
             try
             {
@@ -117,17 +179,19 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
                 foreach (var path in photo.AllPaths)
                 {
                     var current = await Task.Run(() => PhotoMetadata.Read(path), CancellationToken.None).ConfigureAwait(false);
-                    var changes = plan(current);
+                    var changes = plan(path, current);
                     if (changes is not null)
                     {
                         // Not cancellable mid-write: see ExifTool.ExecuteAsync.
                         await writer.WriteAsync(path, changes, CancellationToken.None).ConfigureAwait(false);
                         anyChanged = true;
+                        var before = current;
                         current = current with
                         {
                             Keywords = changes.Keywords is { } k ? PhotoMetadataWriter.NormalizeKeywords(k) : current.Keywords,
-                            Rating = changes.Favourite is { } f ? (f ? PhotoMetadataWriter.FavouriteRating : null) : current.Rating,
+                            Rating = changes.Favourite is { } f ? (f ? PhotoMetadataWriter.FavouriteRating : null) : changes.Rating ?? current.Rating,
                         };
+                        written.Add(new BulkChange(photo.Path, path, before, current));
                     }
                     if (path == photo.Path) after[path] = current;
                 }
@@ -144,6 +208,6 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
             progress?.Report(new BulkProgress(++done, photos.Count));
         }
 
-        return new BulkResult { Changed = changed, Unchanged = unchanged, Failures = failures, After = after };
+        return new BulkResult { Changed = changed, Unchanged = unchanged, Failures = failures, After = after, Written = written };
     }
 }

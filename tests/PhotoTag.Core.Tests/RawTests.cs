@@ -182,6 +182,13 @@ public sealed class RawTests(ExifToolFixture fixture) : IClassFixture<ExifToolFi
         Assert.Equal((1, 0), (result.Changed, result.Unchanged));
         Assert.Equal(["Beach"], PhotoMetadata.Read(raw).Keywords);
         Assert.Equal(["Beach"], PhotoMetadata.Read(jpeg).Keywords);
+
+        // Undo puts back just the RAW's sidecar, and reports the pair under its JPEG.
+        var undone = await new BulkMetadataEditor(writer).UndoAsync(result.Written, cancellationToken: Ct);
+        Assert.Equal(1, undone.Changed);
+        Assert.Empty(PhotoMetadata.Read(raw).Keywords);
+        Assert.Equal(["Beach"], PhotoMetadata.Read(jpeg).Keywords);
+        Assert.Equal([jpeg], undone.After.Keys);
     }
 
     [Fact]

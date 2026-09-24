@@ -83,6 +83,10 @@ public partial class MainWindow : Window
             case Key.Home: vm.MoveCurrent(-vm.Photos.Count, shift); break;
             case Key.End: vm.MoveCurrent(vm.Photos.Count, shift); break;
             case Key.A when e.KeyModifiers.HasFlag(CommandModifier): vm.SelectAll(); break;
+            case Key.Z when e.KeyModifiers.HasFlag(CommandModifier):
+                vm.UndoCommand.Execute(null);
+                e.Handled = true;
+                return;
             case Key.Escape: vm.ClearSelection(); break;
             default: return;
         }

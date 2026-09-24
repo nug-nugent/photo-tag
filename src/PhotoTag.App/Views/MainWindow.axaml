@@ -210,6 +210,9 @@
                            Opacity="0.7" VerticalAlignment="Center" />
                 <TextBlock DockPanel.Dock="Right" Text="{Binding SelectionText}" FontSize="12" Margin="12,0"
                            VerticalAlignment="Center" />
+                <Button x:Name="UndoButton" DockPanel.Dock="Right" Content="Undo" Padding="10,2" FontSize="12" Margin="12,0,0,0"
+                        ToolTip.Tip="{Binding Operations.UndoToolTip}" IsVisible="{Binding Operations.CanUndo}"
+                        Command="{Binding UndoCommand}" />
                 <Panel VerticalAlignment="Center">
                     <TextBlock Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis"
                                IsVisible="{Binding !Operations.IsBusy}" />
