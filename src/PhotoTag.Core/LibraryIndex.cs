@@ -24,7 +24,7 @@ public sealed record PhotoQuery
     /// <summary>Whole tags only.</summary>
     public IReadOnlyList<string> Keywords { get; init; } = [];
 
-    /// <summary>Each term matches a whole tag, or appears anywhere in the title, description or file name.</summary>
+    /// <summary>Each term matches a whole tag, or appears anywhere in the title, description, place or file name.</summary>
     public IReadOnlyList<string> Terms { get; init; } = [];
 
     public bool UntaggedOnly { get; init; }
@@ -39,7 +39,7 @@ public sealed record PhotoQuery
 /// </summary>
 public sealed class LibraryIndex : IDisposable
 {
-    private const int SchemaVersion = 1;
+    private const int SchemaVersion = 2;
     private const int BatchSize = 200;
 
     // Windows and macOS file systems are case-insensitive by default.
@@ -154,7 +154,9 @@ public sealed class LibraryIndex : IDisposable
             var name = $"@t{i}";
             conditions.Add($"""
                 (EXISTS (SELECT 1 FROM photo_keywords k WHERE k.photo_id = p.id AND k.keyword = {name})
-                 OR contains_text(p.title, {name}) OR contains_text(p.description, {name}) OR contains_text(p.file_name, {name}))
+                 OR contains_text(p.title, {name}) OR contains_text(p.description, {name}) OR contains_text(p.file_name, {name})
+                 OR contains_text(p.location, {name}) OR contains_text(p.city, {name}) OR contains_text(p.state, {name})
+                 OR contains_text(p.country, {name}))
                 """);
             command.Parameters.AddWithValue(name, terms[i]);
         }
@@ -187,6 +189,26 @@ public sealed class LibraryIndex : IDisposable
         using var reader = command.ExecuteReader();
         while (reader.Read()) paths.Add(reader.GetString(0));
         return paths;
+    });
+
+    /// <summary>Every value of a place field in the index (every city, say), for suggestions.</summary>
+    public Task<IReadOnlyList<string>> GetPlaceValuesAsync(TextField field) => Task.Run<IReadOnlyList<string>>(() =>
+    {
+        var column = field switch
+        {
+            TextField.Location => "location",
+            TextField.City => "city",
+            TextField.State => "state",
+            TextField.Country => "country",
+            _ => throw new ArgumentOutOfRangeException(nameof(field), "Only place fields are indexed for suggestions."),
+        };
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT DISTINCT {column} FROM photos WHERE {column} IS NOT NULL";
+        var values = new List<string>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) values.Add(reader.GetString(0));
+        return values;
     });
 
     /// <summary>Every tag in the index (or under <paramref name="root"/>) with how many photos have it.</summary>
@@ -244,7 +266,23 @@ public sealed class LibraryIndex : IDisposable
         if (version > SchemaVersion)
             throw new InvalidOperationException($"The photo index was created by a newer version of PhotoTag ({version}).");
 
-        // Version 0 = new database. Future versions add migrations here.
+        if (version == 1)
+        {
+            // Version 2 adds the place fields. Marking every photo as changed makes the next scan
+            // read them, while counts and search keep working until then.
+            command.CommandText = $"""
+                ALTER TABLE photos ADD COLUMN location TEXT;
+                ALTER TABLE photos ADD COLUMN city TEXT;
+                ALTER TABLE photos ADD COLUMN state TEXT;
+                ALTER TABLE photos ADD COLUMN country TEXT;
+                UPDATE photos SET modified_ticks = -1;
+                PRAGMA user_version = {SchemaVersion};
+                """;
+            command.ExecuteNonQuery();
+            return;
+        }
+
+        // Version 0 = new database.
         command.CommandText = $"""
             PRAGMA journal_mode = WAL;
             CREATE TABLE photos (
@@ -258,7 +296,11 @@ public sealed class LibraryIndex : IDisposable
                 rating INTEGER,
                 title TEXT,
                 description TEXT,
-                keyword_count INTEGER NOT NULL
+                keyword_count INTEGER NOT NULL,
+                location TEXT,
+                city TEXT,
+                state TEXT,
+                country TEXT
             );
             CREATE INDEX photos_folder ON photos (folder);
             CREATE TABLE photo_keywords (
@@ -305,12 +347,15 @@ public sealed class LibraryIndex : IDisposable
 
                 using var upsert = connection.CreateCommand();
                 upsert.CommandText = """
-                    INSERT INTO photos (path, folder, file_name, size, modified_ticks, date_taken, rating, title, description, keyword_count)
-                    VALUES (@path, @folder, @name, @size, @ticks, @date, @rating, @title, @description, @count)
+                    INSERT INTO photos (path, folder, file_name, size, modified_ticks, date_taken, rating, title, description,
+                                        keyword_count, location, city, state, country)
+                    VALUES (@path, @folder, @name, @size, @ticks, @date, @rating, @title, @description,
+                            @count, @location, @city, @state, @country)
                     ON CONFLICT (path) DO UPDATE SET
                         size = excluded.size, modified_ticks = excluded.modified_ticks, date_taken = excluded.date_taken,
                         rating = excluded.rating, title = excluded.title, description = excluded.description,
-                        keyword_count = excluded.keyword_count
+                        keyword_count = excluded.keyword_count, location = excluded.location, city = excluded.city,
+                        state = excluded.state, country = excluded.country
                     RETURNING id
                     """;
                 using var clearKeywords = connection.CreateCommand();
@@ -331,6 +376,10 @@ public sealed class LibraryIndex : IDisposable
                     upsert.Parameters.AddWithValue("@title", (object?)m.Title ?? DBNull.Value);
                     upsert.Parameters.AddWithValue("@description", (object?)m.Description ?? DBNull.Value);
                     upsert.Parameters.AddWithValue("@count", m.Keywords.Count);
+                    upsert.Parameters.AddWithValue("@location", (object?)m.Location ?? DBNull.Value);
+                    upsert.Parameters.AddWithValue("@city", (object?)m.City ?? DBNull.Value);
+                    upsert.Parameters.AddWithValue("@state", (object?)m.State ?? DBNull.Value);
+                    upsert.Parameters.AddWithValue("@country", (object?)m.Country ?? DBNull.Value);
                     var id = Convert.ToInt64(upsert.ExecuteScalar());
 
                     clearKeywords.Parameters.Clear();

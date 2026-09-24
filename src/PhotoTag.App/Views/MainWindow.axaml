@@ -73,7 +73,7 @@
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
                     <AutoCompleteBox x:Name="SearchBox" Width="260" PlaceholderText="Search (comma = and)…"
-                                     ToolTip.Tip="Finds photos with a tag, or with the words in their title, description or file name. Separate several with commas to match them all."
+                                     ToolTip.Tip="Finds photos with a tag, or with the words in their title, description, place or file name. Separate several with commas to match them all."
                                      IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
                                      Text="{Binding SearchText, Mode=TwoWay}"
                                      ItemsSource="{Binding KeywordSuggestions}"
@@ -370,6 +370,31 @@
                                                  AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="8"
                                                  Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                                     </StackPanel>
+                                    <StackPanel Spacing="4">
+                                        <TextBlock Classes="label" Text="Place" />
+                                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+                                            <TextBlock Grid.Row="0" Classes="label" Text="Location" VerticalAlignment="Center" />
+                                            <AutoCompleteBox Grid.Row="0" Grid.Column="1" x:Name="LocationBox" IsEnabled="{Binding CanEdit}"
+                                                             PlaceholderText="e.g. a beach, park or venue" FilterMode="Contains" MinimumPrefixLength="1"
+                                                             ItemsSource="{Binding LocationSuggestions}"
+                                                             Text="{Binding Location, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBlock Grid.Row="1" Classes="label" Text="City" VerticalAlignment="Center" />
+                                            <AutoCompleteBox Grid.Row="1" Grid.Column="1" x:Name="CityBox" IsEnabled="{Binding CanEdit}"
+                                                             PlaceholderText="City, town or village" FilterMode="Contains" MinimumPrefixLength="1"
+                                                             ItemsSource="{Binding CitySuggestions}"
+                                                             Text="{Binding City, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBlock Grid.Row="2" Classes="label" Text="State/Province" VerticalAlignment="Center" />
+                                            <AutoCompleteBox Grid.Row="2" Grid.Column="1" x:Name="StateBox" IsEnabled="{Binding CanEdit}"
+                                                             PlaceholderText="Or county" FilterMode="Contains" MinimumPrefixLength="1"
+                                                             ItemsSource="{Binding StateSuggestions}"
+                                                             Text="{Binding State, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                            <TextBlock Grid.Row="3" Classes="label" Text="Country" VerticalAlignment="Center" />
+                                            <AutoCompleteBox Grid.Row="3" Grid.Column="1" x:Name="CountryBox" IsEnabled="{Binding CanEdit}"
+                                                             PlaceholderText="" FilterMode="Contains" MinimumPrefixLength="1"
+                                                             ItemsSource="{Binding CountrySuggestions}"
+                                                             Text="{Binding Country, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                        </Grid>
+                                    </StackPanel>
 
                                     <TextBlock Text="{Binding SaveStatus}" FontSize="12" TextWrapping="Wrap"
                                                Classes.error="{Binding SaveFailed}" Opacity="0.7"
@@ -391,9 +416,9 @@
                                         <TextBlock Classes="label" Text="File" />
                                         <TextBlock Text="{Binding Dimensions}" />
                                     </StackPanel>
-                                    <StackPanel IsVisible="{Binding Location, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                        <TextBlock Classes="label" Text="Location" />
-                                        <SelectableTextBlock Text="{Binding Location}" />
+                                    <StackPanel IsVisible="{Binding Coordinates, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                        <TextBlock Classes="label" Text="GPS" />
+                                        <SelectableTextBlock Text="{Binding Coordinates}" />
                                     </StackPanel>
                                 </StackPanel>
                             </DataTemplate>
@@ -464,7 +489,7 @@
                                     <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
                                         <TextBlock Classes="label" Text="Title" />
                                         <TextBox x:Name="BulkTitleBox" IsEnabled="{Binding CanEdit}"
-                                                 PlaceholderText="{Binding TitlePlaceholder}" Text="{Binding Title, Mode=TwoWay}">
+                                                 PlaceholderText="{Binding TitleField.Placeholder}" Text="{Binding TitleField.Text, Mode=TwoWay}">
                                             <TextBox.KeyBindings>
                                                 <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
                                             </TextBox.KeyBindings>
@@ -474,8 +499,45 @@
                                         <TextBlock Classes="label" Text="Description" />
                                         <TextBox x:Name="BulkDescriptionBox" IsEnabled="{Binding CanEdit}"
                                                  AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="8"
-                                                 PlaceholderText="{Binding DescriptionPlaceholder}" Text="{Binding Description, Mode=TwoWay}" />
-                                        <TextBlock Text="Type to give them all the same title or description. Nothing is saved until you apply it."
+                                                 PlaceholderText="{Binding DescriptionField.Placeholder}" Text="{Binding DescriptionField.Text, Mode=TwoWay}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
+                                        <TextBlock Classes="label" Text="Place" />
+                                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
+                                            <TextBlock Grid.Row="0" Classes="label" Text="Location" VerticalAlignment="Center" />
+                                            <AutoCompleteBox Grid.Row="0" Grid.Column="1" x:Name="BulkLocationBox" IsEnabled="{Binding CanEdit}"
+                                                             PlaceholderText="{Binding LocationField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
+                                                             ItemsSource="{Binding LocationField.Suggestions}" Text="{Binding LocationField.Text, Mode=TwoWay}">
+                                                <AutoCompleteBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                                </AutoCompleteBox.KeyBindings>
+                                            </AutoCompleteBox>
+                                            <TextBlock Grid.Row="1" Classes="label" Text="City" VerticalAlignment="Center" />
+                                            <AutoCompleteBox Grid.Row="1" Grid.Column="1" x:Name="BulkCityBox" IsEnabled="{Binding CanEdit}"
+                                                             PlaceholderText="{Binding CityField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
+                                                             ItemsSource="{Binding CityField.Suggestions}" Text="{Binding CityField.Text, Mode=TwoWay}">
+                                                <AutoCompleteBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                                </AutoCompleteBox.KeyBindings>
+                                            </AutoCompleteBox>
+                                            <TextBlock Grid.Row="2" Classes="label" Text="State/Province" VerticalAlignment="Center" />
+                                            <AutoCompleteBox Grid.Row="2" Grid.Column="1" x:Name="BulkStateBox" IsEnabled="{Binding CanEdit}"
+                                                             PlaceholderText="{Binding StateField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
+                                                             ItemsSource="{Binding StateField.Suggestions}" Text="{Binding StateField.Text, Mode=TwoWay}">
+                                                <AutoCompleteBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                                </AutoCompleteBox.KeyBindings>
+                                            </AutoCompleteBox>
+                                            <TextBlock Grid.Row="3" Classes="label" Text="Country" VerticalAlignment="Center" />
+                                            <AutoCompleteBox Grid.Row="3" Grid.Column="1" x:Name="BulkCountryBox" IsEnabled="{Binding CanEdit}"
+                                                             PlaceholderText="{Binding CountryField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
+                                                             ItemsSource="{Binding CountryField.Suggestions}" Text="{Binding CountryField.Text, Mode=TwoWay}">
+                                                <AutoCompleteBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                                </AutoCompleteBox.KeyBindings>
+                                            </AutoCompleteBox>
+                                        </Grid>
+                                        <TextBlock Text="Type to give them all the same title, description or place. Nothing is saved until you apply it."
                                                    FontSize="11" Opacity="0.6" TextWrapping="Wrap" IsVisible="{Binding !HasTextEdits}" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowApplyText}">

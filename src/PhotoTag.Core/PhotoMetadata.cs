@@ -24,6 +24,12 @@ public sealed record PhotoMetadata
     public string? Title { get; init; }
     public string? Description { get; init; }
 
+    /// <summary>Where the photo was taken, as IPTC describes it (see <see cref="TextField"/>).</summary>
+    public string? Location { get; init; }
+    public string? City { get; init; }
+    public string? State { get; init; }
+    public string? Country { get; init; }
+
     /// <summary>
     /// The file's star rating (xmp:Rating). PhotoTag doesn't show ratings, only favourites (5★),
     /// but it keeps the value so ratings set in other apps survive.
@@ -79,6 +85,10 @@ public sealed record PhotoMetadata
                 Keywords = ReadKeywords(null, xmp),
                 Title = Clean(Xmp(xmp, "dc:title[1]")),
                 Description = Clean(Xmp(xmp, "dc:description[1]")),
+                Location = Clean(Xmp(xmp, "Iptc4xmpCore:Location")),
+                City = Clean(Xmp(xmp, "photoshop:City")),
+                State = Clean(Xmp(xmp, "photoshop:State")),
+                Country = Clean(Xmp(xmp, "photoshop:Country")),
                 Rating = int.TryParse(Xmp(xmp, "xmp:Rating"), out var rating) && rating > 0 ? rating : null,
                 HierarchicalKeywords = XmpList(xmp, "lr:hierarchicalSubject"),
             };
@@ -127,6 +137,10 @@ public sealed record PhotoMetadata
             Description = Clean(Xmp(xmp, "dc:description[1]")
                                 ?? iptc?.GetString(IptcDirectory.TagCaption)
                                 ?? ifd0?.GetString(ExifDirectoryBase.TagImageDescription)),
+            Location = Clean(Xmp(xmp, "Iptc4xmpCore:Location") ?? iptc?.GetString(IptcDirectory.TagSubLocation)),
+            City = Clean(Xmp(xmp, "photoshop:City") ?? iptc?.GetString(IptcDirectory.TagCity)),
+            State = Clean(Xmp(xmp, "photoshop:State") ?? iptc?.GetString(IptcDirectory.TagProvinceOrState)),
+            Country = Clean(Xmp(xmp, "photoshop:Country") ?? iptc?.GetString(IptcDirectory.TagCountryOrPrimaryLocationName)),
             Rating = int.TryParse(Xmp(xmp, "xmp:Rating"), out var rating) ? rating : null,
             Latitude = location is { IsZero: false } ? location.Value.Latitude : null,
             Longitude = location is { IsZero: false } ? location.Value.Longitude : null,

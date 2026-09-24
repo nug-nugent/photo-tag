@@ -277,6 +277,31 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
     }
 
     [Fact]
+    public async Task SetText_SetsPlaces_AndUndoPutsThemBack()
+    {
+        var writer = fixture.RequireWriter();
+        var editor = new BulkMetadataEditor(writer);
+        var a = Photo("a.jpg");
+        var b = Photo("b.jpg");
+        await writer.WriteAsync(a, new MetadataChanges { City = "Penzance", Title = "Harbour" }, Ct);
+
+        var set = await editor.SetTextAsync([a, b], new Dictionary<TextField, string>
+        {
+            [TextField.City] = "St Ives",
+            [TextField.State] = "Cornwall",
+        }, cancellationToken: Ct);
+
+        Assert.Equal(2, set.Changed);
+        Assert.All([a, b], p => Assert.Equal(("St Ives", "Cornwall"), (PhotoMetadata.Read(p).City, PhotoMetadata.Read(p).State)));
+        Assert.Equal("Harbour", PhotoMetadata.Read(a).Title);
+        Assert.Equal("St Ives", set.After[b].City);
+
+        await editor.UndoAsync(set.Written, cancellationToken: Ct);
+        Assert.Equal(("Penzance", null), (PhotoMetadata.Read(a).City, PhotoMetadata.Read(a).State));
+        Assert.Null(PhotoMetadata.Read(b).City);
+    }
+
+    [Fact]
     public async Task SetFavourite_SetsAndClears_LeavingOtherRatingsAlone()
     {
         var editor = RequireEditor();

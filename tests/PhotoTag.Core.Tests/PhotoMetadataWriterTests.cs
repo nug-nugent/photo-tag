@@ -91,6 +91,28 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
     }
 
     [Fact]
+    public async Task Places_RoundTrip_ReachIptcToo_AndClearOneAtATime()
+    {
+        var writer = fixture.RequireWriter();
+        var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(200, 100));
+
+        await writer.WriteAsync(path, new MetadataChanges
+        {
+            Location = "Porthcurno beach", City = "St Levan", State = "Cornwall", Country = "United Kingdom",
+        }, Ct);
+
+        var m = PhotoMetadata.Read(path);
+        Assert.Equal(("Porthcurno beach", "St Levan", "Cornwall", "United Kingdom"), (m.Location, m.City, m.State, m.Country));
+        var iptc = MetadataExtractor.ImageMetadataReader.ReadMetadata(path).OfType<MetadataExtractor.Formats.Iptc.IptcDirectory>().Single();
+        Assert.Equal("St Levan", MetadataExtractor.DirectoryExtensions.GetString(iptc, MetadataExtractor.Formats.Iptc.IptcDirectory.TagCity));
+        Assert.Equal("United Kingdom", MetadataExtractor.DirectoryExtensions.GetString(iptc, MetadataExtractor.Formats.Iptc.IptcDirectory.TagCountryOrPrimaryLocationName));
+
+        await writer.WriteAsync(path, new MetadataChanges { City = "", Country = "Kernow ☀" }, Ct);
+        m = PhotoMetadata.Read(path);
+        Assert.Equal(("Porthcurno beach", null, "Cornwall", "Kernow ☀"), (m.Location, m.City, m.State, m.Country));
+    }
+
+    [Fact]
     public async Task OnlyRequestedFieldsChange()
     {
         var writer = fixture.RequireWriter();

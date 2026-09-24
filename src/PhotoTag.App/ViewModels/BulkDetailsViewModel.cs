@@ -13,13 +13,23 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
 {
     private readonly BulkOperations _operations;
     private readonly KeywordSuggestions _suggestions;
+    private readonly PlaceSuggestions _places;
     private readonly CancellationTokenSource _cts = new();
 
-    public BulkDetailsViewModel(IReadOnlyList<PhotoItemViewModel> photos, BulkOperations operations, KeywordSuggestions suggestions)
+    public BulkDetailsViewModel(IReadOnlyList<PhotoItemViewModel> photos, BulkOperations operations, KeywordSuggestions suggestions,
+        PlaceSuggestions places)
     {
         Photos = photos;
         _operations = operations;
         _suggestions = suggestions;
+        _places = places;
+        TitleField = new BulkTextFieldViewModel(this, TextField.Title, null);
+        DescriptionField = new BulkTextFieldViewModel(this, TextField.Description, null);
+        LocationField = new BulkTextFieldViewModel(this, TextField.Location, places.For(TextField.Location));
+        CityField = new BulkTextFieldViewModel(this, TextField.City, places.For(TextField.City));
+        StateField = new BulkTextFieldViewModel(this, TextField.State, places.For(TextField.State));
+        CountryField = new BulkTextFieldViewModel(this, TextField.Country, places.For(TextField.Country));
+        _textFields = [TitleField, DescriptionField, LocationField, CityField, StateField, CountryField];
         _operations.PropertyChanged += OnOperationsChanged;
         _operations.Completed += OnOperationCompleted;
     }
@@ -49,45 +59,39 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
 
     public bool CanEdit => IsLoaded && _operations.IsAvailable && !_operations.IsBusy;
 
-    // --- Title and description --------------------------------------------------------------
-    // The boxes show the value the photos share, if they all have the same one. Typing in a box
+    // --- Title, description and place -------------------------------------------------------
+    // Each box shows the value the photos share, if they all have the same one. Typing in a box
     // marks it as edited; nothing is saved until Apply, which first warns what will be replaced.
 
     private bool _showingText;
-    private bool _titleEdited;
-    private bool _descriptionEdited;
+    private readonly IReadOnlyList<BulkTextFieldViewModel> _textFields;
 
-    [ObservableProperty] public partial string? Title { get; set; }
-    [ObservableProperty] public partial string? Description { get; set; }
-    [ObservableProperty] public partial string? TitlePlaceholder { get; private set; }
-    [ObservableProperty] public partial string? DescriptionPlaceholder { get; private set; }
+    public BulkTextFieldViewModel TitleField { get; }
+    public BulkTextFieldViewModel DescriptionField { get; }
+    public BulkTextFieldViewModel LocationField { get; }
+    public BulkTextFieldViewModel CityField { get; }
+    public BulkTextFieldViewModel StateField { get; }
+    public BulkTextFieldViewModel CountryField { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(ShowApplyText))]
     public partial bool IsConfirmingText { get; private set; }
 
-    /// <summary>What Apply will do, e.g. "This sets the title on all 5 photos, replacing the title 3 of them already have."</summary>
+    /// <summary>What Apply will do, e.g. "This sets the city on all 5 photos, replacing the city 3 of them already have."</summary>
     [ObservableProperty] public partial string? TextWarning { get; private set; }
 
-    public bool HasTextEdits => _titleEdited || _descriptionEdited;
+    public bool HasTextEdits => _textFields.Any(f => f.IsEdited);
     public bool CanApplyText => CanEdit && HasTextEdits;
     public bool ShowApplyText => HasTextEdits && !IsConfirmingText;
 
-    partial void OnTitleChanged(string? value)
+    internal void OnTextEdited(BulkTextFieldViewModel field)
     {
         if (_showingText) return;
-        _titleEdited = true;
-        OnTextEdited();
+        field.IsEdited = true;
+        OnTextEditsChanged();
     }
 
-    partial void OnDescriptionChanged(string? value)
-    {
-        if (_showingText) return;
-        _descriptionEdited = true;
-        OnTextEdited();
-    }
-
-    private void OnTextEdited()
+    private void OnTextEditsChanged()
     {
         IsConfirmingText = false;
         OnPropertyChanged(nameof(HasTextEdits));
@@ -95,16 +99,15 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
         OnPropertyChanged(nameof(ShowApplyText));
     }
 
-    /// <summary>Apply (or Enter in the title box): shows what will be replaced, to confirm.</summary>
+    /// <summary>Apply (or Enter in a one-line box): shows what will be replaced, to confirm.</summary>
     [RelayCommand]
     private void ReviewText()
     {
         if (!CanApplyText) return;
         var metadata = Photos.Select(p => p.Metadata ?? new PhotoMetadata()).ToList();
-        var parts = new List<string>();
-        if (_titleEdited) parts.Add(DescribeChange("title", Title, metadata.Select(m => m.Title)));
-        if (_descriptionEdited) parts.Add(DescribeChange("description", Description, metadata.Select(m => m.Description)));
-        parts.Add("You can undo it afterwards.");
+        var parts = _textFields.Where(f => f.IsEdited)
+            .Select(f => DescribeChange(f.Field.Lower(), f.Text, metadata.Select(m => m.Get(f.Field))))
+            .Append("You can undo it afterwards.");
         TextWarning = string.Join(" ", parts);
         IsConfirmingText = true;
     }
@@ -125,27 +128,31 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     private Task ApplyText()
     {
         IsConfirmingText = false;
-        var title = _titleEdited ? PhotoMetadataWriter.NormalizeText(Title) : null;
-        var description = _descriptionEdited ? PhotoMetadataWriter.NormalizeText(Description) : null;
-        _titleEdited = _descriptionEdited = false;
-        OnTextEdited(); // the boxes refresh from the photos when the edit completes
-        return title is null && description is null ? Task.CompletedTask : _operations.SetTextAsync(Photos, title, description);
+        var values = new Dictionary<TextField, string>();
+        foreach (var field in _textFields.Where(f => f.IsEdited))
+        {
+            values[field.Field] = PhotoMetadataWriter.NormalizeText(field.Text);
+            _places.Add(field.Field, field.Text);
+            field.IsEdited = false;
+        }
+        OnTextEditsChanged(); // the boxes refresh from the photos when the edit completes
+        return values.Count == 0 ? Task.CompletedTask : _operations.SetTextAsync(Photos, values);
     }
 
     /// <summary>Puts the boxes back to what the photos have.</summary>
     [RelayCommand]
     private void CancelText()
     {
-        _titleEdited = _descriptionEdited = false;
-        OnTextEdited();
+        foreach (var field in _textFields) field.IsEdited = false;
+        OnTextEditsChanged();
         ShowText(Photos.Select(p => p.Metadata ?? new PhotoMetadata()).ToList());
     }
 
     private void ShowText(IReadOnlyList<PhotoMetadata> metadata)
     {
         _showingText = true;
-        if (!_titleEdited) (Title, TitlePlaceholder) = Common(metadata.Select(m => m.Title), "title");
-        if (!_descriptionEdited) (Description, DescriptionPlaceholder) = Common(metadata.Select(m => m.Description), "description");
+        foreach (var field in _textFields.Where(f => !f.IsEdited))
+            (field.Text, field.Placeholder) = Common(metadata.Select(m => m.Get(field.Field)), field.Field.Lower());
         _showingText = false;
     }
 
@@ -256,6 +263,22 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
         _cts.Cancel();
         _cts.Dispose();
     }
+}
+
+/// <summary>One text box in the bulk panel: its value, and whether the user has typed in it.</summary>
+public partial class BulkTextFieldViewModel(BulkDetailsViewModel owner, TextField textField, ObservableCollection<string>? suggestions)
+    : ViewModelBase
+{
+    public TextField Field => textField;
+    public string Label => textField.Label();
+    public ObservableCollection<string>? Suggestions => suggestions;
+
+    [ObservableProperty] public partial string? Text { get; set; }
+    [ObservableProperty] public partial string? Placeholder { get; internal set; }
+
+    public bool IsEdited { get; internal set; }
+
+    partial void OnTextChanged(string? value) => owner.OnTextEdited(this);
 }
 
 public sealed class BulkKeywordViewModel(string keyword, int count, int total)

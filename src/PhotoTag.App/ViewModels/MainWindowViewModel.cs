@@ -28,6 +28,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly PhotoMetadataWriter? _writer;
     private readonly PhotoRenderer _renderer;
     private readonly KeywordSuggestions _keywordSuggestions = new();
+    private readonly PlaceSuggestions _placeSuggestions = new();
     private readonly HashSet<PhotoItemViewModel> _selection = [];
     private CancellationTokenSource? _photosLoad;
     private int _anchorIndex = -1;
@@ -41,7 +42,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _settings = settings;
         _writer = writer;
         if (writer is not null) writer.PreserveModifiedTime = settings.PreserveModifiedTime;
-        Library = new LibraryViewModel(index, _keywordSuggestions);
+        Library = new LibraryViewModel(index, _keywordSuggestions, _placeSuggestions);
         Library.CountsChanged += (_, _) => _ = RefreshFolderCountsAsync();
         Library.CountsChanged += (_, _) => _ = RefreshFavouritesAsync(Photos);
         Operations = new BulkOperations(writer, _keywordSuggestions);
@@ -311,13 +312,13 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 break;
             case 1:
                 var photo = _selection.First();
-                var details = new PhotoDetailsViewModel(photo, _writer, _keywordSuggestions, Operations, _renderer);
+                var details = new PhotoDetailsViewModel(photo, _writer, _keywordSuggestions, _placeSuggestions, Operations, _renderer);
                 details.Saved += (_, _) => _ = Library.PhotoChangedAsync(photo.Path);
                 Details = details;
                 _ = details.LoadAsync();
                 break;
             default:
-                var bulk = new BulkDetailsViewModel(SelectedPhotos, Operations, _keywordSuggestions);
+                var bulk = new BulkDetailsViewModel(SelectedPhotos, Operations, _keywordSuggestions, _placeSuggestions);
                 Details = bulk;
                 _ = bulk.LoadAsync();
                 break;

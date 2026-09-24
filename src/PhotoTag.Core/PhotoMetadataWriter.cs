@@ -11,6 +11,10 @@ public sealed record MetadataChanges
     public IReadOnlyList<string>? Keywords { get; init; }
     public string? Title { get; init; }
     public string? Description { get; init; }
+    public string? Location { get; init; }
+    public string? City { get; init; }
+    public string? State { get; init; }
+    public string? Country { get; init; }
 
     /// <summary>True sets a 5★ rating; false clears the rating.</summary>
     public bool? Favourite { get; init; }
@@ -27,8 +31,8 @@ public sealed record MetadataChanges
     /// <summary>Set when <see cref="Keywords"/> renames a tag, so nested keywords are renamed rather than dropped.</summary>
     internal KeywordRename? Rename { get; init; }
 
-    public bool IsEmpty => Keywords is null && Title is null && Description is null && Favourite is null && Rating is null
-                           && HierarchicalKeywords is null;
+    public bool IsEmpty => Keywords is null && Favourite is null && Rating is null && HierarchicalKeywords is null
+                           && TextFields.All.All(f => this.Get(f) is null);
 }
 
 /// <summary>
@@ -138,6 +142,10 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             Keywords = changes.Keywords ?? (embedded.Keywords.Count > 0 ? embedded.Keywords : null),
             Title = changes.Title ?? embedded.Title,
             Description = changes.Description ?? embedded.Description,
+            Location = changes.Location ?? embedded.Location,
+            City = changes.City ?? embedded.City,
+            State = changes.State ?? embedded.State,
+            Country = changes.Country ?? embedded.Country,
             Rating = changes.Favourite is null ? embedded.Rating : null,
             HierarchicalKeywords = changes.HierarchicalKeywords ?? (embedded.HierarchicalKeywords.Count > 0 ? embedded.HierarchicalKeywords : null),
         };
@@ -201,12 +209,18 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             }
         }
 
+        // XMP names as Lightroom and the IPTC Core standard use them, and the older IPTC fields for JPEGs.
+        SetText(args, changes.Location, "XMP-iptcCore:Location", isJpeg ? "IPTC:Sub-location" : null);
+        SetText(args, changes.City, "XMP-photoshop:City", isJpeg ? "IPTC:City" : null);
+        SetText(args, changes.State, "XMP-photoshop:State", isJpeg ? "IPTC:Province-State" : null);
+        SetText(args, changes.Country, "XMP-photoshop:Country", isJpeg ? "IPTC:Country-PrimaryLocationName" : null);
+
         if (changes.Favourite is { } favourite)
             Set(args, "XMP-xmp:Rating", favourite ? FavouriteRating.ToString(System.Globalization.CultureInfo.InvariantCulture) : "");
         else if (changes.Rating is { } rating)
             Set(args, "XMP-xmp:Rating", rating.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-        if (isJpeg && (changes.Keywords is not null || changes.Title is not null || changes.Description is not null))
+        if (isJpeg && (changes.Keywords is not null || TextFields.All.Any(f => changes.Get(f) is not null)))
             args.Add("-IPTC:CodedCharacterSet=UTF8");
 
         args.Add(path);
@@ -216,6 +230,13 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
     // "-Tag=" with no value deletes the tag.
     private static void Set(List<string> args, string tag, string value) =>
         args.Add($"-{tag}={Escape(value.Trim())}");
+
+    private static void SetText(List<string> args, string? value, string xmpTag, string? iptcTag)
+    {
+        if (value is null) return;
+        Set(args, xmpTag, value);
+        if (iptcTag is not null) Set(args, iptcTag, value);
+    }
 
     // Assigning a list tag several times in one command replaces the whole list.
     private static void SetList(List<string> args, string tag, IReadOnlyList<string> values)

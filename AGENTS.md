@@ -60,6 +60,9 @@ dotnet run --project src/PhotoTag.App
 - **Nested keywords are only kept in step.** The owner doesn't use Lightroom or digiKam, so PhotoTag doesn't show
   or create `lr:hierarchicalSubject`. It only updates it when a tag is renamed or removed, keeping the rest of each
   path (`KeywordHierarchy`). Don't add a nested-tag UI without the owner.
+- **People and places are separate fields, not tags** (the owner's choice). Places are Location, City,
+  State/Province and Country: `XMP-iptcCore:Location` and `XMP-photoshop:City/State/Country`, plus the IPTC fields for
+  JPEGs. The UI says "State/Province". GPS gets an "Open in map" link, not a map inside the app.
 - **No HEIC support.** The owner decided against it (it would need Magick.NET, ~30 MB per platform).
 - **Saving tags updates "date modified"** so backup tools notice; keeping it is an opt-in setting.
 - **PhotoTag doesn't do backups.** The owner plans a NAS with snapshots and off-site copies; PhotoTag should work well
