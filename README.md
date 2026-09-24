@@ -35,7 +35,8 @@ Early days. Today it can:
 Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs, also as IPTC for older
 software. Pixels are never re-encoded. A favourite is saved as a 5★ rating (`xmp:Rating`), so Lightroom, Windows
 Explorer and other apps show favourites as 5 stars, and photos rated 5★ elsewhere appear as favourites. A lower rating
-set in another app is kept until you favourite that photo.
+set in another app is kept until you favourite that photo. Lightroom's nested keywords ("Places|UK|Cornwall") aren't
+shown, but they're kept in step when you rename or remove a tag, so Lightroom doesn't bring the old tag back.
 
 **Camera RAW files are never modified.** Their tags go in an `.xmp` sidecar beside them (`IMG_0001.CR2` →
 `IMG_0001.xmp`), as Lightroom and Capture One do; darktable-style `IMG_0001.CR2.xmp` sidecars are read too. When a

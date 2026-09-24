@@ -18,7 +18,17 @@ public sealed record MetadataChanges
     /// <summary>A rating to copy into a new RAW sidecar, so one set in another app isn't lost.</summary>
     internal int? Rating { get; init; }
 
-    public bool IsEmpty => Keywords is null && Title is null && Description is null && Favourite is null && Rating is null;
+    /// <summary>
+    /// Lightroom's nested keywords to write. Normally left null: when <see cref="Keywords"/> change,
+    /// the writer works these out from the file (see <see cref="KeywordHierarchy"/>).
+    /// </summary>
+    internal IReadOnlyList<string>? HierarchicalKeywords { get; init; }
+
+    /// <summary>Set when <see cref="Keywords"/> renames a tag, so nested keywords are renamed rather than dropped.</summary>
+    internal KeywordRename? Rename { get; init; }
+
+    public bool IsEmpty => Keywords is null && Title is null && Description is null && Favourite is null && Rating is null
+                           && HierarchicalKeywords is null;
 }
 
 /// <summary>
@@ -50,6 +60,7 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
     {
         if (changes.IsEmpty) return;
         if (!File.Exists(path)) throw new FileNotFoundException("Photo not found.", path);
+        changes = WithHierarchy(path, changes);
 
         if (!PhotoFiles.IsRaw(path))
         {
@@ -91,6 +102,25 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         }
     }
 
+    /// <summary>When tags change, updates Lightroom's nested keywords to match, if the file has any.</summary>
+    private static MetadataChanges WithHierarchy(string path, MetadataChanges changes)
+    {
+        if (changes.Keywords is not { } keywords || changes.HierarchicalKeywords is not null) return changes;
+
+        PhotoMetadata current;
+        try
+        {
+            current = PhotoMetadata.Read(path); // for a RAW, the sidecar if there is one
+        }
+        catch (Exception e) when (e is IOException or MetadataExtractor.ImageProcessingException)
+        {
+            return changes;
+        }
+
+        var updated = KeywordHierarchy.Update(current.HierarchicalKeywords, current.Keywords, NormalizeKeywords(keywords), changes.Rename);
+        return ReferenceEquals(updated, current.HierarchicalKeywords) ? changes : changes with { HierarchicalKeywords = updated };
+    }
+
     private static MetadataChanges SeedFromEmbedded(string rawPath, MetadataChanges changes)
     {
         PhotoMetadata embedded;
@@ -109,6 +139,7 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             Title = changes.Title ?? embedded.Title,
             Description = changes.Description ?? embedded.Description,
             Rating = changes.Favourite is null ? embedded.Rating : null,
+            HierarchicalKeywords = changes.HierarchicalKeywords ?? (embedded.HierarchicalKeywords.Count > 0 ? embedded.HierarchicalKeywords : null),
         };
     }
 
@@ -121,10 +152,10 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         <?xpacket end="w"?>
         """;
 
-    /// <summary>Trims, drops blanks and removes case-insensitive duplicates, keeping the first spelling.</summary>
     /// <summary>A title or description as it's saved: trimmed, with \n line endings. Empty means none.</summary>
     public static string NormalizeText(string? value) => (value ?? "").ReplaceLineEndings("\n").Trim();
 
+    /// <summary>Trims, drops blanks and removes case-insensitive duplicates, keeping the first spelling.</summary>
     public static IReadOnlyList<string> NormalizeKeywords(IEnumerable<string> keywords) =>
         keywords.Select(k => k.Trim())
             .Where(k => k.Length > 0)
@@ -150,6 +181,9 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             SetList(args, "XMP-dc:Subject", normalized);
             if (isJpeg) SetList(args, "IPTC:Keywords", normalized);
         }
+
+        if (changes.HierarchicalKeywords is { } hierarchy)
+            SetList(args, "XMP-lr:HierarchicalSubject", hierarchy);
 
         if (changes.Title is { } title)
         {

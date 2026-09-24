@@ -209,6 +209,73 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
         Assert.Equal(("New", "Written since"), (PhotoMetadata.Read(c).Title, PhotoMetadata.Read(c).Description));
     }
 
+    /// <summary>A photo tagged as Lightroom would: flat tags plus nested ones.</summary>
+    private async Task<string> LightroomPhotoAsync(PhotoMetadataWriter writer, string name)
+    {
+        var path = Photo(name);
+        await writer.WriteAsync(path, new MetadataChanges
+        {
+            Keywords = ["Places", "UK", "Cornwall", "Beach"],
+            HierarchicalKeywords = ["Places|UK|Cornwall", "Beach"],
+        }, Ct);
+        Assert.Equal(["Places|UK|Cornwall", "Beach"], PhotoMetadata.Read(path).HierarchicalKeywords);
+        return path;
+    }
+
+    [Fact]
+    public async Task NestedKeywords_FollowRenamesAndDeletes_AndUndo()
+    {
+        var writer = fixture.RequireWriter();
+        var editor = new BulkMetadataEditor(writer);
+        var a = await LightroomPhotoAsync(writer, "a.jpg");
+
+        var renamed = await editor.RenameKeywordAsync([a], "Cornwall", "Kernow", cancellationToken: Ct);
+        Assert.Equal(["Places|UK|Kernow", "Beach"], PhotoMetadata.Read(a).HierarchicalKeywords);
+
+        await editor.RemoveKeywordsAsync([a], ["UK"], cancellationToken: Ct);
+        Assert.Equal(["Places|Kernow", "Beach"], PhotoMetadata.Read(a).HierarchicalKeywords);
+
+        // Adding a tag leaves them alone.
+        var added = await editor.AddKeywordsAsync([a], ["Dog"], cancellationToken: Ct);
+        Assert.Equal(["Places|Kernow", "Beach"], PhotoMetadata.Read(a).HierarchicalKeywords);
+
+        // Undo puts them back exactly, and the edited-since check includes them.
+        await editor.UndoAsync(added.Written, cancellationToken: Ct);
+        var removed = await editor.RemoveKeywordsAsync([a], ["Beach"], cancellationToken: Ct);
+        Assert.Equal(["Places|Kernow"], PhotoMetadata.Read(a).HierarchicalKeywords);
+        await editor.UndoAsync(removed.Written, cancellationToken: Ct);
+        Assert.Equal(["Places|Kernow", "Beach"], PhotoMetadata.Read(a).HierarchicalKeywords);
+        var stale = await editor.UndoAsync(renamed.Written, cancellationToken: Ct); // "UK" has gone since
+        Assert.Equal(1, stale.ChangedSince);
+    }
+
+    [Fact]
+    public async Task NestedKeywords_FollowSinglePhotoEdits()
+    {
+        var writer = fixture.RequireWriter();
+        var a = await LightroomPhotoAsync(writer, "a.jpg");
+
+        // As the details panel saves: just the new tag list.
+        await writer.WriteAsync(a, new MetadataChanges { Keywords = ["Places", "UK", "Beach"] }, Ct);
+
+        Assert.Equal(["Places|UK", "Beach"], PhotoMetadata.Read(a).HierarchicalKeywords);
+    }
+
+    [Fact]
+    public async Task PhotosWithoutNestedKeywords_DontGetAny()
+    {
+        var editor = RequireEditor();
+        var a = Photo("a.jpg", "Beach");
+
+        await editor.AddKeywordsAsync([a], ["Dog"], cancellationToken: Ct);
+        var removed = await editor.RemoveKeywordsAsync([a], ["Beach"], cancellationToken: Ct);
+        await editor.UndoAsync(removed.Written, cancellationToken: Ct);
+
+        Assert.Equal(["Beach", "Dog"], PhotoMetadata.Read(a).Keywords);
+        Assert.Empty(PhotoMetadata.Read(a).HierarchicalKeywords);
+        Assert.DoesNotContain("hierarchicalSubject", System.Text.Encoding.UTF8.GetString(File.ReadAllBytes(a)));
+    }
+
     [Fact]
     public async Task SetFavourite_SetsAndClears_LeavingOtherRatingsAlone()
     {

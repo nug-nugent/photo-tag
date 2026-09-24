@@ -171,6 +171,23 @@ public sealed class RawTests(ExifToolFixture fixture) : IClassFixture<ExifToolFi
     }
 
     [Fact]
+    public async Task NestedKeywordsInASidecar_FollowTagEdits()
+    {
+        var writer = fixture.RequireWriter();
+        var raw = await RawSamples.CopyAsync(RawSamples.PanasonicRw2, _dir.Path, "P1.RW2");
+        await writer.WriteAsync(raw, new MetadataChanges
+        {
+            Keywords = ["Places", "UK", "Cornwall"],
+            HierarchicalKeywords = ["Places|UK|Cornwall"],
+        }, Ct);
+
+        await new BulkMetadataEditor(writer).RemoveKeywordsAsync([raw], ["UK"], cancellationToken: Ct);
+
+        Assert.Equal(["Places|Cornwall"], PhotoMetadata.Read(raw).HierarchicalKeywords);
+        Assert.Contains("Places|Cornwall", File.ReadAllText(Path.Combine(_dir.Path, "P1.xmp")));
+    }
+
+    [Fact]
     public async Task BulkEdits_ReachBothFilesOfAPair_EvenWhenTheyDisagree()
     {
         var writer = fixture.RequireWriter();

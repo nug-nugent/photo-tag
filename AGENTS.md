@@ -57,6 +57,9 @@ dotnet run --project src/PhotoTag.App
   favourites. Lower ratings set in other apps are preserved until the photo is favourited: `PhotoMetadata.Rating` and
   `MetadataChanges.Rating` are `internal` for that (e.g. seeding a new RAW sidecar), and the UI only sees
   `IsFavourite`/`Favourite`. Don't bring back a rating UI without the owner.
+- **Nested keywords are only kept in step.** The owner doesn't use Lightroom or digiKam, so PhotoTag doesn't show
+  or create `lr:hierarchicalSubject`. It only updates it when a tag is renamed or removed, keeping the rest of each
+  path (`KeywordHierarchy`). Don't add a nested-tag UI without the owner.
 - **No HEIC support.** The owner decided against it (it would need Magick.NET, ~30 MB per platform).
 - **Saving tags updates "date modified"** so backup tools notice; keeping it is an opt-in setting.
 - **PhotoTag doesn't do backups.** The owner plans a NAS with snapshots and off-site copies; PhotoTag should work well
