@@ -23,14 +23,14 @@ Early days. Today it can:
 - Show a details panel for the selected photo: preview, date taken, camera, exposure, size and GPS
 - Edit tags, title and description, and mark favourites (♥). Changes are written straight into the photo file.
 - Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and tag or favourite them all at
-  once, with progress and Cancel in the status bar
+  once, with progress and Cancel in the status bar, and Undo (or Ctrl/⌘+Z) afterwards
 - Show and tag camera RAW files (Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2,
   Pentax PEF, DNG…). RAW+JPEG pairs appear as one photo.
 - Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search across
   every subfolder by tag, title, description or file name, list the untagged photos or your favourites (on
   their own or with a search), and tag suggestions cover your whole library
 - Manage tags across the library (**Tags…**): see every tag with its count, rename or merge tags (including
-  tidying "beach" and "Beach" into one), or delete a tag from every photo
+  tidying "beach" and "Beach" into one), or delete a tag from every photo. These can be undone too.
 
 Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs, also as IPTC for older
 software. Pixels are never re-encoded. A favourite is saved as a 5★ rating (`xmp:Rating`), so Lightroom, Windows

@@ -125,6 +125,10 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     public bool CanEditTags => _writer is not null;
 
+    /// <summary>The status bar's Undo button, or Ctrl/⌘+Z in the grid: undoes the last bulk edit.</summary>
+    [RelayCommand]
+    private Task Undo() => Operations.UndoAsync(Photos);
+
     private async Task RefreshFolderCountsAsync()
     {
         foreach (var root in RootFolders.ToList()) await root.RefreshCountsAsync();

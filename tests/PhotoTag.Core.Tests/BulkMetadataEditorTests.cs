@@ -92,6 +92,77 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
     }
 
     [Fact]
+    public async Task Undo_PutsBackTheTags_OnlyOnPhotosThatChanged()
+    {
+        var editor = RequireEditor();
+        var a = Photo("a.jpg", "Family");
+        var b = Photo("b.jpg", "beach"); // already had it: not written, so nothing to undo
+        var c = Photo("c.jpg");
+        var added = await editor.AddKeywordsAsync([a, b, c], ["Beach"], cancellationToken: Ct);
+        Assert.Equal([a, c], added.Written.Select(w => w.Path));
+
+        var undone = await editor.UndoAsync(added.Written, cancellationToken: Ct);
+
+        Assert.Equal((2, 0, 0), (undone.Changed, undone.Unchanged, undone.ChangedSince));
+        Assert.Equal(["Family"], PhotoMetadata.Read(a).Keywords);
+        Assert.Equal(["beach"], PhotoMetadata.Read(b).Keywords);
+        Assert.Empty(PhotoMetadata.Read(c).Keywords);
+        Assert.Equal(["Family"], undone.After[a].Keywords);
+    }
+
+    [Fact]
+    public async Task Undo_PutsBackRenamesAndDeletes()
+    {
+        var editor = RequireEditor();
+        var a = Photo("a.jpg", "Dog", "seaside", "Sunset");
+        var b = Photo("b.jpg", "Beach", "Seaside");
+
+        var renamed = await editor.RenameKeywordAsync([a, b], "Seaside", "Beach", cancellationToken: Ct);
+        await editor.UndoAsync(renamed.Written, cancellationToken: Ct);
+        Assert.Equal(["Dog", "seaside", "Sunset"], PhotoMetadata.Read(a).Keywords);
+        Assert.Equal(["Beach", "Seaside"], PhotoMetadata.Read(b).Keywords);
+
+        var deleted = await editor.RemoveKeywordsAsync([a, b], ["Beach"], cancellationToken: Ct);
+        await editor.UndoAsync(deleted.Written, cancellationToken: Ct);
+        Assert.Equal(["Beach", "Seaside"], PhotoMetadata.Read(b).Keywords);
+    }
+
+    [Fact]
+    public async Task Undo_LeavesPhotosEditedAgainSinceAlone()
+    {
+        var editor = RequireEditor();
+        var a = Photo("a.jpg", "Family");
+        var b = Photo("b.jpg", "Family");
+        var added = await editor.AddKeywordsAsync([a, b], ["Beach"], cancellationToken: Ct);
+        await editor.AddKeywordsAsync([a], ["Later"], cancellationToken: Ct); // someone kept working on a
+
+        var undone = await editor.UndoAsync(added.Written, cancellationToken: Ct);
+
+        Assert.Equal((1, 1, 1), (undone.Changed, undone.Unchanged, undone.ChangedSince));
+        Assert.Equal(["Family", "Beach", "Later"], PhotoMetadata.Read(a).Keywords);
+        Assert.Equal(["Family"], PhotoMetadata.Read(b).Keywords);
+    }
+
+    [Fact]
+    public async Task Undo_PutsBackFavourites_AndRatingsFromOtherApps()
+    {
+        var editor = RequireEditor();
+        var rated = Photo("rated.jpg", "Rated"); // test images with XMP are rated 4 stars
+        var plain = Photo("plain.jpg");
+        var favourite = Photo("favourite.jpg");
+        await editor.SetFavouriteAsync([favourite], true, cancellationToken: Ct);
+
+        var set = await editor.SetFavouriteAsync([rated, plain], true, cancellationToken: Ct);
+        await editor.UndoAsync(set.Written, cancellationToken: Ct);
+        Assert.Equal(4, PhotoMetadata.Read(rated).Rating);
+        Assert.Null(PhotoMetadata.Read(plain).Rating);
+
+        var cleared = await editor.SetFavouriteAsync([favourite], false, cancellationToken: Ct);
+        await editor.UndoAsync(cleared.Written, cancellationToken: Ct);
+        Assert.True(PhotoMetadata.Read(favourite).IsFavourite);
+    }
+
+    [Fact]
     public async Task SetFavourite_SetsAndClears_LeavingOtherRatingsAlone()
     {
         var editor = RequireEditor();

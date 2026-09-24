@@ -62,11 +62,8 @@ the details panel and the index when files or sidecars change.
 
 ### 3.3 Bulk title/description (S)
 The bulk panel only does tags and favourites (`BulkDetailsViewModel`). Add "set title/description on all" with a clear
-warning that it overwrites.
-
-### 3.4 Undo (M)
-Especially for bulk edits: keep the previous values (`BulkResult.After` has the new ones; capture the old ones in
-`BulkMetadataEditor.ApplyAsync`) and offer "Undo" in the status bar after an edit.
+warning that it overwrites. Undo only restores tags and favourites today: extend `BulkMetadataEditor.Restore` and
+`SameTagsAndRating` (and the `current with {…}` in `ApplyAsync`) to titles and descriptions.
 
 ### 3.5 Hierarchical keywords (M)
 Lightroom writes `lr:hierarchicalSubject` ("Places|UK|Cornwall"). Read it, show it sensibly, and keep it in step when

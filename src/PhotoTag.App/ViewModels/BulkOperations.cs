@@ -21,6 +21,14 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     public partial bool IsBusy { get; private set; }
 
     [ObservableProperty] public partial string? ProgressText { get; private set; }
+
+    /// <summary>What the last edit changed, until it's undone or another edit starts.</summary>
+    private IReadOnlyList<BulkChange>? _undo;
+
+    [ObservableProperty] public partial bool CanUndo { get; private set; }
+
+    /// <summary>E.g. "Undo adding “Beach” to 12 photos".</summary>
+    [ObservableProperty] public partial string? UndoToolTip { get; private set; }
     [ObservableProperty] public partial double ProgressPercent { get; private set; }
 
     /// <summary>Raised on the UI thread after an operation finishes, so panels can refresh.</summary>
@@ -59,6 +67,18 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     public Task DeleteKeywordAsync(IReadOnlyList<PhotoFile> files, string keyword, IReadOnlyList<PhotoItemViewModel> shown) =>
         RunAsync(files, shown, $"Removing “{keyword}” from", (e, paths, p, ct) => e.RemoveKeywordsAsync(paths, [keyword], p, ct));
 
+    /// <summary>
+    /// Puts back what the last edit changed. Photos edited again since are left alone. The grid's
+    /// photos are passed as "shown" so any that change update on screen.
+    /// </summary>
+    public Task UndoAsync(IReadOnlyList<PhotoItemViewModel> shown)
+    {
+        if (_undo is not { } changes || IsBusy) return Task.CompletedTask;
+        suggestions.Add(changes.SelectMany(c => c.Before.Keywords)); // e.g. a deleted tag is back
+        var photos = changes.Select(c => c.Photo).Distinct().Select(p => PhotoFile.Single(p)).ToList();
+        return RunAsync(photos, shown, "Undoing the last change to", (e, _, p, ct) => e.UndoAsync(changes, p, ct), isUndo: true);
+    }
+
     [RelayCommand(CanExecute = nameof(IsBusy))]
     private void Cancel()
     {
@@ -72,9 +92,14 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     private delegate Task<BulkResult> Operation(BulkMetadataEditor editor, IReadOnlyList<PhotoFile> files,
         IProgress<BulkProgress> progress, CancellationToken cancellationToken);
 
-    private async Task RunAsync(IReadOnlyList<PhotoFile> files, IReadOnlyList<PhotoItemViewModel> shown, string verb, Operation operation)
+    private async Task RunAsync(IReadOnlyList<PhotoFile> files, IReadOnlyList<PhotoItemViewModel> shown, string verb, Operation operation,
+        bool isUndo = false)
     {
         if (_editor is null || IsBusy || files.Count == 0) return;
+
+        _undo = null;
+        CanUndo = false;
+        UndoToolTip = null;
 
         using var cts = _cts = new CancellationTokenSource();
         IsBusy = true;
@@ -100,7 +125,14 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
                     photo.IsFavourite = metadata.IsFavourite;
                 }
 
-            Summary?.Invoke(this, Summarize(result));
+            if (!isUndo && result.Written.Count > 0)
+            {
+                _undo = result.Written;
+                UndoToolTip = $"Undo {char.ToLowerInvariant(verb[0])}{verb[1..]} {Photos(result.Changed)}";
+                CanUndo = true;
+            }
+
+            Summary?.Invoke(this, isUndo ? SummarizeUndo(result) : Summarize(result));
             Completed?.Invoke(this, result);
         }
         finally
@@ -120,6 +152,14 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
             var first = r.Failures[0];
             parts.Add($"{Photos(r.Failures.Count)} couldn't be saved ({Path.GetFileName(first.Path)}: {first.Error.Split('\n')[0].Trim()})");
         }
+        return (r.Cancelled ? "Cancelled. " : "") + string.Join(", ", parts) + ".";
+    }
+
+    private static string SummarizeUndo(BulkResult r)
+    {
+        var parts = new List<string> { $"Undone: put back {Photos(r.Changed)}" };
+        if (r.ChangedSince > 0) parts.Add($"left {Photos(r.ChangedSince)} alone (edited again since)");
+        if (r.Failures.Count > 0) parts.Add($"{Photos(r.Failures.Count)} couldn't be saved");
         return (r.Cancelled ? "Cancelled. " : "") + string.Join(", ", parts) + ".";
     }
 
