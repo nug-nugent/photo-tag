@@ -102,6 +102,33 @@ public sealed class LibraryIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task Search_Terms_MatchWholeTags_OrTextInTitleDescriptionAndFileName()
+    {
+        var tagged = Photo("a.jpg", "Beach", "Dog");
+        var titled = Photo("b.jpg");
+        var described = Photo(Path.Combine("sub", "c.jpg"));
+        var named = Photo("beachcombing 2020.jpg");
+        var other = Photo("e.jpg", "Beaches");
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+        await _index.UpdateAsync([
+            (titled, new PhotoMetadata { Title = "Sunset at the BEACH café" }),
+            (described, new PhotoMetadata { Description = "The dog on Porthcurno beach", Keywords = ["Walk"] }),
+        ]);
+
+        Assert.Equal([tagged, titled, named, described], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["beach"] }));
+        // Tags must match whole: "Beaches" doesn't match "Beach", but "beac" is part of the other photos' text.
+        Assert.Equal([titled, named, described], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["beac"] }));
+        Assert.Equal([other], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["beaches"] }));
+        // Every term must match, each in any field.
+        Assert.Equal([tagged, described], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["dog", "beach"] }));
+        Assert.Equal([described], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["walk", "porthcurno"] }));
+        Assert.Empty(await _index.SearchAsync(_library, new PhotoQuery { Terms = ["beach", "cat"] }));
+        // Case is ignored beyond ASCII too.
+        Assert.Equal([titled], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["CAFÉ"] }));
+        Assert.Equal([named], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["2020"] }));
+    }
+
+    [Fact]
     public async Task Search_Untagged()
     {
         Photo("tagged.jpg", "Beach");

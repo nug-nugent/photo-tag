@@ -26,9 +26,9 @@ Early days. Today it can:
   once, with progress and Cancel in the status bar
 - Show and tag camera RAW files (Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2,
   Pentax PEF, DNG…). RAW+JPEG pairs appear as one photo.
-- Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search by tag across
-  every subfolder, list the untagged photos or your favourites (on their own or with a tag search), and tag
-  suggestions cover your whole library
+- Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search across
+  every subfolder by tag, title, description or file name, list the untagged photos or your favourites (on
+  their own or with a search), and tag suggestions cover your whole library
 
 Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs, also as IPTC for older
 software. Pixels are never re-encoded. A favourite is saved as a 5★ rating (`xmp:Rating`), so Lightroom, Windows

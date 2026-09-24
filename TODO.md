@@ -60,10 +60,6 @@ the details panel and the index when files or sidecars change.
 
 ## 3. Tagging features
 
-### 3.1 Text search in the UI (S)
-Search only matches whole tags (plus the *Untagged* and *♥ Favourites* toggles). Consider searching titles,
-descriptions and file names too (`LibraryIndex` stores title/description already).
-
 ### 3.2 Tag management (M)
 A panel listing every tag with its count (`LibraryIndex.GetKeywordsAsync`), with **rename**, **merge** (e.g. "beach" into
 "Beach") and **delete everywhere**, implemented on top of `BulkMetadataEditor` so progress and cancel work as for

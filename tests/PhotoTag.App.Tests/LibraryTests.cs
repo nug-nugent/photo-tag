@@ -66,13 +66,25 @@ public sealed class LibraryTests : UiTestBase
         Assert.True(vm.IsSearching);
         Assert.Null(vm.SelectedFolder);
         Assert.Equal(["a.jpg", "e.jpg", "d.jpg"], vm.Photos.Select(p => p.FileName));
-        Assert.Equal($"3 photos tagged beach in {Path.GetFileName(DirPath)}", vm.StatusText);
+        Assert.Equal($"3 photos matching beach in {Path.GetFileName(DirPath)}", vm.StatusText);
 
         // Several tags must all match.
         vm.SearchText = "Beach, dog";
         Press(window, PhysicalKey.Enter);
         await vm.PhotosLoading;
         Assert.Equal(["e.jpg"], vm.Photos.Select(p => p.FileName));
+
+        // Titles and file names are searched too.
+        var b = Path.Combine(DirPath, "2020", "b.jpg");
+        await vm.Library.Index.UpdateAsync([(b, new PhotoMetadata { Title = "Beach hut" })]);
+        vm.SearchText = "beach";
+        Press(window, PhysicalKey.Enter);
+        await vm.PhotosLoading;
+        Assert.Equal(["a.jpg", "b.jpg", "e.jpg", "d.jpg"], vm.Photos.Select(p => p.FileName));
+        vm.SearchText = "c.jpg";
+        Press(window, PhysicalKey.Enter);
+        await vm.PhotosLoading;
+        Assert.Equal(["c.jpg"], vm.Photos.Select(p => p.FileName));
 
         // Esc returns to the folder that was showing.
         Press(window, PhysicalKey.Escape);
