@@ -25,13 +25,14 @@ public partial class App : Application
             var renderer = new PhotoRenderer(previewTool is null ? null : new RawPreviewExtractor(previewTool));
             var thumbnails = new ThumbnailCache(ThumbnailCache.DefaultDirectory, renderer);
             var index = new LibraryIndex(LibraryIndex.DefaultPath);
-            var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index, renderer);
+            var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, new GitHubReleasesUpdater());
 
             // Optional: a folder passed on the command line wins over the last-used one.
             var startFolder = desktop.Args is [var arg, ..] ? arg : settings.LastFolder;
             if (startFolder is not null && Directory.Exists(startFolder)) viewModel.OpenRoot(startFolder);
 
             desktop.MainWindow = new MainWindow { DataContext = viewModel };
+            desktop.MainWindow.Opened += (_, _) => _ = viewModel.Updates.CheckOnStartupAsync();
             desktop.Exit += (_, _) =>
             {
                 viewModel.Dispose();

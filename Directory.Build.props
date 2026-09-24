@@ -4,5 +4,12 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- PhotoTag is English-only; skip dependencies' translated resources. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- No .pdb files in release builds (they'd add megabytes to every download). -->
+    <DebugType>none</DebugType>
   </PropertyGroup>
 </Project>

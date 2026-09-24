@@ -5,6 +5,15 @@
 A fast, cross-platform desktop app for browsing and tagging photo folders.
 Built with [Avalonia](https://avaloniaui.net/) on .NET 10, so it runs on Windows, macOS and Linux.
 
+## Download
+
+Get the latest version from [**Releases**](https://github.com/nug-nugent/photo-tag/releases/latest): installers for
+Windows (x64 and ARM), macOS (Apple silicon and Intel) and Linux (AppImage). Everything PhotoTag needs, ExifTool
+included, is bundled, and installed copies update themselves (you can turn that off under ⚙ Settings).
+
+PhotoTag isn't code-signed yet, so the first launch shows a warning. On Windows click **More info → Run anyway**; on
+macOS open **System Settings → Privacy & Security** and click **Open Anyway**. The release notes have the details.
+
 ## Status
 
 Early days. Today it can:
@@ -35,7 +44,7 @@ another of the same length) leave the file size unchanged, so without the date c
 If you'd rather keep the original dates, turn on *Keep each photo's "date modified"* under ⚙ Settings, but check
 first that your backup tool compares file contents or checksums, not just dates and sizes.
 
-## Running
+## Building from source
 
 Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) and, for tag editing,
 [ExifTool](https://exiftool.org/) on your PATH (Windows: `winget install OliverBetz.ExifTool`; macOS:
@@ -57,6 +66,20 @@ Tests that need ExifTool skip when it isn't installed. CI sets `PHOTOTAG_REQUIRE
 RAW tests use public-domain (CC0) sample files from seven cameras, courtesy of [raw.pixls.us](https://raw.pixls.us). They're
 listed with checksums in `tests/samples/raw-samples.json` and downloaded (about 60 MB) into `tests/.samples/` on first use.
 To use a specific ExifTool, set `PHOTOTAG_EXIFTOOL` to its full path.
+
+## Releasing
+
+Push a version tag and GitHub Actions does the rest:
+
+```bash
+git tag v0.2.0
+git push origin v0.2.0
+```
+
+The [release workflow](.github/workflows/release.yml) builds all five packages on matching machines, bundles the
+ExifTool pinned in `build/exiftool.json` (checksum-verified), runs each packaged app's `--self-check`, and only then
+publishes the GitHub Release that installed copies update from. Pull requests that touch packaging run the same
+workflow as a trial, without publishing. The icon is drawn by `dotnet run build/MakeIcons.cs`.
 
 ## How it's put together
 
@@ -83,4 +106,5 @@ To use a specific ExifTool, set `PHOTOTAG_EXIFTOOL` to its full path.
 
 ## Roadmap
 
-1. **Packaging** for Windows, macOS and Linux, with ExifTool bundled.
+1. **Code signing**, so Windows and macOS stop warning on first launch.
+2. **Smaller downloads** through .NET trimming (installers are about 70 MB, mostly the .NET runtime and ExifTool).

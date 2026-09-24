@@ -3,7 +3,18 @@
     <OutputType>WinExe</OutputType>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>PhotoTag</AssemblyName>
+    <ApplicationIcon>Assets\icon.ico</ApplicationIcon>
+    <!-- Release builds pass -p:Version=x.y.z from the git tag. -->
+    <Version>0.0.0-dev</Version>
+    <Product>PhotoTag</Product>
+    <Copyright>Copyright © 2026 David Huggett</Copyright>
   </PropertyGroup>
+
+  <ItemGroup>
+    <AvaloniaResource Include="Assets\icon-256.png" />
+    <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="Avalonia" />
@@ -12,9 +23,14 @@
     <PackageReference Include="Avalonia.Fonts.Inter" />
     <PackageReference Include="Avalonia.Controls.ItemsRepeater" />
     <PackageReference Include="CommunityToolkit.Mvvm" />
+    <PackageReference Include="Velopack" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\PhotoTag.Core\PhotoTag.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="PhotoTag.App.Tests" />
   </ItemGroup>
 </Project>
