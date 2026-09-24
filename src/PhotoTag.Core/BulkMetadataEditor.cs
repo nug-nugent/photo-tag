@@ -48,6 +48,10 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
         SetFavouriteAsync(Singles(paths), favourite, progress, cancellationToken);
 
+    public Task<BulkResult> SetTextAsync(IReadOnlyList<string> paths, string? title, string? description,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        SetTextAsync(Singles(paths), title, description, progress, cancellationToken);
+
     public Task<BulkResult> RenameKeywordAsync(IReadOnlyList<string> paths, string from, string to,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
         RenameKeywordAsync(Singles(paths), from, to, progress, cancellationToken);
@@ -96,6 +100,26 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
     }
 
     /// <summary>
+    /// Gives every photo the same title and/or description, replacing what they had. Null leaves
+    /// that field alone; empty clears it.
+    /// </summary>
+    public Task<BulkResult> SetTextAsync(IReadOnlyList<PhotoFile> paths, string? title, string? description,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        title = title is null ? null : PhotoMetadataWriter.NormalizeText(title);
+        description = description is null ? null : PhotoMetadataWriter.NormalizeText(description);
+        return ApplyAsync(paths, current =>
+        {
+            var changes = new MetadataChanges
+            {
+                Title = title is not null && !SameText(title, current.Title) ? title : null,
+                Description = description is not null && !SameText(description, current.Description) ? description : null,
+            };
+            return changes.IsEmpty ? null : changes;
+        }, progress, cancellationToken);
+    }
+
+    /// <summary>
     /// Makes every photo a favourite, or not. Photos already in that state are left alone, so
     /// unfavouriting doesn't clear ratings below 5★ set in other apps.
     /// </summary>
@@ -106,8 +130,8 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
             progress, cancellationToken);
 
     /// <summary>
-    /// Puts back the tags and favourites an earlier edit changed. A file whose tags or rating have
-    /// changed again since is left alone (counted in <see cref="BulkResult.ChangedSince"/>), so undo
+    /// Puts back the tags, favourite, title and description an earlier edit changed. A file whose
+    /// values have changed again since is left alone (counted in <see cref="BulkResult.ChangedSince"/>), so undo
     /// never throws away later work.
     /// </summary>
     public async Task<BulkResult> UndoAsync(IReadOnlyList<BulkChange> changes,
@@ -122,7 +146,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         var result = await ApplyAsync(photos, (path, current) =>
         {
             if (!byPath.TryGetValue(path, out var change)) return null; // e.g. only the RAW of a pair was written
-            if (!SameTagsAndRating(current, change.After))
+            if (!SameEditableValues(current, change.After))
             {
                 changedSince.Add(change.Photo);
                 return null;
@@ -133,14 +157,21 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         return result with { ChangedSince = changedSince.Count };
     }
 
-    private static bool SameTagsAndRating(PhotoMetadata a, PhotoMetadata b) =>
-        a.Rating == b.Rating && a.Keywords.SequenceEqual(b.Keywords, StringComparer.Ordinal);
+    // What bulk edits can change: tags, rating, title and description.
+    private static bool SameEditableValues(PhotoMetadata a, PhotoMetadata b) =>
+        a.Rating == b.Rating && a.Keywords.SequenceEqual(b.Keywords, StringComparer.Ordinal)
+        && SameText(a.Title, b.Title) && SameText(a.Description, b.Description);
 
-    // Bulk edits only change tags and favourites, so that's all there is to put back.
+    private static bool SameText(string? a, string? b) => PhotoMetadataWriter.NormalizeText(a) == PhotoMetadataWriter.NormalizeText(b);
+
     private static MetadataChanges? Restore(PhotoMetadata before, PhotoMetadata current)
     {
-        var keywords = before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal) ? null : before.Keywords;
-        var changes = new MetadataChanges { Keywords = keywords };
+        var changes = new MetadataChanges
+        {
+            Keywords = before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal) ? null : before.Keywords,
+            Title = SameText(before.Title, current.Title) ? null : PhotoMetadataWriter.NormalizeText(before.Title),
+            Description = SameText(before.Description, current.Description) ? null : PhotoMetadataWriter.NormalizeText(before.Description),
+        };
         if (before.Rating != current.Rating)
         {
             changes = before.Rating switch
@@ -190,6 +221,8 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
                         {
                             Keywords = changes.Keywords is { } k ? PhotoMetadataWriter.NormalizeKeywords(k) : current.Keywords,
                             Rating = changes.Favourite is { } f ? (f ? PhotoMetadataWriter.FavouriteRating : null) : changes.Rating ?? current.Rating,
+                            Title = changes.Title is { } t ? NullIfEmpty(t) : current.Title,
+                            Description = changes.Description is { } d ? NullIfEmpty(d) : current.Description,
                         };
                         written.Add(new BulkChange(photo.Path, path, before, current));
                     }
@@ -210,4 +243,6 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
 
         return new BulkResult { Changed = changed, Unchanged = unchanged, Failures = failures, After = after, Written = written };
     }
+
+    private static string? NullIfEmpty(string text) => text.Length == 0 ? null : text; // as PhotoMetadata reads an empty field
 }

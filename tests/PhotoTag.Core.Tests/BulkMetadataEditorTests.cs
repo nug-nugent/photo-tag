@@ -163,6 +163,53 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
     }
 
     [Fact]
+    public async Task SetText_ReplacesOrClears_OnlyTheFieldsGiven()
+    {
+        var writer = fixture.RequireWriter();
+        var editor = new BulkMetadataEditor(writer);
+        var a = Photo("a.jpg", "Beach");
+        var b = Photo("b.jpg");
+        var c = Photo("c.jpg");
+        await writer.WriteAsync(a, new MetadataChanges { Title = "Old", Description = "OLYMPUS DIGITAL CAMERA" }, Ct);
+        await writer.WriteAsync(c, new MetadataChanges { Title = "Harbour" }, Ct);
+
+        var titled = await editor.SetTextAsync([a, b, c], "  Harbour ", null, cancellationToken: Ct);
+        Assert.Equal((2, 1), (titled.Changed, titled.Unchanged)); // c already had it
+        Assert.All([a, b, c], p => Assert.Equal("Harbour", PhotoMetadata.Read(p).Title));
+        Assert.Equal("OLYMPUS DIGITAL CAMERA", PhotoMetadata.Read(a).Description);
+        Assert.Equal(["Beach"], PhotoMetadata.Read(a).Keywords);
+        Assert.Equal("Harbour", titled.After[b].Title);
+
+        var cleared = await editor.SetTextAsync([a, b, c], null, "", cancellationToken: Ct);
+        Assert.Equal((1, 2), (cleared.Changed, cleared.Unchanged));
+        Assert.Null(PhotoMetadata.Read(a).Description);
+        Assert.Null(cleared.After[a].Description);
+
+        await editor.SetTextAsync([a, b], null, "Line one\r\nLine two", cancellationToken: Ct);
+        Assert.Equal("Line one\nLine two", PhotoMetadata.Read(b).Description);
+    }
+
+    [Fact]
+    public async Task Undo_PutsBackTitlesAndDescriptions_UnlessEditedSince()
+    {
+        var writer = fixture.RequireWriter();
+        var editor = new BulkMetadataEditor(writer);
+        var a = Photo("a.jpg");
+        var b = Photo("b.jpg");
+        var c = Photo("c.jpg");
+        await writer.WriteAsync(a, new MetadataChanges { Title = "Old", Description = "Kept?" }, Ct);
+
+        var set = await editor.SetTextAsync([a, b, c], "New", "", cancellationToken: Ct);
+        await writer.WriteAsync(c, new MetadataChanges { Description = "Written since" }, Ct);
+        var undone = await editor.UndoAsync(set.Written, cancellationToken: Ct);
+
+        Assert.Equal((2, 1), (undone.Changed, undone.ChangedSince));
+        Assert.Equal(("Old", "Kept?"), (PhotoMetadata.Read(a).Title, PhotoMetadata.Read(a).Description));
+        Assert.Null(PhotoMetadata.Read(b).Title);
+        Assert.Equal(("New", "Written since"), (PhotoMetadata.Read(c).Title, PhotoMetadata.Read(c).Description));
+    }
+
+    [Fact]
     public async Task SetFavourite_SetsAndClears_LeavingOtherRatingsAlone()
     {
         var editor = RequireEditor();

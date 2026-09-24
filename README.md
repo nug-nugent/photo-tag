@@ -22,8 +22,8 @@ Early days. Today it can:
 - Show a virtualized thumbnail grid that stays responsive with thousands of photos, with a ♥ on favourites
 - Show a details panel for the selected photo: preview, date taken, camera, exposure, size and GPS
 - Edit tags, title and description, and mark favourites (♥). Changes are written straight into the photo file.
-- Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and tag or favourite them all at
-  once, with progress and Cancel in the status bar, and Undo (or Ctrl/⌘+Z) afterwards
+- Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and tag, favourite, title or describe
+  them all at once, with progress and Cancel in the status bar, and Undo (or Ctrl/⌘+Z) afterwards
 - Show and tag camera RAW files (Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2,
   Pentax PEF, DNG…). RAW+JPEG pairs appear as one photo.
 - Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search across
