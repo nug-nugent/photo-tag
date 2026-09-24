@@ -109,5 +109,5 @@ workflow as a trial, without publishing. The icon is drawn by `dotnet run build/
 
 ## Roadmap
 
-1. **Code signing**, so Windows and macOS stop warning on first launch.
-2. **Smaller downloads** through .NET trimming (installers are about 70 MB, mostly the .NET runtime and ExifTool).
+See [TODO.md](TODO.md) for what's next, from publishing the first release and code signing to NAS support, tag
+management and a full-screen viewer. Contributors (human or AI) should start with [AGENTS.md](AGENTS.md).
