@@ -122,6 +122,9 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         """;
 
     /// <summary>Trims, drops blanks and removes case-insensitive duplicates, keeping the first spelling.</summary>
+    /// <summary>A title or description as it's saved: trimmed, with \n line endings. Empty means none.</summary>
+    public static string NormalizeText(string? value) => (value ?? "").ReplaceLineEndings("\n").Trim();
+
     public static IReadOnlyList<string> NormalizeKeywords(IEnumerable<string> keywords) =>
         keywords.Select(k => k.Trim())
             .Where(k => k.Length > 0)

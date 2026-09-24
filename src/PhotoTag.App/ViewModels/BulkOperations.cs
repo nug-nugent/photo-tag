@@ -54,6 +54,20 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
         RunAsync(photos, favourite ? "Adding to favourites:" : "Removing from favourites:",
             (e, paths, p, ct) => e.SetFavouriteAsync(paths, favourite, p, ct));
 
+    /// <summary>Gives every photo the same title and/or description. Null leaves that field alone; empty clears it.</summary>
+    public Task SetTextAsync(IReadOnlyList<PhotoItemViewModel> photos, string? title, string? description)
+    {
+        var what = (title, description) switch
+        {
+            (not null, not null) => "the title and description",
+            (not null, null) => "the title",
+            _ => "the description",
+        };
+        var clearing = string.IsNullOrEmpty(title) && string.IsNullOrEmpty(description);
+        return RunAsync(photos, $"{(clearing ? "Clearing" : "Setting")} {what} on",
+            (e, paths, p, ct) => e.SetTextAsync(paths, title, description, p, ct));
+    }
+
     // Tag management works on photos across the library, most of them not on screen; the grid's
     // photos are passed as "shown" so any that were changed update too.
 

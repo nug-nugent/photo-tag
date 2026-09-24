@@ -186,7 +186,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     }
 
     // Text boxes use the platform's line endings (\r\n on Windows); files store \n.
-    private static string NormalizeText(string? value) => (value ?? "").ReplaceLineEndings("\n").Trim();
+    private static string NormalizeText(string? value) => PhotoMetadataWriter.NormalizeText(value);
 
     private Task SaveAsync(MetadataChanges changes)
     {

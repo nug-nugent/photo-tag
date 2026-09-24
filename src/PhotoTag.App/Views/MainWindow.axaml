@@ -461,8 +461,38 @@
                                                    IsVisible="{Binding FavouriteNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                     </StackPanel>
 
-                                    <TextBlock Text="Titles and descriptions are edited one photo at a time." FontSize="11"
-                                               Opacity="0.6" TextWrapping="Wrap" />
+                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
+                                        <TextBlock Classes="label" Text="Title" />
+                                        <TextBox x:Name="BulkTitleBox" IsEnabled="{Binding CanEdit}"
+                                                 PlaceholderText="{Binding TitlePlaceholder}" Text="{Binding Title, Mode=TwoWay}">
+                                            <TextBox.KeyBindings>
+                                                <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                            </TextBox.KeyBindings>
+                                        </TextBox>
+                                    </StackPanel>
+                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
+                                        <TextBlock Classes="label" Text="Description" />
+                                        <TextBox x:Name="BulkDescriptionBox" IsEnabled="{Binding CanEdit}"
+                                                 AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="8"
+                                                 PlaceholderText="{Binding DescriptionPlaceholder}" Text="{Binding Description, Mode=TwoWay}" />
+                                        <TextBlock Text="Type to give them all the same title or description. Nothing is saved until you apply it."
+                                                   FontSize="11" Opacity="0.6" TextWrapping="Wrap" IsVisible="{Binding !HasTextEdits}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowApplyText}">
+                                        <Button x:Name="BulkApplyTextButton" Classes="accent" Content="Apply to all…"
+                                                IsEnabled="{Binding CanApplyText}" Command="{Binding ReviewTextCommand}" />
+                                        <Button x:Name="BulkCancelTextButton" Content="Cancel" Command="{Binding CancelTextCommand}" />
+                                    </StackPanel>
+                                    <Border Classes="notice" IsVisible="{Binding IsConfirmingText}">
+                                        <StackPanel Spacing="8">
+                                            <TextBlock Text="{Binding TextWarning}" FontSize="12" TextWrapping="Wrap" />
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Button x:Name="BulkConfirmTextButton" Classes="accent" Content="Save to all"
+                                                        IsEnabled="{Binding CanEdit}" Command="{Binding ApplyTextCommand}" />
+                                                <Button Content="Cancel" Command="{Binding CancelTextCommand}" />
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Border>
                                 </StackPanel>
                             </DataTemplate>
                         </ContentControl.DataTemplates>
