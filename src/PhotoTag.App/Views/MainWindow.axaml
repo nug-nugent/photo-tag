@@ -93,6 +93,72 @@
                                   IsChecked="{Binding ShowFavourites, Mode=TwoWay}" />
                     <Button x:Name="ClearSearchButton" Content="✕" ToolTip.Tip="Clear search (Esc)"
                             IsVisible="{Binding IsSearching}" Command="{Binding ClearSearchCommand}" />
+                    <Button x:Name="TagsButton" Content="Tags…" ToolTip.Tip="Rename, merge or delete tags across the library"
+                            IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <Button.Flyout>
+                            <Flyout Placement="BottomEdgeAlignedRight" Opened="TagsFlyout_Opened" Closed="TagsFlyout_Closed">
+                                <StackPanel x:Name="TagManagerPanel" Width="380" Spacing="8" DataContext="{Binding TagManager}"
+                                            x:DataType="vm:TagManagerViewModel">
+                                    <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" />
+                                    <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                                               Text="Renaming a tag to one that already exists merges the two. Changes are saved into every photo that has the tag." />
+                                    <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
+                                        <TextBlock TextWrapping="Wrap" FontSize="12"
+                                                   Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
+                                    </Border>
+                                    <TextBox x:Name="TagFilterBox" PlaceholderText="Filter tags…" Text="{Binding Filter, Mode=TwoWay}" />
+                                    <TextBlock Text="{Binding EmptyText}" Opacity="0.6" Margin="0,4"
+                                               IsVisible="{Binding EmptyText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                    <ListBox x:Name="TagList" ItemsSource="{Binding Tags}" MaxHeight="440"
+                                             IsVisible="{Binding EmptyText, Converter={x:Static ObjectConverters.IsNull}}">
+                                        <ListBox.ItemTemplate>
+                                            <DataTemplate x:DataType="vm:TagRowViewModel">
+                                                <StackPanel Spacing="6">
+                                                    <DockPanel>
+                                                        <Button DockPanel.Dock="Right" Classes="chipRemove tagDelete" Content="✕"
+                                                                ToolTip.Tip="Delete this tag from every photo"
+                                                                IsEnabled="{Binding Owner.CanEdit}" Command="{Binding StartDeleteCommand}" />
+                                                        <Button DockPanel.Dock="Right" Classes="chipRemove tagRename" Content="✎"
+                                                                ToolTip.Tip="Rename, or merge into another tag"
+                                                                IsEnabled="{Binding Owner.CanEdit}" Command="{Binding StartRenameCommand}" />
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="11" Opacity="0.6"
+                                                                   VerticalAlignment="Center" Margin="8,0" />
+                                                        <StackPanel VerticalAlignment="Center">
+                                                            <TextBlock Text="{Binding Keyword}" TextTrimming="CharacterEllipsis" />
+                                                            <TextBlock Text="{Binding SpellingsText}" FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                                                                       IsVisible="{Binding SpellingsText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                        </StackPanel>
+                                                    </DockPanel>
+                                                    <StackPanel Spacing="6" IsVisible="{Binding IsRenaming}">
+                                                        <TextBox Classes="tagNewName" Text="{Binding NewName, Mode=TwoWay}" PlaceholderText="New name"
+                                                                 IsVisible="{Binding IsRenaming}" PropertyChanged="TagNewName_PropertyChanged">
+                                                            <TextBox.KeyBindings>
+                                                                <KeyBinding Gesture="Enter" Command="{Binding RenameCommand}" />
+                                                                <KeyBinding Gesture="Escape" Command="{Binding CancelCommand}" />
+                                                            </TextBox.KeyBindings>
+                                                        </TextBox>
+                                                        <TextBlock Classes="error" Text="{Binding Error}" FontSize="12" TextWrapping="Wrap"
+                                                                   IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <Button Classes="accent tagConfirmRename" Content="Rename" Command="{Binding RenameCommand}" />
+                                                            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                    <StackPanel Spacing="6" IsVisible="{Binding IsConfirmingDelete}">
+                                                        <TextBlock Text="{Binding DeleteQuestion}" FontSize="12" TextWrapping="Wrap" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                                            <Button Classes="tagConfirmDelete" Content="Delete" Command="{Binding DeleteCommand}" />
+                                                            <Button Content="Cancel" Command="{Binding CancelCommand}" />
+                                                        </StackPanel>
+                                                    </StackPanel>
+                                                </StackPanel>
+                                            </DataTemplate>
+                                        </ListBox.ItemTemplate>
+                                    </ListBox>
+                                </StackPanel>
+                            </Flyout>
+                        </Button.Flyout>
+                    </Button>
                     <Button x:Name="SettingsButton" Content="⚙" ToolTip.Tip="Settings">
                         <Button.Flyout>
                             <Flyout Placement="BottomEdgeAlignedRight">

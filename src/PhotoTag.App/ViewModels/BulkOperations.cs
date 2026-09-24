@@ -46,6 +46,19 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
         RunAsync(photos, favourite ? "Adding to favourites:" : "Removing from favourites:",
             (e, paths, p, ct) => e.SetFavouriteAsync(paths, favourite, p, ct));
 
+    // Tag management works on photos across the library, most of them not on screen; the grid's
+    // photos are passed as "shown" so any that were changed update too.
+
+    public Task RenameKeywordAsync(IReadOnlyList<PhotoFile> files, string from, string to, IReadOnlyList<PhotoItemViewModel> shown)
+    {
+        suggestions.Add([to]);
+        var verb = from.Equals(to, StringComparison.OrdinalIgnoreCase) ? $"Tidying “{to}” in" : $"Renaming “{from}” to “{to}” in";
+        return RunAsync(files, shown, verb, (e, paths, p, ct) => e.RenameKeywordAsync(paths, from, to, p, ct));
+    }
+
+    public Task DeleteKeywordAsync(IReadOnlyList<PhotoFile> files, string keyword, IReadOnlyList<PhotoItemViewModel> shown) =>
+        RunAsync(files, shown, $"Removing “{keyword}” from", (e, paths, p, ct) => e.RemoveKeywordsAsync(paths, [keyword], p, ct));
+
     [RelayCommand(CanExecute = nameof(IsBusy))]
     private void Cancel()
     {
@@ -53,15 +66,20 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
         ProgressText = "Cancelling…";
     }
 
-    private async Task RunAsync(IReadOnlyList<PhotoItemViewModel> photos, string verb,
-        Func<BulkMetadataEditor, IReadOnlyList<PhotoFile>, IProgress<BulkProgress>, CancellationToken, Task<BulkResult>> operation)
+    private Task RunAsync(IReadOnlyList<PhotoItemViewModel> photos, string verb, Operation operation) =>
+        RunAsync([.. photos.Select(p => p.File)], photos, verb, operation);
+
+    private delegate Task<BulkResult> Operation(BulkMetadataEditor editor, IReadOnlyList<PhotoFile> files,
+        IProgress<BulkProgress> progress, CancellationToken cancellationToken);
+
+    private async Task RunAsync(IReadOnlyList<PhotoFile> files, IReadOnlyList<PhotoItemViewModel> shown, string verb, Operation operation)
     {
-        if (_editor is null || IsBusy || photos.Count == 0) return;
+        if (_editor is null || IsBusy || files.Count == 0) return;
 
         using var cts = _cts = new CancellationTokenSource();
         IsBusy = true;
         ProgressPercent = 0;
-        ProgressText = $"{verb} {Photos(photos.Count)}…";
+        ProgressText = $"{verb} {Photos(files.Count)}…";
 
         // Progress<T> posts back to the UI thread.
         var progress = new Progress<BulkProgress>(p =>
@@ -73,9 +91,9 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
 
         try
         {
-            var result = await operation(_editor, photos.Select(p => p.File).ToList(), progress, cts.Token);
+            var result = await operation(_editor, files, progress, cts.Token);
 
-            foreach (var photo in photos)
+            foreach (var photo in shown)
                 if (result.After.TryGetValue(photo.Path, out var metadata))
                 {
                     photo.Metadata = metadata;

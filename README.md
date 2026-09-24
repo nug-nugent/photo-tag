@@ -29,6 +29,8 @@ Early days. Today it can:
 - Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search across
   every subfolder by tag, title, description or file name, list the untagged photos or your favourites (on
   their own or with a search), and tag suggestions cover your whole library
+- Manage tags across the library (**Tags…**): see every tag with its count, rename or merge tags (including
+  tidying "beach" and "Beach" into one), or delete a tag from every photo
 
 Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs, also as IPTC for older
 software. Pixels are never re-encoded. A favourite is saved as a 5★ rating (`xmp:Rating`), so Lightroom, Windows

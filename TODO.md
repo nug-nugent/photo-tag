@@ -60,11 +60,6 @@ the details panel and the index when files or sidecars change.
 
 ## 3. Tagging features
 
-### 3.2 Tag management (M)
-A panel listing every tag with its count (`LibraryIndex.GetKeywordsAsync`), with **rename**, **merge** (e.g. "beach" into
-"Beach") and **delete everywhere**, implemented on top of `BulkMetadataEditor` so progress and cancel work as for
-bulk edits.
-
 ### 3.3 Bulk title/description (S)
 The bulk panel only does tags and favourites (`BulkDetailsViewModel`). Add "set title/description on all" with a clear
 warning that it overwrites.

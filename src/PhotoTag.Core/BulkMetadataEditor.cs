@@ -39,6 +39,10 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
         SetFavouriteAsync(Singles(paths), favourite, progress, cancellationToken);
 
+    public Task<BulkResult> RenameKeywordAsync(IReadOnlyList<string> paths, string from, string to,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        RenameKeywordAsync(Singles(paths), from, to, progress, cancellationToken);
+
     private static IReadOnlyList<PhotoFile> Singles(IReadOnlyList<string> paths) => [.. paths.Select(PhotoFile.Single)];
 
     public Task<BulkResult> AddKeywordsAsync(IReadOnlyList<PhotoFile> paths, IReadOnlyList<string> keywords,
@@ -60,6 +64,25 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         {
             var updated = current.Keywords.Where(k => !toRemove.Contains(k)).ToList();
             return updated.Count == current.Keywords.Count ? null : new MetadataChanges { Keywords = updated };
+        }, progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// Replaces <paramref name="from"/> (in any case) with <paramref name="to"/>. If a photo already has
+    /// <paramref name="to"/>, the two merge into one. Every spelling of <paramref name="to"/> becomes
+    /// that exact spelling, so renaming a tag to itself tidies up case variants ("beach" into "Beach").
+    /// </summary>
+    public Task<BulkResult> RenameKeywordAsync(IReadOnlyList<PhotoFile> paths, string from, string to,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        from = from.Trim();
+        to = to.Trim();
+        if (from.Length == 0 || to.Length == 0) throw new ArgumentException("Tags can't be empty.");
+        return ApplyAsync(paths, current =>
+        {
+            var updated = PhotoMetadataWriter.NormalizeKeywords(current.Keywords.Select(k =>
+                k.Equals(from, StringComparison.OrdinalIgnoreCase) || k.Equals(to, StringComparison.OrdinalIgnoreCase) ? to : k));
+            return updated.SequenceEqual(current.Keywords, StringComparer.Ordinal) ? null : new MetadataChanges { Keywords = updated };
         }, progress, cancellationToken);
     }
 

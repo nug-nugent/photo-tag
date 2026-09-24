@@ -172,7 +172,10 @@ public sealed class LibraryIndexTests : IDisposable
         await _index.ScanAsync(_library, cancellationToken: Ct);
 
         var all = await _index.GetKeywordsAsync();
-        Assert.Equal(new KeywordCount("Beach", 2), all[0]); // most used first; case variants merged
+        // Most used first; case variants merged, keeping the most used spelling.
+        Assert.Equal(("Beach", 2), (all[0].Keyword, all[0].Count));
+        Assert.Equal(["beach"], all[0].OtherSpellings);
+        Assert.Empty(all.Single(k => k.Keyword == "Cat").OtherSpellings);
         Assert.Equal(["Beach", "Cat", "Dog"], all.Select(k => k.Keyword).Order());
 
         var sub = await _index.GetKeywordsAsync(Path.Combine(_library, "sub"));
