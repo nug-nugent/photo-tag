@@ -46,6 +46,52 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
     }
 
     [Fact]
+    public async Task RenameKeyword_ReplacesEverySpelling_KeepingPosition()
+    {
+        var editor = RequireEditor();
+        var a = Photo("a.jpg", "Dog", "seaside", "Sunset");
+        var b = Photo("b.jpg", "SEASIDE");
+        var c = Photo("c.jpg", "Dog");
+
+        var result = await editor.RenameKeywordAsync([a, b, c], "Seaside", "Coast", cancellationToken: Ct);
+
+        Assert.Equal((2, 1), (result.Changed, result.Unchanged));
+        Assert.Equal(["Dog", "Coast", "Sunset"], PhotoMetadata.Read(a).Keywords);
+        Assert.Equal(["Coast"], PhotoMetadata.Read(b).Keywords);
+        Assert.Equal(["Dog"], PhotoMetadata.Read(c).Keywords);
+        Assert.Equal(["Dog", "Coast", "Sunset"], result.After[a].Keywords);
+    }
+
+    [Fact]
+    public async Task RenameKeyword_ToAnExistingTag_MergesThem()
+    {
+        var editor = RequireEditor();
+        var both = Photo("both.jpg", "beach", "Seaside"); // the other spelling first: "Beach" still wins
+        var old = Photo("old.jpg", "Seaside");
+        var done = Photo("done.jpg", "Beach");
+
+        var result = await editor.RenameKeywordAsync([both, old, done], "Seaside", "Beach", cancellationToken: Ct);
+
+        Assert.Equal((2, 1), (result.Changed, result.Unchanged));
+        Assert.Equal(["Beach"], PhotoMetadata.Read(both).Keywords);
+        Assert.Equal(["Beach"], PhotoMetadata.Read(old).Keywords);
+        Assert.Equal(["Beach"], PhotoMetadata.Read(done).Keywords);
+    }
+
+    [Fact]
+    public async Task RenameKeyword_ToItself_TidiesCaseVariants()
+    {
+        var editor = RequireEditor();
+        var lower = Photo("lower.jpg", "beach", "Dog");
+        var right = Photo("right.jpg", "Beach");
+
+        var result = await editor.RenameKeywordAsync([lower, right], "Beach", "Beach", cancellationToken: Ct);
+
+        Assert.Equal((1, 1), (result.Changed, result.Unchanged));
+        Assert.Equal(["Beach", "Dog"], PhotoMetadata.Read(lower).Keywords);
+    }
+
+    [Fact]
     public async Task SetFavourite_SetsAndClears_LeavingOtherRatingsAlone()
     {
         var editor = RequireEditor();

@@ -4,6 +4,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using PhotoTag.App.ViewModels;
 
 namespace PhotoTag.App.Views;
@@ -28,6 +29,23 @@ public partial class MainWindow : Window
 
         if (folders is [var folder, ..] && folder.TryGetLocalPath() is { } path)
             ViewModel?.OpenRoot(path);
+    }
+
+    // --- Tags panel ------------------------------------------------------------------------
+
+    private void TagsFlyout_Opened(object? sender, EventArgs e) => ViewModel?.TagManager.Open();
+
+    private void TagsFlyout_Closed(object? sender, EventArgs e) => ViewModel?.TagManager.Close();
+
+    // Clicking the pencil shows the rename box: put the cursor in it, with the old name selected.
+    private void TagNewName_PropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
+    {
+        if (e.Property != IsVisibleProperty || e.NewValue is not true || sender is not TextBox box) return;
+        Dispatcher.UIThread.Post(() =>
+        {
+            box.Focus();
+            box.SelectAll();
+        });
     }
 
     // --- Selection -------------------------------------------------------------------------

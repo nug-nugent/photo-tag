@@ -88,6 +88,13 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         suggestions.Add(keywords.Select(k => k.Keyword));
     }
 
+    /// <summary>Rebuilds the suggestions from the index, dropping tags no photo has any more.</summary>
+    public async Task ReloadSuggestionsAsync()
+    {
+        var keywords = await Index.GetKeywordsAsync();
+        suggestions.Reset(keywords.Select(k => k.Keyword));
+    }
+
     public void Cancel()
     {
         _scan?.Cancel();

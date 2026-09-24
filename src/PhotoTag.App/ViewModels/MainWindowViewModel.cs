@@ -47,11 +47,13 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         Operations = new BulkOperations(writer, _keywordSuggestions);
         Operations.Summary += (_, summary) => StatusText = summary;
         Operations.Completed += (_, result) => _ = Library.PhotosChangedAsync(result.After);
+        TagManager = new TagManagerViewModel(Library, Operations, () => RootPath, () => Photos);
     }
 
     public ObservableCollection<FolderNodeViewModel> RootFolders { get; } = [];
     public BulkOperations Operations { get; }
     public LibraryViewModel Library { get; }
+    public TagManagerViewModel TagManager { get; }
     public UpdatesViewModel Updates { get; }
     public ObservableCollection<string> KeywordSuggestions => _keywordSuggestions.Items;
 

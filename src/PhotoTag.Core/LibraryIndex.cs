@@ -11,7 +11,12 @@ public sealed record IndexScanResult(int Total, int Updated, int Unchanged, int 
 /// <summary>Photo and tagged-photo counts for a folder, including its subfolders.</summary>
 public readonly record struct FolderCounts(int Photos, int Tagged);
 
-public sealed record KeywordCount(string Keyword, int Count);
+/// <summary>A tag and how many photos have it, counting every spelling (case variants are one tag).</summary>
+public sealed record KeywordCount(string Keyword, int Count)
+{
+    /// <summary>Other spellings in use, e.g. "beach" when <see cref="Keyword"/> is "Beach". Rarely any.</summary>
+    public IReadOnlyList<string> OtherSpellings { get; init; } = [];
+}
 
 /// <summary>What to search for. Keywords and terms must all match (AND), ignoring case.</summary>
 public sealed record PhotoQuery
@@ -203,9 +208,11 @@ public sealed class LibraryIndex : IDisposable
 
         return spellings
             .GroupBy(s => s.Spelling, StringComparer.OrdinalIgnoreCase)
-            .Select(g => new KeywordCount(
-                g.OrderByDescending(s => s.Count).ThenBy(s => s.Spelling, StringComparer.Ordinal).First().Spelling,
-                g.Sum(s => s.Count)))
+            .Select(g =>
+            {
+                var ranked = g.OrderByDescending(s => s.Count).ThenBy(s => s.Spelling, StringComparer.Ordinal).Select(s => s.Spelling).ToList();
+                return new KeywordCount(ranked[0], g.Sum(s => s.Count)) { OtherSpellings = ranked[1..] };
+            })
             .OrderByDescending(k => k.Count)
             .ThenBy(k => k.Keyword, StringComparer.CurrentCultureIgnoreCase)
             .ToList();

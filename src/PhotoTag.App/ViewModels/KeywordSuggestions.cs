@@ -23,4 +23,12 @@ public sealed class KeywordSuggestions
             Items.Insert(index, keyword);
         }
     }
+
+    /// <summary>Replaces the whole list, e.g. after a tag was renamed or deleted everywhere.</summary>
+    public void Reset(IEnumerable<string> keywords)
+    {
+        _seen.Clear();
+        Items.Clear();
+        Add(keywords);
+    }
 }
