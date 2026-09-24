@@ -1,0 +1,73 @@
+# PhotoTag: notes for coding agents
+
+A cross-platform desktop app for browsing and tagging photo folders. Avalonia 12 on .NET 10; Windows, macOS and Linux.
+Tags are written into the photos (XMP, plus IPTC for JPEGs) via ExifTool; RAW files get `.xmp` sidecars. The
+[README](README.md) describes features and design; [TODO.md](TODO.md) lists work ready to pick up.
+
+## Layout
+
+| Path | What |
+|---|---|
+| `src/PhotoTag.Core` | No UI code. `PhotoFiles` (discovery, RAW+JPEG pairing, sidecars), `PhotoMetadata` (read), `PhotoMetadataWriter` + `ExifTool` (write, via a long-running `-stay_open` process), `BulkMetadataEditor`, `ImageRenderer`/`PhotoRenderer`/`RawPreviewExtractor` (thumbnails, previews), `ThumbnailCache`, `LibraryIndex` (SQLite). |
+| `src/PhotoTag.App` | Avalonia UI, MVVM with CommunityToolkit.Mvvm (`[ObservableProperty]` partial properties) and compiled bindings (`x:DataType` everywhere). `MainWindow.axaml` is the only window; view models in `ViewModels/`. Also `AppUpdater` (Velopack), `SelfCheck` (`--self-check`). |
+| `tests/PhotoTag.Core.Tests` | xUnit v3. `TestImages` builds real JPEGs with hand-made EXIF/XMP; `RawSamples` downloads CC0 RAW files. |
+| `tests/PhotoTag.App.Tests` | Headless UI tests (Avalonia.Headless.XUnit) that drive the real `MainWindow` with keyboard and mouse. `UiTestBase` has the helpers. |
+| `build/` | `BundleExifTool.cs` (release bundling), `MakeIcons.cs` (app icon), `exiftool.json` (pinned ExifTool + checksums). |
+| `.github/workflows/` | `ci.yml` (build + test on 3 OSes), `release.yml` (installers for 5 platforms). |
+
+## Build and test
+
+```bash
+dotnet build PhotoTag.slnx
+dotnet test --solution PhotoTag.slnx
+dotnet run --project src/PhotoTag.App
+```
+
+- **ExifTool must be on PATH** for the tag-writing and RAW tests; without it they skip. On Windows it's installed at
+  `%LocalAppData%\Programs\ExifTool`, which shells started before that install may not have on PATH.
+- To reproduce CI exactly: `PHOTOTAG_REQUIRE_EXIFTOOL=1 PHOTOTAG_REQUIRE_SAMPLES=1 dotnet test --solution PhotoTag.slnx -c Release`
+  (missing ExifTool or RAW samples then fail instead of skipping).
+- RAW samples (~60 MB) download on first use into the git-ignored `tests/.samples/`.
+- `TreatWarningsAsErrors` is on, including xUnit analyzers (pass `TestContext.Current.CancellationToken` to async APIs in tests).
+- The test runner is Microsoft.Testing.Platform (`global.json`), so it's `dotnet test --project …` / `--solution …`.
+
+## How we work
+
+- **One branch and PR per piece of work**; the owner reviews and merges. Don't commit to `main`. End commits with the
+  co-author line and PRs with the Claude Code footer.
+- **Run the full test suite before pushing**, and several times for anything touching concurrency (the index scan runs
+  alongside tag writes). Check that new tests can fail (break the code briefly and confirm they catch it).
+- **UI behaviour is tested headlessly** (`tests/PhotoTag.App.Tests`). **Don't drive the real desktop app with synthetic
+  mouse/keyboard input**: the owner may be using the machine, and it has collided before. Headless mode doesn't really
+  decode bitmaps, so check image sizes and orientation in Core tests instead. Rendering screenshots headlessly from a
+  file-based script hung; ask the owner to run the app instead.
+- **Releases:** push a `vX.Y.Z` tag. PRs touching packaging run `release.yml` as a trial (no publishing). Each package
+  runs `PhotoTag --self-check` on a matching runner before anything is published.
+- Keep Core free of UI code, and keep the photo grid virtualized (`ItemsRepeater`); folders can hold thousands of photos.
+
+## Decisions already made (don't re-litigate without the owner)
+
+- **Tags live in the files**, not a database: XMP for everything, plus IPTC for JPEGs, via **bundled ExifTool** (chosen
+  over writing XMP ourselves or sidecars for everything). The SQLite index is a rebuildable cache.
+- **RAW files are never modified**: tags go in `IMG_0001.xmp` sidecars (Lightroom naming; darktable's `IMG_0001.CR2.xmp`
+  is read too). A new sidecar is seeded with tags already embedded in the RAW. RAW previews are the camera's embedded JPEG.
+- **RAW+JPEG pairs are one photo** (shown and indexed as the JPEG; edits go to both).
+- **No HEIC support.** The owner decided against it (it would need Magick.NET, ~30 MB per platform).
+- **Saving tags updates "date modified"** so backup tools notice; keeping it is an opt-in setting.
+- **PhotoTag doesn't do backups.** The owner plans a NAS with snapshots and off-site copies; PhotoTag should work well
+  with photos on a share (see TODO.md).
+- **Releases are unsigned** for now, auto-update from GitHub Releases (Velopack), MIT licence.
+
+## Gotchas
+
+- **SourceForge's web download pages return 403 to GitHub's runners.** Use `downloads.sourceforge.net` directly
+  (`build/exiftool.json`).
+- **Windows runners:** temp (C:) and the workspace (D:) are different drives, so `Directory.Move` between them fails.
+- **Velopack needs versions ≥ 0.0.1** (trial builds are `0.0.1-trial.N`).
+- **`xunit.v3` is pinned to 3.2.2**: `Avalonia.Headless.XUnit` 12 breaks with 4.x.
+- **MetadataExtractor reports truncated files as a plain `IOException`**, the same as a locked file; see
+  `LibraryIndex.ReadOrEmpty`.
+- **RAW files contain several EXIF sub-IFDs**: take each value from the first one that has it (`PhotoMetadata.ReadEmbedded`).
+  Fujifilm RAF sizes come from the RAF header (`FujifilmRaf`).
+- **Line endings:** `.gitattributes` normalises to LF in the repo; Windows checkouts get CRLF. Scripts that edit files
+  should cope with both.
