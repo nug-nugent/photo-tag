@@ -130,18 +130,18 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     // --- Search --------------------------------------------------------------------------
 
-    /// <summary>Tags to search for, comma-separated; photos must have all of them.</summary>
+    /// <summary>Comma-separated search terms; photos must match all of them (a whole tag, or part of the title, description or file name).</summary>
     [ObservableProperty] public partial string? SearchText { get; set; }
 
     /// <summary>Show photos with no tags at all, to find what still needs tagging.</summary>
     [ObservableProperty] public partial bool ShowUntagged { get; set; }
 
-    /// <summary>Only show favourites; combines with the tag search or "Untagged".</summary>
+    /// <summary>Only show favourites; combines with the search or "Untagged".</summary>
     [ObservableProperty] public partial bool ShowFavourites { get; set; }
 
     [ObservableProperty] public partial bool IsSearching { get; private set; }
 
-    // Tag search and "Untagged" are alternatives: switching one on switches the other off.
+    // Text search and "Untagged" are alternatives: switching one on switches the other off.
     private bool _changingFilters;
 
     /// <summary>Enter in the search box.</summary>
@@ -176,8 +176,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
     private void RunSearch()
     {
-        var keywords = PhotoMetadataWriter.NormalizeKeywords((SearchText ?? "").Split(','));
-        if (RootPath is null || (keywords.Count == 0 && !ShowUntagged && !ShowFavourites))
+        var terms = PhotoMetadataWriter.NormalizeKeywords((SearchText ?? "").Split(','));
+        if (RootPath is null || (terms.Count == 0 && !ShowUntagged && !ShowFavourites))
         {
             ClearSearch();
             return;
@@ -186,14 +186,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         IsSearching = true;
         SelectedFolder = null; // the grid now shows results from the whole library, not one folder
         var root = RootPath;
-        var query = new PhotoQuery { Keywords = keywords, UntaggedOnly = ShowUntagged, FavouritesOnly = ShowFavourites };
-        var description = (ShowUntagged, ShowFavourites, keywords.Count > 0) switch
+        var query = new PhotoQuery { Terms = terms, UntaggedOnly = ShowUntagged, FavouritesOnly = ShowFavourites };
+        var description = (ShowUntagged, ShowFavourites, terms.Count > 0) switch
         {
             (true, true, _) => "untagged favourites",
             (true, false, _) => "untagged photos",
-            (false, true, true) => $"favourites tagged {string.Join(" + ", keywords)}",
+            (false, true, true) => $"favourites matching {string.Join(" + ", terms)}",
             (false, true, false) => "favourites",
-            _ => $"photos tagged {string.Join(" + ", keywords)}",
+            _ => $"photos matching {string.Join(" + ", terms)}",
         };
 
         PhotosLoading = ShowPhotosAsync(async () =>

@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 
 namespace PhotoTag.Core;
@@ -12,10 +13,15 @@ public readonly record struct FolderCounts(int Photos, int Tagged);
 
 public sealed record KeywordCount(string Keyword, int Count);
 
-/// <summary>What to search for. Keywords must all match (AND), ignoring case.</summary>
+/// <summary>What to search for. Keywords and terms must all match (AND), ignoring case.</summary>
 public sealed record PhotoQuery
 {
+    /// <summary>Whole tags only.</summary>
     public IReadOnlyList<string> Keywords { get; init; } = [];
+
+    /// <summary>Each term matches a whole tag, or appears anywhere in the title, description or file name.</summary>
+    public IReadOnlyList<string> Terms { get; init; } = [];
+
     public bool UntaggedOnly { get; init; }
     public bool FavouritesOnly { get; init; }
 }
@@ -137,6 +143,16 @@ public sealed class LibraryIndex : IDisposable
             conditions.Add($"(SELECT COUNT(*) FROM photo_keywords k WHERE k.photo_id = p.id AND k.keyword IN ({string.Join(",", names)})) = {keywords.Count}");
             for (var i = 0; i < keywords.Count; i++) command.Parameters.AddWithValue(names[i], keywords[i]);
         }
+        var terms = PhotoMetadataWriter.NormalizeKeywords(query.Terms);
+        for (var i = 0; i < terms.Count; i++)
+        {
+            var name = $"@t{i}";
+            conditions.Add($"""
+                (EXISTS (SELECT 1 FROM photo_keywords k WHERE k.photo_id = p.id AND k.keyword = {name})
+                 OR contains_text(p.title, {name}) OR contains_text(p.description, {name}) OR contains_text(p.file_name, {name}))
+                """);
+            command.Parameters.AddWithValue(name, terms[i]);
+        }
         if (query.UntaggedOnly) conditions.Add("p.keyword_count = 0");
         if (query.FavouritesOnly)
         {
@@ -204,6 +220,10 @@ public sealed class LibraryIndex : IDisposable
         using var pragmas = connection.CreateCommand();
         pragmas.CommandText = "PRAGMA foreign_keys = ON; PRAGMA synchronous = NORMAL;";
         pragmas.ExecuteNonQuery();
+        // SQLite's LIKE only ignores case for ASCII; this handles "Café" and "CAFÉ" too.
+        connection.CreateFunction("contains_text", (string? text, string term) =>
+            text is not null && CultureInfo.InvariantCulture.CompareInfo.IndexOf(text, term, CompareOptions.IgnoreCase) >= 0,
+            isDeterministic: true);
         return connection;
     }
 

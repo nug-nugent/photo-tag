@@ -72,7 +72,8 @@
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
-                    <AutoCompleteBox x:Name="SearchBox" Width="260" PlaceholderText="Search tags (comma = and)…"
+                    <AutoCompleteBox x:Name="SearchBox" Width="260" PlaceholderText="Search (comma = and)…"
+                                     ToolTip.Tip="Finds photos with a tag, or with the words in their title, description or file name. Separate several with commas to match them all."
                                      IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
                                      Text="{Binding SearchText, Mode=TwoWay}"
                                      ItemsSource="{Binding KeywordSuggestions}"
@@ -87,7 +88,7 @@
                                   IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
                                   IsChecked="{Binding ShowUntagged, Mode=TwoWay}" />
                     <ToggleButton x:Name="FavouritesButton" Content="♥ Favourites"
-                                  ToolTip.Tip="Show only favourites, anywhere in the library (combines with the tag search)"
+                                  ToolTip.Tip="Show only favourites, anywhere in the library (combines with the search)"
                                   IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
                                   IsChecked="{Binding ShowFavourites, Mode=TwoWay}" />
                     <Button x:Name="ClearSearchButton" Content="✕" ToolTip.Tip="Clear search (Esc)"
