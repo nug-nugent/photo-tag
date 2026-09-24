@@ -17,12 +17,12 @@ public sealed record PhotoQuery
 {
     public IReadOnlyList<string> Keywords { get; init; } = [];
     public bool UntaggedOnly { get; init; }
-    public int? MinRating { get; init; }
+    public bool FavouritesOnly { get; init; }
 }
 
 /// <summary>
-/// A SQLite index of every photo under the folders the user has opened: tags, rating, title
-/// and date, so counts, search and suggestions don't need to re-read files. Scans are
+/// A SQLite index of every photo under the folders the user has opened: tags, favourites,
+/// title and date, so counts, search and suggestions don't need to re-read files. Scans are
 /// incremental (files whose size and modified time haven't changed are skipped), and
 /// PhotoTag's own edits are written straight in with <see cref="UpdateAsync"/>.
 /// </summary>
@@ -138,10 +138,10 @@ public sealed class LibraryIndex : IDisposable
             for (var i = 0; i < keywords.Count; i++) command.Parameters.AddWithValue(names[i], keywords[i]);
         }
         if (query.UntaggedOnly) conditions.Add("p.keyword_count = 0");
-        if (query.MinRating is { } rating)
+        if (query.FavouritesOnly)
         {
-            conditions.Add("p.rating >= @minRating");
-            command.Parameters.AddWithValue("@minRating", rating);
+            conditions.Add("p.rating >= @favouriteRating");
+            command.Parameters.AddWithValue("@favouriteRating", PhotoMetadataWriter.FavouriteRating);
         }
 
         command.CommandText = $"SELECT p.path FROM photos p WHERE {string.Join(" AND ", conditions)} ORDER BY p.folder, p.file_name";

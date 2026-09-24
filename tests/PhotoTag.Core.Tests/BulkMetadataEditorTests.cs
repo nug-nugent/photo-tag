@@ -46,19 +46,28 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
     }
 
     [Fact]
-    public async Task SetRating_SetsAndClears()
+    public async Task SetFavourite_SetsAndClears_LeavingOtherRatingsAlone()
     {
         var editor = RequireEditor();
         var a = Photo("a.jpg", "Rated"); // test images with XMP have rating 4
         var b = Photo("b.jpg");
+        var c = Photo("c.jpg", "Rated");
 
-        var set = await editor.SetRatingAsync([a, b], 4, cancellationToken: Ct);
-        Assert.Equal((1, 1), (set.Changed, set.Unchanged));
-        Assert.Equal(4, PhotoMetadata.Read(b).Rating);
+        var set = await editor.SetFavouriteAsync([a, b], true, cancellationToken: Ct);
+        Assert.Equal((2, 0), (set.Changed, set.Unchanged));
+        Assert.True(PhotoMetadata.Read(a).IsFavourite);
+        Assert.True(PhotoMetadata.Read(b).IsFavourite);
+        Assert.True(set.After[a].IsFavourite);
 
-        await editor.SetRatingAsync([a, b], 0, cancellationToken: Ct);
+        var again = await editor.SetFavouriteAsync([a, b], true, cancellationToken: Ct);
+        Assert.Equal((0, 2), (again.Changed, again.Unchanged));
+
+        // c isn't a favourite, so unfavouriting leaves its 4-star rating from another app alone.
+        var cleared = await editor.SetFavouriteAsync([a, b, c], false, cancellationToken: Ct);
+        Assert.Equal((2, 1), (cleared.Changed, cleared.Unchanged));
         Assert.Null(PhotoMetadata.Read(a).Rating);
         Assert.Null(PhotoMetadata.Read(b).Rating);
+        Assert.Equal(4, PhotoMetadata.Read(c).Rating);
         Assert.Equal(["Rated"], PhotoMetadata.Read(a).Keywords);
     }
 

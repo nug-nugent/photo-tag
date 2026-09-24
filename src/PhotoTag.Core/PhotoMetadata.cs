@@ -23,7 +23,16 @@ public sealed record PhotoMetadata
     public string? FocalLength { get; init; }
     public string? Title { get; init; }
     public string? Description { get; init; }
-    public int? Rating { get; init; }
+
+    /// <summary>
+    /// The file's star rating (xmp:Rating). PhotoTag doesn't show ratings, only favourites (5★),
+    /// but it keeps the value so ratings set in other apps survive.
+    /// </summary>
+    internal int? Rating { get; init; }
+
+    /// <summary>A favourite is stored as a 5★ rating, which Lightroom, Windows and others understand.</summary>
+    public bool IsFavourite => Rating >= PhotoMetadataWriter.FavouriteRating;
+
     public double? Latitude { get; init; }
     public double? Longitude { get; init; }
 

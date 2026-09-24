@@ -36,10 +36,10 @@ public sealed class TagEditingTests : UiTestBase
         await WaitForSaveAsync(details);
         Assert.Equal(["Beach", "Sunset"], PhotoMetadata.Read(photo).Keywords);
 
-        // Click the third star.
-        Click(window, FindAll<Button>(window).Where(b => b.Classes.Contains("star")).ElementAt(2));
+        // The heart makes it a favourite.
+        Click(window, Find<Button>(window, "FavouriteButton"));
         await WaitForSaveAsync(details);
-        Assert.Equal(3, PhotoMetadata.Read(photo).Rating);
+        Assert.True(PhotoMetadata.Read(photo).IsFavourite);
 
         // Title and description save when focus leaves the box.
         var titleBox = Find<TextBox>(window, "TitleBox");
@@ -62,19 +62,25 @@ public sealed class TagEditingTests : UiTestBase
     }
 
     [AvaloniaFact]
-    public async Task ClickingTheCurrentRating_ClearsIt()
+    public async Task ClickingTheHeartAgain_Unfavourites()
     {
         await using var exifTool = RequireExifTool();
-        var photo = Photo("photo.jpg", "Rated"); // test images with XMP have rating 4
+        var photo = Photo("photo.jpg", "Tagged");
         var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
         var details = await SelectSingleAsync(window, vm, 0);
-        Assert.Equal(4, details.Rating);
+        Assert.False(details.IsFavourite); // test images with XMP are rated 4★
+        var heart = Find<Button>(window, "FavouriteButton");
 
-        Click(window, FindAll<Button>(window).Where(b => b.Classes.Contains("star")).ElementAt(3));
+        Click(window, heart);
         await WaitForSaveAsync(details);
+        Assert.True(details.IsFavourite);
+        Assert.Equal("♥", heart.Content);
 
-        Assert.Equal(0, details.Rating);
-        Assert.Null(PhotoMetadata.Read(photo).Rating);
+        Click(window, heart);
+        await WaitForSaveAsync(details);
+        Assert.False(details.IsFavourite);
+        Assert.Equal("♡", heart.Content);
+        Assert.False(PhotoMetadata.Read(photo).IsFavourite);
         window.Close();
     }
 

@@ -63,7 +63,7 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
     }
 
     [Fact]
-    public async Task TitleDescriptionAndRating_RoundTrip_AndClear()
+    public async Task TitleDescriptionAndFavourite_RoundTrip_AndClear()
     {
         var writer = fixture.RequireWriter();
         var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(200, 100));
@@ -72,19 +72,21 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
         {
             Title = "Sunset <at> St Ives",
             Description = "First line\nSecond line & more",
-            Rating = 3,
+            Favourite = true,
         }, Ct);
 
         var written = PhotoMetadata.Read(path);
         Assert.Equal("Sunset <at> St Ives", written.Title);
         Assert.Equal("First line\nSecond line & more", written.Description);
-        Assert.Equal(3, written.Rating);
+        Assert.True(written.IsFavourite);
+        Assert.Equal(5, written.Rating); // what Lightroom, Windows and others show as 5 stars
 
-        await writer.WriteAsync(path, new MetadataChanges { Title = "", Description = "", Rating = 0 }, Ct);
+        await writer.WriteAsync(path, new MetadataChanges { Title = "", Description = "", Favourite = false }, Ct);
 
         var cleared = PhotoMetadata.Read(path);
         Assert.Null(cleared.Title);
         Assert.Null(cleared.Description);
+        Assert.False(cleared.IsFavourite);
         Assert.Null(cleared.Rating);
     }
 
@@ -95,12 +97,12 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
         var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(200, 100));
         await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Keep"], Title = "Keep me" }, Ct);
 
-        await writer.WriteAsync(path, new MetadataChanges { Rating = 5 }, Ct);
+        await writer.WriteAsync(path, new MetadataChanges { Favourite = true }, Ct);
 
         var metadata = PhotoMetadata.Read(path);
         Assert.Equal(["Keep"], metadata.Keywords);
         Assert.Equal("Keep me", metadata.Title);
-        Assert.Equal(5, metadata.Rating);
+        Assert.True(metadata.IsFavourite);
     }
 
     [Fact]
@@ -126,17 +128,17 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
     {
         var writer = fixture.RequireWriter();
         var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(64, 64));
-        await writer.WriteAsync(path, new MetadataChanges { Rating = 3 }, Ct);
+        await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Beach"] }, Ct);
         var old = new DateTime(2021, 5, 1, 12, 0, 0, DateTimeKind.Utc);
         File.SetLastWriteTimeUtc(path, old);
         var size = new FileInfo(path).Length;
 
-        await writer.WriteAsync(path, new MetadataChanges { Rating = 4 }, Ct);
+        await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Beech"] }, Ct);
 
         // The case backup tools miss if the date is kept: same size, so only the date shows the change.
         Assert.Equal(size, new FileInfo(path).Length);
         Assert.True(File.GetLastWriteTimeUtc(path) > old.AddYears(1), "modified time should have moved to now");
-        Assert.Equal(4, PhotoMetadata.Read(path).Rating);
+        Assert.Equal(["Beech"], PhotoMetadata.Read(path).Keywords);
     }
 
     [Fact]
@@ -148,7 +150,7 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
         var old = new DateTime(2021, 5, 1, 12, 0, 0, DateTimeKind.Utc);
         File.SetLastWriteTimeUtc(path, old);
 
-        await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Tagged"], Rating = 2 }, Ct);
+        await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Tagged"], Favourite = true }, Ct);
 
         Assert.Equal(old, File.GetLastWriteTimeUtc(path));
         Assert.Equal(["Tagged"], PhotoMetadata.Read(path).Keywords);
@@ -174,11 +176,11 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
         using (var data = bitmap.Encode(SKEncodedImageFormat.Png, 100))
             File.WriteAllBytes(path, data.ToArray());
 
-        await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Logo"], Rating = 2 }, Ct);
+        await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Logo"], Favourite = true }, Ct);
 
         var metadata = PhotoMetadata.Read(path);
         Assert.Equal(["Logo"], metadata.Keywords);
-        Assert.Equal(2, metadata.Rating);
+        Assert.True(metadata.IsFavourite);
     }
 
     [Fact]
@@ -221,7 +223,7 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
         Assert.Contains("-IPTC:Keywords=", jpg);
         Assert.Contains("-XMP-dc:Subject=", jpg);
         Assert.DoesNotContain("-P", jpg);
-        Assert.Contains("-P", PhotoMetadataWriter.BuildArguments("a.jpg", new MetadataChanges { Rating = 1 }, preserveModifiedTime: true));
+        Assert.Contains("-P", PhotoMetadataWriter.BuildArguments("a.jpg", new MetadataChanges { Favourite = true }, preserveModifiedTime: true));
     }
 
     [Fact]

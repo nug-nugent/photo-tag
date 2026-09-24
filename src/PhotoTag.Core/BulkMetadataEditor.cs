@@ -35,9 +35,9 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
         RemoveKeywordsAsync(Singles(paths), keywords, progress, cancellationToken);
 
-    public Task<BulkResult> SetRatingAsync(IReadOnlyList<string> paths, int rating,
+    public Task<BulkResult> SetFavouriteAsync(IReadOnlyList<string> paths, bool favourite,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
-        SetRatingAsync(Singles(paths), rating, progress, cancellationToken);
+        SetFavouriteAsync(Singles(paths), favourite, progress, cancellationToken);
 
     private static IReadOnlyList<PhotoFile> Singles(IReadOnlyList<string> paths) => [.. paths.Select(PhotoFile.Single)];
 
@@ -63,16 +63,15 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         }, progress, cancellationToken);
     }
 
-    /// <summary>Sets every photo's rating; 0 clears it.</summary>
-    public Task<BulkResult> SetRatingAsync(IReadOnlyList<PhotoFile> paths, int rating,
-        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
-    {
-        ArgumentOutOfRangeException.ThrowIfNegative(rating);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(rating, 5);
-        return ApplyAsync(paths,
-            current => (current.Rating ?? 0) == rating ? null : new MetadataChanges { Rating = rating },
+    /// <summary>
+    /// Makes every photo a favourite, or not. Photos already in that state are left alone, so
+    /// unfavouriting doesn't clear ratings below 5★ set in other apps.
+    /// </summary>
+    public Task<BulkResult> SetFavouriteAsync(IReadOnlyList<PhotoFile> paths, bool favourite,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        ApplyAsync(paths,
+            current => current.IsFavourite == favourite ? null : new MetadataChanges { Favourite = favourite },
             progress, cancellationToken);
-    }
 
     /// <param name="plan">Given a photo's current metadata, the change to make, or null for none.</param>
     private async Task<BulkResult> ApplyAsync(IReadOnlyList<PhotoFile> photos, Func<PhotoMetadata, MetadataChanges?> plan,
@@ -104,7 +103,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
                         current = current with
                         {
                             Keywords = changes.Keywords is { } k ? PhotoMetadataWriter.NormalizeKeywords(k) : current.Keywords,
-                            Rating = changes.Rating is { } r ? (r == 0 ? null : r) : current.Rating,
+                            Rating = changes.Favourite is { } f ? (f ? PhotoMetadataWriter.FavouriteRating : null) : current.Rating,
                         };
                     }
                     if (path == photo.Path) after[path] = current;

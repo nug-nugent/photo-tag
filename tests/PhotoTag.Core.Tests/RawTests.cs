@@ -95,20 +95,20 @@ public sealed class RawTests(ExifToolFixture fixture) : IClassFixture<ExifToolFi
         var raw = await RawSamples.CopyAsync(RawSamples.SonyArw, _dir.Path, "DSC01234.ARW");
         var hash = Hash(raw);
 
-        await writer.WriteAsync(raw, new MetadataChanges { Keywords = ["Beach", "Café"], Rating = 4, Title = "Dusk" }, Ct);
+        await writer.WriteAsync(raw, new MetadataChanges { Keywords = ["Beach", "Café"], Favourite = true, Title = "Dusk" }, Ct);
 
         Assert.Equal(hash, Hash(raw));
         Assert.True(File.Exists(Path.Combine(_dir.Path, "DSC01234.xmp")), "sidecar should be named like Lightroom's");
         var metadata = PhotoMetadata.Read(raw);
         Assert.Equal(["Beach", "Café"], metadata.Keywords);
-        Assert.Equal(4, metadata.Rating);
+        Assert.True(metadata.IsFavourite);
         Assert.Equal("Dusk", metadata.Title);
         Assert.Equal("SONY ILCE-7S", metadata.Camera); // still read from the RAW itself
 
         // Clearing works too: the sidecar is authoritative, even when empty.
-        await writer.WriteAsync(raw, new MetadataChanges { Keywords = [], Rating = 0 }, Ct);
+        await writer.WriteAsync(raw, new MetadataChanges { Keywords = [], Favourite = false }, Ct);
         Assert.Empty(PhotoMetadata.Read(raw).Keywords);
-        Assert.Null(PhotoMetadata.Read(raw).Rating);
+        Assert.False(PhotoMetadata.Read(raw).IsFavourite);
         Assert.Equal(hash, Hash(raw));
     }
 
@@ -119,14 +119,15 @@ public sealed class RawTests(ExifToolFixture fixture) : IClassFixture<ExifToolFi
         var writer = fixture.RequireWriter();
         var raw = await RawSamples.CopyAsync(RawSamples.CanonCr3, _dir.Path);
         // Some other app embedded tags in the RAW itself.
-        await exifTool.ExecuteAsync(["-XMP-dc:Subject=Embedded", "-XMP-dc:Title=From camera app", "-overwrite_original", raw], Ct);
+        await exifTool.ExecuteAsync(["-XMP-dc:Subject=Embedded", "-XMP-dc:Title=From camera app", "-XMP-xmp:Rating=3", "-overwrite_original", raw], Ct);
 
-        await writer.WriteAsync(raw, new MetadataChanges { Rating = 3 }, Ct);
+        await writer.WriteAsync(raw, new MetadataChanges { Description = "Added in PhotoTag" }, Ct);
 
         var metadata = PhotoMetadata.Read(raw);
         Assert.Equal(["Embedded"], metadata.Keywords);
         Assert.Equal("From camera app", metadata.Title);
-        Assert.Equal(3, metadata.Rating);
+        Assert.Equal(3, metadata.Rating); // a rating set elsewhere survives, though PhotoTag only shows favourites
+        Assert.False(metadata.IsFavourite);
     }
 
     [Fact]
@@ -161,11 +162,12 @@ public sealed class RawTests(ExifToolFixture fixture) : IClassFixture<ExifToolFi
         Assert.Equal(jpeg, photo.Path);
         Assert.Equal([raw], photo.Companions);
 
-        await writer.WriteAsync(photo, new MetadataChanges { Keywords = ["Pair"], Rating = 5 }, Ct);
+        await writer.WriteAsync(photo, new MetadataChanges { Keywords = ["Pair"], Favourite = true }, Ct);
 
         Assert.Equal(["Pair"], PhotoMetadata.Read(jpeg).Keywords); // in the JPEG itself
         Assert.Equal(["Pair"], PhotoMetadata.Read(raw).Keywords);  // via the RAW's sidecar
-        Assert.Equal(5, PhotoMetadata.Read(raw).Rating);
+        Assert.True(PhotoMetadata.Read(jpeg).IsFavourite);
+        Assert.True(PhotoMetadata.Read(raw).IsFavourite);
     }
 
     [Fact]

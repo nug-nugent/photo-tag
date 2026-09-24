@@ -49,11 +49,11 @@
             <Setter Property="FontSize" Value="10" />
             <Setter Property="Background" Value="Transparent" />
         </Style>
-        <Style Selector="Button.star">
+        <Style Selector="Button.favourite">
             <Setter Property="Padding" Value="2,0" />
             <Setter Property="FontSize" Value="22" />
             <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="Goldenrod" />
+            <Setter Property="Foreground" Value="Crimson" />
         </Style>
         <Style Selector="Border.notice">
             <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
@@ -86,6 +86,10 @@
                                   ToolTip.Tip="Show photos with no tags, anywhere in the library"
                                   IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
                                   IsChecked="{Binding ShowUntagged, Mode=TwoWay}" />
+                    <ToggleButton x:Name="FavouritesButton" Content="♥ Favourites"
+                                  ToolTip.Tip="Show only favourites, anywhere in the library (combines with the tag search)"
+                                  IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                  IsChecked="{Binding ShowFavourites, Mode=TwoWay}" />
                     <Button x:Name="ClearSearchButton" Content="✕" ToolTip.Tip="Clear search (Esc)"
                             IsVisible="{Binding IsSearching}" Command="{Binding ClearSearchCommand}" />
                     <Button x:Name="SettingsButton" Content="⚙" ToolTip.Tip="Settings">
@@ -98,7 +102,7 @@
                                         <TextBlock TextWrapping="Wrap" Text="Keep each photo's “date modified” when saving tags" />
                                     </CheckBox>
                                     <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
-                                               Text="Leave this off if you back up your photos. Many backup and sync tools only copy files whose date modified has changed, so with it on, some edits (a new rating, say) would never be backed up." />
+                                               Text="Leave this off if you back up your photos. Many backup and sync tools only copy files whose date modified has changed, so with it on, some edits (a new favourite, say) would never be backed up." />
                                     <Separator Margin="0,6" />
                                     <TextBlock Text="Updates" FontWeight="SemiBold" />
                                     <CheckBox x:Name="CheckForUpdatesBox" IsEnabled="{Binding Updates.CanUpdate}"
@@ -273,22 +277,11 @@
                                     </StackPanel>
 
                                     <StackPanel Spacing="4">
-                                        <TextBlock Classes="label" Text="Rating" />
-                                        <ItemsControl ItemsSource="{Binding Stars}" IsEnabled="{Binding CanEdit}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <StackPanel Orientation="Horizontal" />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:StarViewModel">
-                                                    <Button Classes="star" Content="{Binding Glyph}"
-                                                            ToolTip.Tip="Click again to clear"
-                                                            Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).SetRatingCommand}"
-                                                            CommandParameter="{Binding Value}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
+                                        <TextBlock Classes="label" Text="Favourite" />
+                                        <Button x:Name="FavouriteButton" Classes="favourite" HorizontalAlignment="Left"
+                                                IsEnabled="{Binding CanEdit}" Content="{Binding FavouriteGlyph}"
+                                                ToolTip.Tip="{Binding FavouriteToolTip}"
+                                                Command="{Binding ToggleFavouriteCommand}" />
                                     </StackPanel>
 
                                     <StackPanel Spacing="4">
@@ -384,23 +377,13 @@
                                     </StackPanel>
 
                                     <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
-                                        <TextBlock Classes="label" Text="Rating" />
-                                        <ItemsControl ItemsSource="{Binding Stars}" IsEnabled="{Binding CanEdit}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <StackPanel Orientation="Horizontal" />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:StarViewModel">
-                                                    <Button Classes="star" Content="{Binding Glyph}"
-                                                            Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).SetRatingCommand}"
-                                                            CommandParameter="{Binding Value}" />
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <TextBlock Text="{Binding RatingNote}" FontSize="11" Opacity="0.6" TextWrapping="Wrap"
-                                                   IsVisible="{Binding RatingNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        <TextBlock Classes="label" Text="Favourites" />
+                                        <Button x:Name="BulkFavouriteButton" Classes="favourite" HorizontalAlignment="Left"
+                                                IsEnabled="{Binding CanEdit}" Content="{Binding FavouriteGlyph}"
+                                                ToolTip.Tip="{Binding FavouriteToolTip}"
+                                                Command="{Binding ToggleFavouriteCommand}" />
+                                        <TextBlock Text="{Binding FavouriteNote}" FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                                                   IsVisible="{Binding FavouriteNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                     </StackPanel>
 
                                     <TextBlock Text="Titles and descriptions are edited one photo at a time." FontSize="11"

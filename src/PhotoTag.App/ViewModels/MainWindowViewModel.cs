@@ -135,6 +135,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <summary>Show photos with no tags at all, to find what still needs tagging.</summary>
     [ObservableProperty] public partial bool ShowUntagged { get; set; }
 
+    /// <summary>Only show favourites; combines with the tag search or "Untagged".</summary>
+    [ObservableProperty] public partial bool ShowFavourites { get; set; }
+
     [ObservableProperty] public partial bool IsSearching { get; private set; }
 
     // Tag search and "Untagged" are alternatives: switching one on switches the other off.
@@ -160,14 +163,20 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         }
         else if (IsSearching)
         {
-            ClearSearch();
+            RunSearch(); // back to the folder view, unless "Favourites" is still on
         }
+    }
+
+    partial void OnShowFavouritesChanged(bool value)
+    {
+        if (_changingFilters) return;
+        if (value || IsSearching) RunSearch();
     }
 
     private void RunSearch()
     {
         var keywords = PhotoMetadataWriter.NormalizeKeywords((SearchText ?? "").Split(','));
-        if (RootPath is null || (keywords.Count == 0 && !ShowUntagged))
+        if (RootPath is null || (keywords.Count == 0 && !ShowUntagged && !ShowFavourites))
         {
             ClearSearch();
             return;
@@ -176,8 +185,15 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         IsSearching = true;
         SelectedFolder = null; // the grid now shows results from the whole library, not one folder
         var root = RootPath;
-        var query = new PhotoQuery { Keywords = keywords, UntaggedOnly = ShowUntagged };
-        var description = ShowUntagged ? "untagged photos" : $"photos tagged {string.Join(" + ", keywords)}";
+        var query = new PhotoQuery { Keywords = keywords, UntaggedOnly = ShowUntagged, FavouritesOnly = ShowFavourites };
+        var description = (ShowUntagged, ShowFavourites, keywords.Count > 0) switch
+        {
+            (true, true, _) => "untagged favourites",
+            (true, false, _) => "untagged photos",
+            (false, true, true) => $"favourites tagged {string.Join(" + ", keywords)}",
+            (false, true, false) => "favourites",
+            _ => $"photos tagged {string.Join(" + ", keywords)}",
+        };
 
         PhotosLoading = ShowPhotosAsync(async () =>
             {
@@ -197,6 +213,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _changingFilters = true;
         SearchText = null;
         ShowUntagged = false;
+        ShowFavourites = false;
         _changingFilters = false;
         if (wasSearching && SelectedFolder is null && RootFolders.FirstOrDefault() is { } root) SelectedFolder = root;
     }
@@ -311,6 +328,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             _changingFilters = true;
             SearchText = null;
             ShowUntagged = false;
+            ShowFavourites = false;
             _changingFilters = false;
         }
         if (value.IsPlaceholder) return;

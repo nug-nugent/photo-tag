@@ -148,6 +148,56 @@ public sealed class LibraryTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task Favourites_AreSearchable_AloneOrWithTags()
+    {
+        await using var exifTool = RequireExifTool();
+        CreateLibrary();
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        var (_, year) = await WaitForIndexAsync(vm);
+
+        // Favourite c.jpg [Dog] and e.jpg [Beach, Dog] in the 2020 folder.
+        vm.SelectedFolder = year;
+        await vm.PhotosLoading;
+        foreach (var index in new[] { 1, 2 })
+        {
+            var details = await SelectSingleAsync(window, vm, index);
+            Click(window, Find<Button>(window, "FavouriteButton"));
+            await details.SaveCompletion;
+        }
+        await WaitForAsync(async () => (await vm.Library.Index.SearchAsync(DirPath, new PhotoQuery { FavouritesOnly = true })).Count == 2);
+
+        var favourites = Find<ToggleButton>(window, "FavouritesButton");
+        Click(window, favourites);
+        await vm.PhotosLoading;
+        Assert.True(vm.IsSearching);
+        Assert.Equal(["c.jpg", "e.jpg"], vm.Photos.Select(p => p.FileName));
+        Assert.Equal($"2 favourites in {Path.GetFileName(DirPath)}", vm.StatusText);
+
+        // Combined with a tag search.
+        vm.SearchText = "beach";
+        Find<AutoCompleteBox>(window, "SearchBox").Focus();
+        Press(window, PhysicalKey.Enter);
+        await vm.PhotosLoading;
+        Assert.Equal(["e.jpg"], vm.Photos.Select(p => p.FileName));
+        Assert.True(vm.ShowFavourites);
+
+        // Switching Favourites off leaves the tag search.
+        Click(window, favourites);
+        await vm.PhotosLoading;
+        Assert.Equal(["a.jpg", "e.jpg", "d.jpg"], vm.Photos.Select(p => p.FileName));
+
+        // Esc clears everything.
+        Click(window, favourites);
+        await vm.PhotosLoading;
+        Find<AutoCompleteBox>(window, "SearchBox").Focus();
+        Press(window, PhysicalKey.Escape);
+        await vm.PhotosLoading;
+        Assert.False(vm.IsSearching);
+        Assert.False(vm.ShowFavourites);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task BulkEdits_AreSearchableStraightAway()
     {
         await using var exifTool = RequireExifTool();

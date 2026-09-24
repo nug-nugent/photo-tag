@@ -102,16 +102,35 @@ public sealed class LibraryIndexTests : IDisposable
     }
 
     [Fact]
-    public async Task Search_UntaggedAndMinimumRating()
+    public async Task Search_Untagged()
     {
-        var tagged = Photo("tagged.jpg", "Rated"); // test images with XMP are rated 4
+        Photo("tagged.jpg", "Beach");
         var untagged1 = Photo("u1.jpg");
         var untagged2 = Photo(Path.Combine("sub", "u2.jpg"));
         await _index.ScanAsync(_library, cancellationToken: Ct);
 
         Assert.Equal([untagged1, untagged2], await _index.SearchAsync(_library, new PhotoQuery { UntaggedOnly = true }));
-        Assert.Equal([tagged], await _index.SearchAsync(_library, new PhotoQuery { MinRating = 3 }));
-        Assert.Empty(await _index.SearchAsync(_library, new PhotoQuery { MinRating = 5 }));
+    }
+
+    [Fact]
+    public async Task Search_Favourites_AloneAndWithTags()
+    {
+        var beach = Photo("beach.jpg", "Beach"); // test images with XMP are rated 4 stars: not favourites
+        var dog = Photo("dog.jpg", "Dog");
+        var plain = Photo(Path.Combine("sub", "plain.jpg"));
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+        Assert.Empty(await _index.SearchAsync(_library, new PhotoQuery { FavouritesOnly = true }));
+
+        await _index.UpdateAsync([
+            (beach, PhotoMetadata.Read(beach) with { Rating = PhotoMetadataWriter.FavouriteRating }),
+            (plain, new PhotoMetadata { Rating = PhotoMetadataWriter.FavouriteRating }),
+        ]);
+
+        Assert.Equal([beach, plain], await _index.SearchAsync(_library, new PhotoQuery { FavouritesOnly = true }));
+        Assert.Equal([beach], await _index.SearchAsync(_library, new PhotoQuery { FavouritesOnly = true, Keywords = ["beach"] }));
+        Assert.Empty(await _index.SearchAsync(_library, new PhotoQuery { FavouritesOnly = true, Keywords = ["Dog"] }));
+        Assert.Equal([plain], await _index.SearchAsync(_library, new PhotoQuery { FavouritesOnly = true, UntaggedOnly = true }));
+        Assert.Equal([dog], await _index.SearchAsync(_library, new PhotoQuery { Keywords = ["Dog"] }));
     }
 
     [Fact]
@@ -136,11 +155,11 @@ public sealed class LibraryIndexTests : IDisposable
         var path = Photo("a.jpg", "Old");
         await _index.ScanAsync(_library, cancellationToken: Ct);
 
-        await _index.UpdateAsync([(path, new PhotoMetadata { Keywords = ["New", "Tags"], Rating = 2 })]);
+        await _index.UpdateAsync([(path, new PhotoMetadata { Keywords = ["New", "Tags"], Rating = PhotoMetadataWriter.FavouriteRating })]);
 
         Assert.Equal([path], await _index.SearchAsync(_library, new PhotoQuery { Keywords = ["new", "tags"] }));
         Assert.Empty(await _index.SearchAsync(_library, new PhotoQuery { Keywords = ["Old"] }));
-        Assert.Equal([path], await _index.SearchAsync(_library, new PhotoQuery { MinRating = 2 }));
+        Assert.Equal([path], await _index.SearchAsync(_library, new PhotoQuery { FavouritesOnly = true }));
     }
 
     [Fact]
