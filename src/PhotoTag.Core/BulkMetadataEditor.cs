@@ -95,7 +95,9 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         {
             var updated = PhotoMetadataWriter.NormalizeKeywords(current.Keywords.Select(k =>
                 k.Equals(from, StringComparison.OrdinalIgnoreCase) || k.Equals(to, StringComparison.OrdinalIgnoreCase) ? to : k));
-            return updated.SequenceEqual(current.Keywords, StringComparer.Ordinal) ? null : new MetadataChanges { Keywords = updated };
+            return updated.SequenceEqual(current.Keywords, StringComparer.Ordinal)
+                ? null
+                : new MetadataChanges { Keywords = updated, Rename = new KeywordRename(from, to) };
         }, progress, cancellationToken);
     }
 
@@ -157,9 +159,10 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         return result with { ChangedSince = changedSince.Count };
     }
 
-    // What bulk edits can change: tags, rating, title and description.
+    // What bulk edits can change: tags (and Lightroom's nested keywords), rating, title and description.
     private static bool SameEditableValues(PhotoMetadata a, PhotoMetadata b) =>
         a.Rating == b.Rating && a.Keywords.SequenceEqual(b.Keywords, StringComparer.Ordinal)
+        && a.HierarchicalKeywords.SequenceEqual(b.HierarchicalKeywords, StringComparer.Ordinal)
         && SameText(a.Title, b.Title) && SameText(a.Description, b.Description);
 
     private static bool SameText(string? a, string? b) => PhotoMetadataWriter.NormalizeText(a) == PhotoMetadataWriter.NormalizeText(b);
@@ -169,6 +172,11 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         var changes = new MetadataChanges
         {
             Keywords = before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal) ? null : before.Keywords,
+            // Put these back exactly, rather than working them out again from the tag changes.
+            HierarchicalKeywords = before.HierarchicalKeywords.SequenceEqual(current.HierarchicalKeywords, StringComparer.Ordinal)
+                                   && before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal)
+                ? null
+                : before.HierarchicalKeywords,
             Title = SameText(before.Title, current.Title) ? null : PhotoMetadataWriter.NormalizeText(before.Title),
             Description = SameText(before.Description, current.Description) ? null : PhotoMetadataWriter.NormalizeText(before.Description),
         };
@@ -211,6 +219,13 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
                 {
                     var current = await Task.Run(() => PhotoMetadata.Read(path), CancellationToken.None).ConfigureAwait(false);
                     var changes = plan(path, current);
+                    if (changes is { Keywords: { } newKeywords, HierarchicalKeywords: null })
+                    {
+                        // Worked out here rather than by the writer, so After (and so undo) knows the result.
+                        var hierarchy = KeywordHierarchy.Update(current.HierarchicalKeywords, current.Keywords,
+                            PhotoMetadataWriter.NormalizeKeywords(newKeywords), changes.Rename);
+                        if (!ReferenceEquals(hierarchy, current.HierarchicalKeywords)) changes = changes with { HierarchicalKeywords = hierarchy };
+                    }
                     if (changes is not null)
                     {
                         // Not cancellable mid-write: see ExifTool.ExecuteAsync.
@@ -223,6 +238,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
                             Rating = changes.Favourite is { } f ? (f ? PhotoMetadataWriter.FavouriteRating : null) : changes.Rating ?? current.Rating,
                             Title = changes.Title is { } t ? NullIfEmpty(t) : current.Title,
                             Description = changes.Description is { } d ? NullIfEmpty(d) : current.Description,
+                            HierarchicalKeywords = changes.HierarchicalKeywords ?? current.HierarchicalKeywords,
                         };
                         written.Add(new BulkChange(photo.Path, path, before, current));
                     }

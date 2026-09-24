@@ -39,6 +39,9 @@ public sealed record PhotoMetadata
     /// <summary>Keywords/tags, merged from IPTC Keywords and XMP dc:subject.</summary>
     public IReadOnlyList<string> Keywords { get; init; } = [];
 
+    /// <summary>Lightroom's nested keywords ("Places|UK|Cornwall"), kept in step by <see cref="KeywordHierarchy"/>.</summary>
+    internal IReadOnlyList<string> HierarchicalKeywords { get; init; } = [];
+
     /// <summary>
     /// Brand and model, e.g. "Canon EOS R6" or "NIKON Z5_2". Uses the first word of the make, so
     /// "NIKON CORPORATION" + "NIKON Z5_2" doesn't repeat itself and "RICOH IMAGING COMPANY, LTD."
@@ -77,6 +80,7 @@ public sealed record PhotoMetadata
                 Title = Clean(Xmp(xmp, "dc:title[1]")),
                 Description = Clean(Xmp(xmp, "dc:description[1]")),
                 Rating = int.TryParse(Xmp(xmp, "xmp:Rating"), out var rating) && rating > 0 ? rating : null,
+                HierarchicalKeywords = XmpList(xmp, "lr:hierarchicalSubject"),
             };
         }
         return metadata;
@@ -127,6 +131,7 @@ public sealed record PhotoMetadata
             Latitude = location is { IsZero: false } ? location.Value.Latitude : null,
             Longitude = location is { IsZero: false } ? location.Value.Longitude : null,
             Keywords = ReadKeywords(iptc, xmp),
+            HierarchicalKeywords = XmpList(xmp, "lr:hierarchicalSubject"),
         };
     }
 
@@ -168,15 +173,19 @@ public sealed record PhotoMetadata
     private static string? Xmp(IDictionary<string, string> xmp, string key) =>
         xmp.TryGetValue(key, out var value) ? value : null;
 
+    /// <summary>An XMP list property's items in order, e.g. dc:subject[1], dc:subject[2]…</summary>
+    private static IEnumerable<string> XmpItems(IDictionary<string, string> xmp, string property) => xmp
+        .Where(p => p.Key.StartsWith(property + "[", StringComparison.Ordinal))
+        .OrderBy(p => p.Key.Length).ThenBy(p => p.Key, StringComparer.Ordinal) // [2] before [10]
+        .Select(p => p.Value);
+
+    private static IReadOnlyList<string> XmpList(IDictionary<string, string> xmp, string property) =>
+        [.. XmpItems(xmp, property).Select(Clean).OfType<string>()];
+
     private static IReadOnlyList<string> ReadKeywords(IptcDirectory? iptc, IDictionary<string, string> xmp)
     {
         var fromIptc = iptc?.GetStringArray(IptcDirectory.TagKeywords) ?? [];
-        var fromXmp = xmp
-            .Where(p => p.Key.StartsWith("dc:subject[", StringComparison.Ordinal))
-            .OrderBy(p => p.Key.Length).ThenBy(p => p.Key, StringComparer.Ordinal) // [2] before [10]
-            .Select(p => p.Value);
-
-        return fromIptc.Concat(fromXmp)
+        return fromIptc.Concat(XmpItems(xmp, "dc:subject"))
             .Select(Clean)
             .OfType<string>()
             .Distinct(StringComparer.OrdinalIgnoreCase)

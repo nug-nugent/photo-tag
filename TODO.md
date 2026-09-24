@@ -60,10 +60,6 @@ the details panel and the index when files or sidecars change.
 
 ## 3. Tagging features
 
-### 3.5 Hierarchical keywords (M)
-Lightroom writes `lr:hierarchicalSubject` ("Places|UK|Cornwall"). Read it, show it sensibly, and keep it in step when
-tags are edited so Lightroom users don't lose structure.
-
 ### 3.6 People and places (L)
 The original WPF prototype planned People, Location, Town, County and Region fields. Map these to IPTC Core/Extension
 (`XMP-iptcExt:PersonInImage`, `XMP-iptcCore:Location`, `XMP-photoshop:City/State/Country`) and show GPS on a small map.
