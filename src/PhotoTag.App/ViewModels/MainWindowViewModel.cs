@@ -43,6 +43,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (writer is not null) writer.PreserveModifiedTime = settings.PreserveModifiedTime;
         Library = new LibraryViewModel(index, _keywordSuggestions);
         Library.CountsChanged += (_, _) => _ = RefreshFolderCountsAsync();
+        Library.CountsChanged += (_, _) => _ = RefreshFavouritesAsync(Photos);
         Operations = new BulkOperations(writer, _keywordSuggestions);
         Operations.Summary += (_, summary) => StatusText = summary;
         Operations.Completed += (_, result) => _ = Library.PhotosChangedAsync(result.After);
@@ -135,6 +136,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <summary>Show photos with no tags at all, to find what still needs tagging.</summary>
     [ObservableProperty] public partial bool ShowUntagged { get; set; }
 
+    /// <summary>Only show favourites; combines with the tag search or "Untagged".</summary>
+    [ObservableProperty] public partial bool ShowFavourites { get; set; }
+
     [ObservableProperty] public partial bool IsSearching { get; private set; }
 
     // Tag search and "Untagged" are alternatives: switching one on switches the other off.
@@ -160,14 +164,20 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         }
         else if (IsSearching)
         {
-            ClearSearch();
+            RunSearch(); // back to the folder view, unless "Favourites" is still on
         }
+    }
+
+    partial void OnShowFavouritesChanged(bool value)
+    {
+        if (_changingFilters) return;
+        if (value || IsSearching) RunSearch();
     }
 
     private void RunSearch()
     {
         var keywords = PhotoMetadataWriter.NormalizeKeywords((SearchText ?? "").Split(','));
-        if (RootPath is null || (keywords.Count == 0 && !ShowUntagged))
+        if (RootPath is null || (keywords.Count == 0 && !ShowUntagged && !ShowFavourites))
         {
             ClearSearch();
             return;
@@ -176,8 +186,15 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         IsSearching = true;
         SelectedFolder = null; // the grid now shows results from the whole library, not one folder
         var root = RootPath;
-        var query = new PhotoQuery { Keywords = keywords, UntaggedOnly = ShowUntagged };
-        var description = ShowUntagged ? "untagged photos" : $"photos tagged {string.Join(" + ", keywords)}";
+        var query = new PhotoQuery { Keywords = keywords, UntaggedOnly = ShowUntagged, FavouritesOnly = ShowFavourites };
+        var description = (ShowUntagged, ShowFavourites, keywords.Count > 0) switch
+        {
+            (true, true, _) => "untagged favourites",
+            (true, false, _) => "untagged photos",
+            (false, true, true) => $"favourites tagged {string.Join(" + ", keywords)}",
+            (false, true, false) => "favourites",
+            _ => $"photos tagged {string.Join(" + ", keywords)}",
+        };
 
         PhotosLoading = ShowPhotosAsync(async () =>
             {
@@ -197,6 +214,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _changingFilters = true;
         SearchText = null;
         ShowUntagged = false;
+        ShowFavourites = false;
         _changingFilters = false;
         if (wasSearching && SelectedFolder is null && RootFolders.FirstOrDefault() is { } root) SelectedFolder = root;
     }
@@ -311,6 +329,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             _changingFilters = true;
             SearchText = null;
             ShowUntagged = false;
+            ShowFavourites = false;
             _changingFilters = false;
         }
         if (value.IsPlaceholder) return;
@@ -344,13 +363,26 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             var files = await load();
             if (cts.IsCancellationRequested) return;
 
-            Photos = files.Select((f, i) => new PhotoItemViewModel(f, i, _thumbnails)).ToList();
+            var photos = files.Select((f, i) => new PhotoItemViewModel(f, i, _thumbnails)).ToList();
+            Photos = photos;
             StatusText = describe(files.Count);
+            await RefreshFavouritesAsync(photos);
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             if (!cts.IsCancellationRequested) StatusText = $"Couldn't load photos: {e.Message}";
         }
+    }
+
+    /// <summary>
+    /// Marks the grid's favourites from the index: one query rather than a file read per tile, which
+    /// matters on network shares. Runs again whenever the index changes (a scan finishing, an edit).
+    /// </summary>
+    private async Task RefreshFavouritesAsync(IReadOnlyList<PhotoItemViewModel> photos)
+    {
+        if (RootPath is not { } root || photos.Count == 0) return;
+        var favourites = await Library.Index.GetFavouritesAsync(root);
+        foreach (var photo in photos) photo.IsFavourite = favourites.Contains(photo.Path);
     }
 
     public void Dispose()

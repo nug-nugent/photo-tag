@@ -20,7 +20,6 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
         Photos = photos;
         _operations = operations;
         _suggestions = suggestions;
-        Stars = [.. Enumerable.Range(1, 5).Select(i => new StarViewModel(i))];
         _operations.PropertyChanged += OnOperationsChanged;
         _operations.Completed += OnOperationCompleted;
     }
@@ -30,7 +29,6 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     public bool ExifToolMissing => !_operations.IsAvailable;
     public ObservableCollection<string> KeywordSuggestions => _suggestions.Items;
     public ObservableCollection<BulkKeywordViewModel> Keywords { get; } = [];
-    public IReadOnlyList<StarViewModel> Stars { get; }
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanEdit))]
@@ -39,10 +37,15 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial string? LoadingText { get; private set; }
     [ObservableProperty] public partial string? NewKeyword { get; set; }
 
-    /// <summary>The rating shared by every selected photo, or 0 if they differ or have none.</summary>
-    [ObservableProperty] public partial int CommonRating { get; private set; }
+    /// <summary>True if every selected photo is a favourite.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FavouriteGlyph), nameof(FavouriteToolTip))]
+    public partial bool AllFavourites { get; private set; }
 
-    [ObservableProperty] public partial string? RatingNote { get; private set; }
+    public string FavouriteGlyph => AllFavourites ? "♥" : "♡";
+    public string FavouriteToolTip => AllFavourites ? "Remove all of them from favourites" : "Add all of them to favourites";
+
+    [ObservableProperty] public partial string? FavouriteNote { get; private set; }
 
     public bool CanEdit => IsLoaded && _operations.IsAvailable && !_operations.IsBusy;
 
@@ -96,9 +99,9 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private Task RemoveKeyword(BulkKeywordViewModel keyword) => _operations.RemoveKeywordsAsync(Photos, [keyword.Keyword]);
 
-    /// <summary>Clicking the rating they all share clears it.</summary>
+    /// <summary>Unless they're all favourites already, the heart makes them all favourites.</summary>
     [RelayCommand]
-    private Task SetRating(int stars) => _operations.SetRatingAsync(Photos, stars == CommonRating ? 0 : stars);
+    private Task ToggleFavourite() => _operations.SetFavouriteAsync(Photos, !AllFavourites);
 
     private void Refresh()
     {
@@ -114,10 +117,9 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
             Keywords.Add(new BulkKeywordViewModel(spelling, count, Photos.Count));
         _suggestions.Add(counts.Values.Select(c => c.Spelling));
 
-        var ratings = metadata.Select(m => m.Rating ?? 0).Distinct().ToList();
-        CommonRating = ratings is [var only] ? only : 0;
-        RatingNote = ratings.Count > 1 ? "Mixed ratings; clicking a star sets it on all of them." : null;
-        foreach (var star in Stars) star.IsFilled = star.Value <= CommonRating;
+        var favourites = metadata.Count(m => m.IsFavourite);
+        AllFavourites = favourites == metadata.Count;
+        FavouriteNote = favourites > 0 && !AllFavourites ? $"{favourites:N0} of {metadata.Count:N0} are favourites; the heart adds the rest." : null;
     }
 
     private void OnOperationsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

@@ -91,7 +91,8 @@ public sealed class MultiSelectTests : UiTestBase
 
         Assert.Equal("3 photos selected", bulk.Heading);
         Assert.Equal(["Beach 2/3", "Cat 1/3", "Dog 1/3"], bulk.Keywords.Select(k => $"{k.Keyword} {k.CountText}"));
-        Assert.Equal(4, bulk.CommonRating); // test images with XMP are rated 4
+        Assert.False(bulk.AllFavourites); // test images with XMP are rated 4★, not favourites
+        Assert.Null(bulk.FavouriteNote);
 
         // Type a new tag: added to all three, nothing else lost, the unselected photo untouched.
         Find<AutoCompleteBox>(window, "BulkTagBox").Focus();
@@ -117,16 +118,17 @@ public sealed class MultiSelectTests : UiTestBase
         Assert.Equal(["Beach", "Sunset"], PhotoMetadata.Read(a).Keywords);
         Assert.DoesNotContain(bulk.Keywords, k => k.Keyword == "Dog");
 
-        // A star sets the rating on all of them.
-        Click(window, FindAll<Button>(window).Where(x => x.Classes.Contains("star")).ElementAt(1));
+        // The heart makes them all favourites.
+        Click(window, Find<Button>(window, "BulkFavouriteButton"));
         await WaitForBulkAsync(vm);
-        Assert.All([a, b, c], p => Assert.Equal(2, PhotoMetadata.Read(p).Rating));
-        Assert.Equal(4, PhotoMetadata.Read(notSelected).Rating);
+        Assert.All([a, b, c], p => Assert.True(PhotoMetadata.Read(p).IsFavourite));
+        Assert.False(PhotoMetadata.Read(notSelected).IsFavourite);
+        Assert.True(bulk.AllFavourites);
 
         // Back to one photo: its panel shows what bulk editing wrote.
         var single = await SelectSingleAsync(window, vm, 2);
         Assert.Equal(["Cat", "Sunset", "Beach"], single.Keywords);
-        Assert.Equal(2, single.Rating);
+        Assert.True(single.IsFavourite);
         window.Close();
     }
 

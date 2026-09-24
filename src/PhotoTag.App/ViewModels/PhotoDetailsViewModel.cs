@@ -10,7 +10,7 @@ namespace PhotoTag.App.ViewModels;
 
 /// <summary>
 /// The side panel for the selected photo: a larger preview, its metadata, and editors for
-/// tags, title, description and rating. Edits are written to the file straight away.
+/// tags, title, description and favourite. Edits are written to the file straight away.
 /// </summary>
 public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 {
@@ -36,7 +36,6 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         _writer = writer;
         _suggestions = suggestions;
         _operations = operations;
-        Stars = [.. Enumerable.Range(1, 5).Select(i => new StarViewModel(i))];
         _operations.PropertyChanged += OnOperationsChanged;
         _operations.Completed += OnOperationCompleted;
     }
@@ -81,12 +80,16 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     public bool CanEdit => IsLoaded && _writer is not null && !_operations.IsBusy;
 
     public ObservableCollection<string> Keywords { get; } = [];
-    public IReadOnlyList<StarViewModel> Stars { get; }
 
     [ObservableProperty] public partial string? NewKeyword { get; set; }
     [ObservableProperty] public partial string? Title { get; set; }
     [ObservableProperty] public partial string? Description { get; set; }
-    [ObservableProperty] public partial int Rating { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FavouriteGlyph), nameof(FavouriteToolTip))]
+    public partial bool IsFavourite { get; private set; }
+
+    public string FavouriteGlyph => IsFavourite ? "♥" : "♡";
+    public string FavouriteToolTip => IsFavourite ? "Remove from favourites" : "Add to favourites";
     [ObservableProperty] public partial string? SaveStatus { get; private set; }
     [ObservableProperty] public partial bool SaveFailed { get; private set; }
 
@@ -160,12 +163,13 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         await SaveAsync(new MetadataChanges { Keywords = [.. Keywords] });
     }
 
-    /// <summary>Clicking the current rating again clears it.</summary>
+    partial void OnIsFavouriteChanged(bool value) => Photo.IsFavourite = value; // the grid tile's ♥
+
     [RelayCommand]
-    private async Task SetRating(int stars)
+    private async Task ToggleFavourite()
     {
-        SetRatingDisplay(stars == Rating ? 0 : stars);
-        await SaveAsync(new MetadataChanges { Rating = Rating });
+        IsFavourite = !IsFavourite;
+        await SaveAsync(new MetadataChanges { Favourite = IsFavourite });
     }
 
     // Title and description bind with UpdateSourceTrigger=LostFocus, so these fire once per edit.
@@ -240,7 +244,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         if (e.PropertyName == nameof(BulkOperations.IsBusy)) OnPropertyChanged(nameof(CanEdit));
     }
 
-    // A bulk edit that included this photo may have changed its tags or rating.
+    // A bulk edit that included this photo may have changed its tags or favourite.
     private void OnOperationCompleted(object? sender, BulkResult result)
     {
         if (IsLoaded && result.After.TryGetValue(Photo.Path, out var metadata)) Apply(metadata, _fileSize);
@@ -273,18 +277,12 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
             _savedDescription = NormalizeText(m.Description);
             Title = m.Title;
             Description = m.Description;
-            SetRatingDisplay(m.Rating is >= 0 and <= 5 ? m.Rating.Value : 0);
+            IsFavourite = Photo.IsFavourite = m.IsFavourite; // the file wins over a stale index
         }
         finally
         {
             _applying = false;
         }
-    }
-
-    private void SetRatingDisplay(int rating)
-    {
-        Rating = rating;
-        foreach (var star in Stars) star.IsFilled = star.Value <= rating;
     }
 
     private static string? JoinNonEmpty(string separator, params string?[] parts)
@@ -309,15 +307,4 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         Preview?.Dispose();
         Preview = null;
     }
-}
-
-public partial class StarViewModel(int value) : ViewModelBase
-{
-    public int Value { get; } = value;
-
-    [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(Glyph))]
-    public partial bool IsFilled { get; set; }
-
-    public string Glyph => IsFilled ? "★" : "☆";
 }

@@ -42,9 +42,9 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
         return RunAsync(photos, $"Removing {label} from", (e, paths, p, ct) => e.RemoveKeywordsAsync(paths, keywords, p, ct));
     }
 
-    public Task SetRatingAsync(IReadOnlyList<PhotoItemViewModel> photos, int rating) =>
-        RunAsync(photos, rating == 0 ? "Clearing the rating of" : $"Rating {rating}★:",
-            (e, paths, p, ct) => e.SetRatingAsync(paths, rating, p, ct));
+    public Task SetFavouriteAsync(IReadOnlyList<PhotoItemViewModel> photos, bool favourite) =>
+        RunAsync(photos, favourite ? "Adding to favourites:" : "Removing from favourites:",
+            (e, paths, p, ct) => e.SetFavouriteAsync(paths, favourite, p, ct));
 
     [RelayCommand(CanExecute = nameof(IsBusy))]
     private void Cancel()
@@ -76,7 +76,11 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
             var result = await operation(_editor, photos.Select(p => p.File).ToList(), progress, cts.Token);
 
             foreach (var photo in photos)
-                if (result.After.TryGetValue(photo.Path, out var metadata)) photo.Metadata = metadata;
+                if (result.After.TryGetValue(photo.Path, out var metadata))
+                {
+                    photo.Metadata = metadata;
+                    photo.IsFavourite = metadata.IsFavourite;
+                }
 
             Summary?.Invoke(this, Summarize(result));
             Completed?.Invoke(this, result);

@@ -4,16 +4,21 @@ namespace PhotoTag.Core;
 
 /// <summary>
 /// Metadata to change. A <c>null</c> property is left alone; to clear a value, pass an empty
-/// string, an empty keyword list, or a rating of 0.
+/// string or an empty keyword list.
 /// </summary>
 public sealed record MetadataChanges
 {
     public IReadOnlyList<string>? Keywords { get; init; }
     public string? Title { get; init; }
     public string? Description { get; init; }
-    public int? Rating { get; init; }
 
-    public bool IsEmpty => Keywords is null && Title is null && Description is null && Rating is null;
+    /// <summary>True sets a 5★ rating; false clears the rating.</summary>
+    public bool? Favourite { get; init; }
+
+    /// <summary>A rating to copy into a new RAW sidecar, so one set in another app isn't lost.</summary>
+    internal int? Rating { get; init; }
+
+    public bool IsEmpty => Keywords is null && Title is null && Description is null && Favourite is null && Rating is null;
 }
 
 /// <summary>
@@ -24,9 +29,12 @@ public sealed record MetadataChanges
 /// </summary>
 public sealed class PhotoMetadataWriter(ExifTool exifTool)
 {
+    /// <summary>The xmp:Rating that marks a favourite.</summary>
+    public const int FavouriteRating = 5;
+
     /// <summary>
     /// Keep each file's "date modified" when saving tags. Off by default: backup and sync tools
-    /// usually spot changes by size and modified time, and many tag edits (a rating from 3 to 4,
+    /// usually spot changes by size and modified time, and many tag edits (favouriting a photo,
     /// one tag swapped for another of the same length) don't change the size, so with this on
     /// those edits would never reach the backup.
     /// </summary>
@@ -56,7 +64,7 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         }
 
         // First edit of this RAW: create its sidecar. Once it exists, the sidecar's values replace
-        // what's embedded in the RAW, so copy those across first, or a new rating would hide the
+        // what's embedded in the RAW, so copy those across first, or a new favourite would hide the
         // RAW's existing tags.
         var sidecar = PhotoFiles.NewSidecarPath(path);
         var seeded = SeedFromEmbedded(path, changes);
@@ -100,7 +108,7 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             Keywords = changes.Keywords ?? (embedded.Keywords.Count > 0 ? embedded.Keywords : null),
             Title = changes.Title ?? embedded.Title,
             Description = changes.Description ?? embedded.Description,
-            Rating = changes.Rating ?? embedded.Rating,
+            Rating = changes.Favourite is null ? embedded.Rating : null,
         };
     }
 
@@ -156,12 +164,10 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             }
         }
 
-        if (changes.Rating is { } rating)
-        {
-            ArgumentOutOfRangeException.ThrowIfNegative(rating);
-            ArgumentOutOfRangeException.ThrowIfGreaterThan(rating, 5);
-            Set(args, "XMP-xmp:Rating", rating == 0 ? "" : rating.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        }
+        if (changes.Favourite is { } favourite)
+            Set(args, "XMP-xmp:Rating", favourite ? FavouriteRating.ToString(System.Globalization.CultureInfo.InvariantCulture) : "");
+        else if (changes.Rating is { } rating)
+            Set(args, "XMP-xmp:Rating", rating.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
         if (isJpeg && (changes.Keywords is not null || changes.Title is not null || changes.Description is not null))
             args.Add("-IPTC:CodedCharacterSet=UTF8");

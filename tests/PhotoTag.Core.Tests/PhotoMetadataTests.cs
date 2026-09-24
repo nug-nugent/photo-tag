@@ -27,7 +27,7 @@ public sealed class PhotoMetadataTests : IDisposable
     }
 
     [Fact]
-    public void Read_XmpKeywordsAndRating()
+    public void Read_XmpKeywordsAndRating_FourStarsIsNotAFavourite()
     {
         var path = TestImages.Write(_dir.Path, "xmp.jpg",
             TestImages.Jpeg(64, 64, xmpKeywords: ["Beach", "Family", "beach", "Cornwall"]));
@@ -36,6 +36,8 @@ public sealed class PhotoMetadataTests : IDisposable
 
         Assert.Equal(["Beach", "Family", "Cornwall"], metadata.Keywords);
         Assert.Equal(4, metadata.Rating);
+        Assert.False(metadata.IsFavourite);
+        Assert.True((metadata with { Rating = 5 }).IsFavourite);
     }
 
     [Fact]

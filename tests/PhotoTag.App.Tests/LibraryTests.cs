@@ -148,6 +148,105 @@ public sealed class LibraryTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task GridTiles_ShowAHeartOnFavourites()
+    {
+        await using var exifTool = RequireExifTool();
+        CreateLibrary();
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        var (root, year) = await WaitForIndexAsync(vm);
+        vm.SelectedFolder = year; // b.jpg, c.jpg, e.jpg
+        await vm.PhotosLoading;
+        Assert.Equal(0, VisibleHearts(window, vm));
+
+        // Favouriting in the details panel shows the heart straight away.
+        var details = await SelectSingleAsync(window, vm, 1);
+        Click(window, Find<Button>(window, "FavouriteButton"));
+        Assert.True(vm.Photos[1].IsFavourite);
+        await details.SaveCompletion;
+        Assert.Equal(1, VisibleHearts(window, vm));
+
+        // So does a bulk edit.
+        ClickTile(window, 0);
+        Press(window, PhysicalKey.A, CommandKey);
+        var bulk = Assert.IsType<BulkDetailsViewModel>(vm.Details);
+        await WaitForAsync(() => bulk.IsLoaded);
+        Click(window, Find<Button>(window, "BulkFavouriteButton"));
+        await WaitForAsync(() => !vm.Operations.IsBusy);
+        Assert.All(vm.Photos, p => Assert.True(p.IsFavourite));
+        Assert.Equal(3, VisibleHearts(window, vm));
+
+        // Coming back to the folder, the hearts come from the index, without reading the files.
+        await WaitForAsync(async () => (await vm.Library.Index.GetFavouritesAsync(DirPath)).Count == 3);
+        vm.SelectedFolder = root;
+        await vm.PhotosLoading;
+        Assert.Equal(0, VisibleHearts(window, vm)); // a.jpg isn't a favourite
+        vm.SelectedFolder = year;
+        await vm.PhotosLoading;
+        Assert.All(vm.Photos, p => Assert.True(p.IsFavourite));
+        Assert.All(vm.Photos, p => Assert.Null(p.Metadata));
+        Assert.Equal(3, VisibleHearts(window, vm));
+        window.Close();
+    }
+
+    private static int VisibleHearts(Window window, MainWindowViewModel vm)
+    {
+        window.UpdateLayout();
+        // Only tiles showing the current photos: the grid keeps recycled tiles around.
+        return FindAll<Border>(window).Count(b => b.Classes.Contains("tileHeart") && b.IsEffectivelyVisible
+                                                  && b.DataContext is PhotoItemViewModel p && vm.Photos.Contains(p));
+    }
+
+    [AvaloniaFact]
+    public async Task Favourites_AreSearchable_AloneOrWithTags()
+    {
+        await using var exifTool = RequireExifTool();
+        CreateLibrary();
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        var (_, year) = await WaitForIndexAsync(vm);
+
+        // Favourite c.jpg [Dog] and e.jpg [Beach, Dog] in the 2020 folder.
+        vm.SelectedFolder = year;
+        await vm.PhotosLoading;
+        foreach (var index in new[] { 1, 2 })
+        {
+            var details = await SelectSingleAsync(window, vm, index);
+            Click(window, Find<Button>(window, "FavouriteButton"));
+            await details.SaveCompletion;
+        }
+        await WaitForAsync(async () => (await vm.Library.Index.SearchAsync(DirPath, new PhotoQuery { FavouritesOnly = true })).Count == 2);
+
+        var favourites = Find<ToggleButton>(window, "FavouritesButton");
+        Click(window, favourites);
+        await vm.PhotosLoading;
+        Assert.True(vm.IsSearching);
+        Assert.Equal(["c.jpg", "e.jpg"], vm.Photos.Select(p => p.FileName));
+        Assert.Equal($"2 favourites in {Path.GetFileName(DirPath)}", vm.StatusText);
+
+        // Combined with a tag search.
+        vm.SearchText = "beach";
+        Find<AutoCompleteBox>(window, "SearchBox").Focus();
+        Press(window, PhysicalKey.Enter);
+        await vm.PhotosLoading;
+        Assert.Equal(["e.jpg"], vm.Photos.Select(p => p.FileName));
+        Assert.True(vm.ShowFavourites);
+
+        // Switching Favourites off leaves the tag search.
+        Click(window, favourites);
+        await vm.PhotosLoading;
+        Assert.Equal(["a.jpg", "e.jpg", "d.jpg"], vm.Photos.Select(p => p.FileName));
+
+        // Esc clears everything.
+        Click(window, favourites);
+        await vm.PhotosLoading;
+        Find<AutoCompleteBox>(window, "SearchBox").Focus();
+        Press(window, PhysicalKey.Escape);
+        await vm.PhotosLoading;
+        Assert.False(vm.IsSearching);
+        Assert.False(vm.ShowFavourites);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task BulkEdits_AreSearchableStraightAway()
     {
         await using var exifTool = RequireExifTool();

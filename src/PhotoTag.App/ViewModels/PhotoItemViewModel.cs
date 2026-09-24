@@ -30,6 +30,10 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
     /// </summary>
     public PhotoMetadata? Metadata { get; set; }
 
+    /// <summary>Shows a ♥ on the tile. Set from the library index, and straight away by PhotoTag's own edits.</summary>
+    [ObservableProperty]
+    public partial bool IsFavourite { get; set; }
+
     [ObservableProperty]
     public partial Bitmap? Thumbnail { get; private set; }
 
