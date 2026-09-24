@@ -93,7 +93,7 @@ public sealed class BulkTextTests : UiTestBase
         Click(window, Find<Button>(window, "BulkCancelTextButton"));
 
         Assert.False(bulk.HasTextEdits);
-        Assert.Equal("", bulk.Description);
+        Assert.Equal("", bulk.DescriptionField.Text);
         Assert.All([a, b], p => Assert.Null(PhotoMetadata.Read(p).Description));
 
         // A tag edit while a box has unsaved text leaves the text alone.
@@ -103,7 +103,7 @@ public sealed class BulkTextTests : UiTestBase
         window.KeyTextInput("Beach");
         Press(window, PhysicalKey.Enter);
         await WaitForBulkAsync(vm);
-        Assert.Equal("Draft", bulk.Title);
+        Assert.Equal("Draft", bulk.TitleField.Text);
         Assert.True(bulk.HasTextEdits);
         window.Close();
     }

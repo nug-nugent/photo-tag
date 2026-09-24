@@ -171,6 +171,18 @@ public sealed class RawTests(ExifToolFixture fixture) : IClassFixture<ExifToolFi
     }
 
     [Fact]
+    public async Task Places_GoInTheSidecar()
+    {
+        var writer = fixture.RequireWriter();
+        var raw = await RawSamples.CopyAsync(RawSamples.PanasonicRw2, _dir.Path, "P1.RW2");
+
+        await writer.WriteAsync(raw, new MetadataChanges { City = "St Ives", Country = "UK" }, Ct);
+
+        Assert.Equal(("St Ives", "UK"), (PhotoMetadata.Read(raw).City, PhotoMetadata.Read(raw).Country));
+        Assert.Contains("St Ives", File.ReadAllText(Path.Combine(_dir.Path, "P1.xmp")));
+    }
+
+    [Fact]
     public async Task NestedKeywordsInASidecar_FollowTagEdits()
     {
         var writer = fixture.RequireWriter();

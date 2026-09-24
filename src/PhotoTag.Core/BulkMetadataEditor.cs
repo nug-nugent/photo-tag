@@ -52,6 +52,10 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
         SetTextAsync(Singles(paths), title, description, progress, cancellationToken);
 
+    public Task<BulkResult> SetTextAsync(IReadOnlyList<string> paths, IReadOnlyDictionary<TextField, string> values,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        SetTextAsync(Singles(paths), values, progress, cancellationToken);
+
     public Task<BulkResult> RenameKeywordAsync(IReadOnlyList<string> paths, string from, string to,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
         RenameKeywordAsync(Singles(paths), from, to, progress, cancellationToken);
@@ -108,15 +112,25 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
     public Task<BulkResult> SetTextAsync(IReadOnlyList<PhotoFile> paths, string? title, string? description,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        title = title is null ? null : PhotoMetadataWriter.NormalizeText(title);
-        description = description is null ? null : PhotoMetadataWriter.NormalizeText(description);
+        var values = new Dictionary<TextField, string>();
+        if (title is not null) values[TextField.Title] = title;
+        if (description is not null) values[TextField.Description] = description;
+        return SetTextAsync(paths, values, progress, cancellationToken);
+    }
+
+    /// <summary>
+    /// Gives every photo the same value for each field in <paramref name="values"/> (title, city…),
+    /// replacing what they had; an empty value clears the field. Other fields are left alone.
+    /// </summary>
+    public Task<BulkResult> SetTextAsync(IReadOnlyList<PhotoFile> paths, IReadOnlyDictionary<TextField, string> values,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
+    {
+        var normalized = values.ToDictionary(v => v.Key, v => PhotoMetadataWriter.NormalizeText(v.Value));
         return ApplyAsync(paths, current =>
         {
-            var changes = new MetadataChanges
-            {
-                Title = title is not null && !SameText(title, current.Title) ? title : null,
-                Description = description is not null && !SameText(description, current.Description) ? description : null,
-            };
+            var changes = new MetadataChanges();
+            foreach (var (field, value) in normalized)
+                if (!SameText(value, current.Get(field))) changes = changes.With(field, value);
             return changes.IsEmpty ? null : changes;
         }, progress, cancellationToken);
     }
@@ -132,7 +146,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
             progress, cancellationToken);
 
     /// <summary>
-    /// Puts back the tags, favourite, title and description an earlier edit changed. A file whose
+    /// Puts back the tags, favourite, title, description and place an earlier edit changed. A file whose
     /// values have changed again since is left alone (counted in <see cref="BulkResult.ChangedSince"/>), so undo
     /// never throws away later work.
     /// </summary>
@@ -159,11 +173,11 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         return result with { ChangedSince = changedSince.Count };
     }
 
-    // What bulk edits can change: tags (and Lightroom's nested keywords), rating, title and description.
+    // What bulk edits can change: tags (and Lightroom's nested keywords), rating, and the text fields.
     private static bool SameEditableValues(PhotoMetadata a, PhotoMetadata b) =>
         a.Rating == b.Rating && a.Keywords.SequenceEqual(b.Keywords, StringComparer.Ordinal)
         && a.HierarchicalKeywords.SequenceEqual(b.HierarchicalKeywords, StringComparer.Ordinal)
-        && SameText(a.Title, b.Title) && SameText(a.Description, b.Description);
+        && TextFields.All.All(f => SameText(a.Get(f), b.Get(f)));
 
     private static bool SameText(string? a, string? b) => PhotoMetadataWriter.NormalizeText(a) == PhotoMetadataWriter.NormalizeText(b);
 
@@ -177,9 +191,10 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
                                    && before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal)
                 ? null
                 : before.HierarchicalKeywords,
-            Title = SameText(before.Title, current.Title) ? null : PhotoMetadataWriter.NormalizeText(before.Title),
-            Description = SameText(before.Description, current.Description) ? null : PhotoMetadataWriter.NormalizeText(before.Description),
         };
+        foreach (var field in TextFields.All)
+            if (!SameText(before.Get(field), current.Get(field)))
+                changes = changes.With(field, PhotoMetadataWriter.NormalizeText(before.Get(field)));
         if (before.Rating != current.Rating)
         {
             changes = before.Rating switch
@@ -236,10 +251,10 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
                         {
                             Keywords = changes.Keywords is { } k ? PhotoMetadataWriter.NormalizeKeywords(k) : current.Keywords,
                             Rating = changes.Favourite is { } f ? (f ? PhotoMetadataWriter.FavouriteRating : null) : changes.Rating ?? current.Rating,
-                            Title = changes.Title is { } t ? NullIfEmpty(t) : current.Title,
-                            Description = changes.Description is { } d ? NullIfEmpty(d) : current.Description,
                             HierarchicalKeywords = changes.HierarchicalKeywords ?? current.HierarchicalKeywords,
                         };
+                        foreach (var field in TextFields.All)
+                            if (changes.Get(field) is { } text) current = current.With(field, NullIfEmpty(text));
                         written.Add(new BulkChange(photo.Path, path, before, current));
                     }
                     if (path == photo.Path) after[path] = current;

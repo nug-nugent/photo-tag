@@ -18,19 +18,20 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly PhotoMetadataWriter? _writer;
     private readonly KeywordSuggestions _suggestions;
+    private readonly PlaceSuggestions _places;
     private readonly BulkOperations _operations;
     private readonly PhotoRenderer _renderer;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private int _pendingSaves;
     private Task _lastSave = Task.CompletedTask;
     private bool _applying;
-    private string _savedTitle = "";
-    private string _savedDescription = "";
+    private readonly Dictionary<TextField, string> _savedText = TextFields.All.ToDictionary(f => f, _ => "");
     private long _fileSize;
 
     public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions,
-        BulkOperations operations, PhotoRenderer renderer)
+        PlaceSuggestions places, BulkOperations operations, PhotoRenderer renderer)
     {
+        _places = places;
         Photo = photo;
         _renderer = renderer;
         _writer = writer;
@@ -57,6 +58,10 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private static string SidecarName(string raw) =>
         System.IO.Path.GetFileName(PhotoFiles.FindSidecar(raw) ?? PhotoFiles.NewSidecarPath(raw));
     public ObservableCollection<string> KeywordSuggestions => _suggestions.Items;
+    public ObservableCollection<string> LocationSuggestions => _places.For(TextField.Location);
+    public ObservableCollection<string> CitySuggestions => _places.For(TextField.City);
+    public ObservableCollection<string> StateSuggestions => _places.For(TextField.State);
+    public ObservableCollection<string> CountrySuggestions => _places.For(TextField.Country);
 
     [ObservableProperty] public partial Bitmap? Preview { get; private set; }
     [ObservableProperty] public partial string? Error { get; private set; }
@@ -65,7 +70,8 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial string? Lens { get; private set; }
     [ObservableProperty] public partial string? Exposure { get; private set; }
     [ObservableProperty] public partial string? Dimensions { get; private set; }
-    [ObservableProperty] public partial string? Location { get; private set; }
+    /// <summary>GPS position, as "50.04213, -5.65432".</summary>
+    [ObservableProperty] public partial string? Coordinates { get; private set; }
 
     // --- Editable metadata ---------------------------------------------------------------
 
@@ -84,6 +90,10 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial string? NewKeyword { get; set; }
     [ObservableProperty] public partial string? Title { get; set; }
     [ObservableProperty] public partial string? Description { get; set; }
+    [ObservableProperty] public partial string? Location { get; set; }
+    [ObservableProperty] public partial string? City { get; set; }
+    [ObservableProperty] public partial string? State { get; set; }
+    [ObservableProperty] public partial string? Country { get; set; }
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(FavouriteGlyph), nameof(FavouriteToolTip))]
     public partial bool IsFavourite { get; private set; }
@@ -172,17 +182,31 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         await SaveAsync(new MetadataChanges { Favourite = IsFavourite });
     }
 
-    // Title and description bind with UpdateSourceTrigger=LostFocus, so these fire once per edit.
-    partial void OnTitleChanged(string? value)
+    // The text boxes bind with UpdateSourceTrigger=LostFocus, so these fire once per edit.
+    partial void OnTitleChanged(string? value) => OnTextChanged(TextField.Title, value);
+    partial void OnDescriptionChanged(string? value) => OnTextChanged(TextField.Description, value);
+    partial void OnLocationChanged(string? value) => OnTextChanged(TextField.Location, value);
+    partial void OnCityChanged(string? value) => OnTextChanged(TextField.City, value);
+    partial void OnStateChanged(string? value) => OnTextChanged(TextField.State, value);
+    partial void OnCountryChanged(string? value) => OnTextChanged(TextField.Country, value);
+
+    private void OnTextChanged(TextField field, string? value)
     {
-        if (_applying || NormalizeText(value) == _savedTitle) return;
-        _ = SaveAsync(new MetadataChanges { Title = NormalizeText(value) });
+        if (_applying || NormalizeText(value) == _savedText[field]) return;
+        _ = SaveAsync(new MetadataChanges().With(field, NormalizeText(value)));
     }
 
-    partial void OnDescriptionChanged(string? value)
+    private void SetText(TextField field, string? value)
     {
-        if (_applying || NormalizeText(value) == _savedDescription) return;
-        _ = SaveAsync(new MetadataChanges { Description = NormalizeText(value) });
+        switch (field)
+        {
+            case TextField.Title: Title = value; break;
+            case TextField.Description: Description = value; break;
+            case TextField.Location: Location = value; break;
+            case TextField.City: City = value; break;
+            case TextField.State: State = value; break;
+            case TextField.Country: Country = value; break;
+        }
     }
 
     // Text boxes use the platform's line endings (\r\n on Windows); files store \n.
@@ -208,8 +232,12 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
             await writer.WriteAsync(Photo.File, changes); // a RAW+JPEG pair gets both
             Photo.Metadata = null; // re-read next time it's needed
             Saved?.Invoke(this, EventArgs.Empty);
-            if (changes.Title is { } title) _savedTitle = title;
-            if (changes.Description is { } description) _savedDescription = description;
+            foreach (var field in TextFields.All)
+            {
+                if (changes.Get(field) is not { } text) continue;
+                _savedText[field] = text;
+                _places.Add(field, text);
+            }
             if (changes.Keywords is { } keywords) _suggestions.Add(keywords);
             if (!SaveFailed) SaveStatus = _pendingSaves == 1 ? "Saved" : "Saving…";
         }
@@ -262,7 +290,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         Dimensions = JoinNonEmpty(" · ",
             m.Width is { } w && m.Height is { } h ? $"{w:N0} × {h:N0}" : null,
             FormatBytes(fileSize));
-        Location = m.Latitude is { } lat && m.Longitude is { } lon
+        Coordinates = m.Latitude is { } lat && m.Longitude is { } lon
             ? string.Create(CultureInfo.InvariantCulture, $"{lat:F5}, {lon:F5}")
             : null;
 
@@ -273,10 +301,12 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
             foreach (var keyword in m.Keywords) Keywords.Add(keyword);
             _suggestions.Add(m.Keywords);
 
-            _savedTitle = NormalizeText(m.Title);
-            _savedDescription = NormalizeText(m.Description);
-            Title = m.Title;
-            Description = m.Description;
+            foreach (var field in TextFields.All)
+            {
+                _savedText[field] = NormalizeText(m.Get(field));
+                SetText(field, m.Get(field));
+            }
+            _places.Add(m);
             IsFavourite = Photo.IsFavourite = m.IsFavourite; // the file wins over a stale index
         }
         finally

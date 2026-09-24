@@ -129,6 +129,52 @@ public sealed class LibraryIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task Search_Terms_MatchPlaces_AndPlaceValuesAreListed()
+    {
+        var a = Photo("a.jpg");
+        var b = Photo("b.jpg");
+        Photo("c.jpg");
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+        await _index.UpdateAsync([
+            (a, new PhotoMetadata { Location = "Porthcurno beach", City = "St Levan", Country = "UK" }),
+            (b, new PhotoMetadata { City = "St Ives", State = "Cornwall", Country = "UK" }),
+        ]);
+
+        Assert.Equal([a], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["porthcurno"] }));
+        Assert.Equal([a, b], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["st "] }));
+        Assert.Equal([b], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["cornwall", "uk"] }));
+        Assert.Equal(["St Ives", "St Levan"], (await _index.GetPlaceValuesAsync(TextField.City)).Order());
+        Assert.Equal(["UK"], await _index.GetPlaceValuesAsync(TextField.Country));
+    }
+
+    [Fact]
+    public async Task AnIndexFromVersion1_GainsPlaces_AndItsPhotosAreReadAgain()
+    {
+        var path = Path.Combine(_dir.Path, "index", "old.db");
+        var photo = Photo("a.jpg", "Beach");
+        using (var current = new LibraryIndex(path)) await current.ScanAsync(_library, cancellationToken: Ct);
+
+        // Turn it back into a version 1 index, with the photo already in it.
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = """
+                ALTER TABLE photos DROP COLUMN location; ALTER TABLE photos DROP COLUMN city;
+                ALTER TABLE photos DROP COLUMN state; ALTER TABLE photos DROP COLUMN country;
+                PRAGMA user_version = 1;
+                """;
+            command.ExecuteNonQuery();
+        }
+        using var upgraded = new LibraryIndex(path);
+
+        Assert.Equal(new FolderCounts(1, 1), await upgraded.GetFolderCountsAsync(_library)); // usable straight away
+        Assert.Equal([photo], await upgraded.SearchAsync(_library, new PhotoQuery { Keywords = ["beach"] }));
+        Assert.Equal(1, (await upgraded.ScanAsync(_library, cancellationToken: Ct)).Updated); // and read again on the next scan
+        Assert.Empty(await upgraded.GetPlaceValuesAsync(TextField.City));
+    }
+
+    [Fact]
     public async Task Search_Untagged()
     {
         Photo("tagged.jpg", "Beach");

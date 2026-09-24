@@ -60,9 +60,19 @@ the details panel and the index when files or sidecars change.
 
 ## 3. Tagging features
 
-### 3.6 People and places (L)
-The original WPF prototype planned People, Location, Town, County and Region fields. Map these to IPTC Core/Extension
-(`XMP-iptcExt:PersonInImage`, `XMP-iptcCore:Location`, `XMP-photoshop:City/State/Country`) and show GPS on a small map.
+### 3.6 People and places (in parts)
+The owner chose separate fields over tags. **Place fields are done** (Location, City, State/Province, Country; see
+`TextField`). Still to do, one PR each:
+
+- **People (M):** a list of names in `XMP-iptcExt:PersonInImage`, edited like tags (chips, suggestions, bulk add and
+  remove), with rename and merge like the Tags panel. Names only, no face recognition.
+- **"Open in map" link (S):** open the photo's GPS position on OpenStreetMap in the browser. The owner doesn't want a map
+  inside the app.
+- **Fill places from GPS (M):** fill City, State/Province and Country (maybe Location) from each photo's GPS. The owner
+  finds this very useful. Ask them first: an online service (e.g. Nominatim: about one request a second, and it sends
+  coordinates out) or a bundled offline dataset (e.g. GeoNames: several MB, less precise). It should only fill empty
+  fields, say what it will change, and run as an undoable bulk edit. GPS isn't in the index yet (schema v3), so either
+  add it or read the files.
 
 ## 4. Browsing
 

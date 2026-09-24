@@ -8,7 +8,7 @@ namespace PhotoTag.App.ViewModels;
 /// the background, records PhotoTag's own edits straight away, and feeds library-wide tag
 /// suggestions. Raises <see cref="CountsChanged"/> so the folder tree can refresh its counts.
 /// </summary>
-public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions suggestions) : ViewModelBase
+public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions suggestions, PlaceSuggestions places) : ViewModelBase
 {
     private CancellationTokenSource? _scan;
 
@@ -86,6 +86,7 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
     {
         var keywords = await Index.GetKeywordsAsync();
         suggestions.Add(keywords.Select(k => k.Keyword));
+        await places.LoadAsync(Index);
     }
 
     /// <summary>Rebuilds the suggestions from the index, dropping tags no photo has any more.</summary>
