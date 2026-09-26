@@ -101,6 +101,14 @@ dotnet run --project src/PhotoTag.App
 - **Headless rendering outside the tests:** no top-level `await` (continuations go to a dispatcher nothing pumps),
   tick `AvaloniaHeadlessPlatform.ForceRenderTimerTick()` while waiting (layout only runs on render ticks), and always
   dispose ExifTool: a leftover `exiftool` child keeps the output pipe open, so the run looks hung.
+- **Release builds are trimmed** (`PublishTrimmed`); trim warnings are errors. JSON goes through the source-generated
+  `AppJsonContext`, not reflection. The self-check doesn't touch the UI, so after anything that could upset trimming
+  (new libraries, reflection, XAML tricks), publish the screenshot tool trimmed and compare its PNGs with an untrimmed
+  run: `dotnet publish tools/Screenshots -c Release -r win-x64 --self-contained -p:PublishTrimmed=true -o artifacts/trimmed-screenshots-tool`
+  (it must live inside the repo to find the samples).
+- **SkiaSharp's Windows packages include ~100 MB of native `.pdb` files**; `PhotoTag.App.csproj` drops them from the build.
+- **On macOS and Linux ExifTool is a Perl script.** Start it with `ExifToolSetup.Find(...).Create()`, which finds Perl
+  (including Homebrew's, since GUI apps don't get the shell's PATH) and reports a missing Perl separately from a missing ExifTool.
 - **Styles match exact types:** `TextBlock.caption` doesn't style a `SelectableTextBlock`; list both.
 - **Line endings:** `.gitattributes` normalises to LF in the repo; Windows checkouts get CRLF. Scripts that edit files
   should cope with both.

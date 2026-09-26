@@ -1,4 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <!-- The app is published trimmed; this flags trim-unsafe code at build time. -->
+    <IsTrimmable>true</IsTrimmable>
+  </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MetadataExtractor" />
     <PackageReference Include="Microsoft.Data.Sqlite" />

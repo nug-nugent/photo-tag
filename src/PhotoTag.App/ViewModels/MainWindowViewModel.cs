@@ -72,6 +72,18 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public LibraryViewModel Library { get; }
     public TagManagerViewModel TagManager { get; }
     public UpdatesViewModel Updates { get; }
+
+    /// <summary>Why tags can't be edited, shown in each panel when there's no writer.</summary>
+    public string ExifToolMissingText { get; init; } = ExifToolMissingMessage(ExifToolStatus.NotFound);
+
+    public static string ExifToolMissingMessage(ExifToolStatus status) => status switch
+    {
+        ExifToolStatus.PerlMissing when OperatingSystem.IsMacOS() =>
+            "Editing tags needs Perl, which ExifTool runs on, and this Mac doesn't have it. Install it (brew install perl), then restart PhotoTag.",
+        ExifToolStatus.PerlMissing =>
+            "Editing tags needs Perl, which ExifTool runs on, and it isn't installed. Install your system's perl package, then restart PhotoTag.",
+        _ => "Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag.",
+    };
     public ObservableCollection<string> KeywordSuggestions => _keywordSuggestions.Items;
 
     [ObservableProperty] public partial string? RootPath { get; private set; }

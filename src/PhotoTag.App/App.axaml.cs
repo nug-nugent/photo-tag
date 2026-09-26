@@ -16,17 +16,20 @@ public partial class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var settings = AppSettings.Load();
-            // Tag editing needs ExifTool. Without it the app still browses, read-only.
-            var exifToolPath = ExifTool.Locate(AppContext.BaseDirectory);
-            var exifTool = exifToolPath is null ? null : new ExifTool(exifToolPath);
+            // Tag editing needs ExifTool (and Perl, on macOS and Linux). Without them the app still browses, read-only.
+            var exifToolSetup = ExifToolSetup.Find(AppContext.BaseDirectory);
+            var exifTool = exifToolSetup.Create();
             var writer = exifTool is null ? null : new PhotoMetadataWriter(exifTool);
             // A second ExifTool for RAW previews, so loading thumbnails never waits behind saving tags.
-            var previewTool = exifToolPath is null ? null : new ExifTool(exifToolPath);
+            var previewTool = exifToolSetup.Create();
             var renderer = new PhotoRenderer(previewTool is null ? null : new RawPreviewExtractor(previewTool));
             var thumbnails = new ThumbnailCache(ThumbnailCache.DefaultDirectory, renderer);
             var index = new LibraryIndex(LibraryIndex.DefaultPath);
             var placeLookup = new NominatimLookup();
-            var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, new GitHubReleasesUpdater(), placeLookup);
+            var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, new GitHubReleasesUpdater(), placeLookup)
+            {
+                ExifToolMissingText = MainWindowViewModel.ExifToolMissingMessage(exifToolSetup.Status),
+            };
 
             // Optional: a folder passed on the command line wins over the last-used one.
             var startFolder = desktop.Args is [var arg, ..] ? arg : settings.LastFolder;

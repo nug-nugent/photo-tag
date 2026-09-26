@@ -10,6 +10,20 @@
     <Copyright>Copyright © 2026 David Huggett</Copyright>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- Release packages leave out the parts of .NET and the libraries PhotoTag never calls. Trim warnings
+         are errors, and every package's self-check runs the trimmed app. -->
+    <PublishTrimmed>true</PublishTrimmed>
+  </PropertyGroup>
+
+  <!-- SkiaSharp and HarfBuzzSharp ship ~100 MB of Windows debug symbols (libSkiaSharp.pdb) beside their DLLs. -->
+  <Target Name="DropNativeDebugSymbols" AfterTargets="ResolvePackageAssets">
+    <ItemGroup>
+      <NativeCopyLocalItems Remove="@(NativeCopyLocalItems)" Condition="'%(Extension)' == '.pdb'" />
+      <RuntimeTargetsCopyLocalItems Remove="@(RuntimeTargetsCopyLocalItems)" Condition="'%(Extension)' == '.pdb'" />
+    </ItemGroup>
+  </Target>
+
   <ItemGroup>
     <AvaloniaResource Include="Assets\icon-256.png" />
     <AvaloniaResource Include="Assets\Fonts\*.ttf" />
