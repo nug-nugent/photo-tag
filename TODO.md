@@ -58,18 +58,6 @@ makes the index treat everything as new files.
 **What:** watch the open folder (`FileSystemWatcher`, with polling fallback for network shares) and refresh the grid,
 the details panel and the index when files or sidecars change.
 
-## 3. Tagging features
-
-### 3.6 People and places (in parts)
-The owner chose separate fields over tags. **Done:** place fields (Location, City, State/Province, Country; see
-`TextField`), people (`ListField.People`), an "Open in map" link and offline "Fill from GPS". Still to do:
-
-- **"Look up exact place" (S–M):** the online half of the owner's choice (option C). Offline "Fill from GPS" (GeoNames,
-  `PlaceFinder`) is done; add a button on one photo that asks OpenStreetMap's Nominatim reverse geocoder for the exact
-  spot, to fill Location (beach, park, venue) and any empty place fields. One request per click only (Nominatim's
-  usage policy: at most 1/second, a real User-Agent, no bulk jobs, attribution "© OpenStreetMap contributors").
-  Say in the UI that it sends the photo's position to OpenStreetMap.
-
 ## 4. Browsing
 
 ### 4.1 More formats (S each)

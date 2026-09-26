@@ -25,7 +25,8 @@ public partial class App : Application
             var renderer = new PhotoRenderer(previewTool is null ? null : new RawPreviewExtractor(previewTool));
             var thumbnails = new ThumbnailCache(ThumbnailCache.DefaultDirectory, renderer);
             var index = new LibraryIndex(LibraryIndex.DefaultPath);
-            var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, new GitHubReleasesUpdater());
+            var placeLookup = new NominatimLookup();
+            var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, new GitHubReleasesUpdater(), placeLookup);
 
             // Optional: a folder passed on the command line wins over the last-used one.
             var startFolder = desktop.Args is [var arg, ..] ? arg : settings.LastFolder;
@@ -38,6 +39,7 @@ public partial class App : Application
                 viewModel.Dispose();
                 thumbnails.Dispose();
                 index.Dispose();
+                placeLookup.Dispose();
                 // Waits for any in-flight write to finish, then stops ExifTool.
                 exifTool?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(10));
                 previewTool?.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(10));

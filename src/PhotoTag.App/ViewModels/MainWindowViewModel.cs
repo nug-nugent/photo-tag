@@ -42,12 +42,16 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <summary>The grid's photos in the order they were loaded (file name, or folder then name for results).</summary>
     private IReadOnlyList<PhotoItemViewModel> _loaded = [];
 
+    private readonly IExactPlaceLookup? _placeLookup;
+
     /// <summary>Bumped per refresh, so a slow index query can't overwrite a newer one's results.</summary>
     private int _summariesVersion;
 
+    /// <param name="placeLookup">For "Look up exact place" (online); without one, the link isn't shown.</param>
     public MainWindowViewModel(ThumbnailCache thumbnails, AppSettings settings, PhotoMetadataWriter? writer, LibraryIndex index,
-        PhotoRenderer? renderer = null, IAppUpdater? updater = null)
+        PhotoRenderer? renderer = null, IAppUpdater? updater = null, IExactPlaceLookup? placeLookup = null)
     {
+        _placeLookup = placeLookup;
         Updates = new UpdatesViewModel(updater ?? new NoUpdates(), settings);
         _renderer = renderer ?? PhotoRenderer.ImagesOnly;
         _thumbnails = thumbnails;
@@ -290,7 +294,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         {
             Heading = null;
             Subheading = null;
-            Breadcrumb = [];
+            SetBreadcrumb([]);
             return;
         }
 
@@ -314,7 +318,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             Subheading = ShowUntagged || (ShowFavourites && terms.Count == 0)
                 ? $"{photos} in {rootName}"
                 : $"{photos} in {rootName} · {favouriteText}";
-            Breadcrumb = [new BreadcrumbItem(rootName, RootPath, false), new BreadcrumbItem(Heading, null, true)];
+            SetBreadcrumb([new BreadcrumbItem(rootName, RootPath, false), new BreadcrumbItem(Heading, null, true)]);
             return;
         }
 
@@ -336,7 +340,16 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 crumbs.Add(new BreadcrumbItem(parts[i], path, i == parts.Length - 1));
             }
         }
-        Breadcrumb = crumbs;
+        SetBreadcrumb(crumbs);
+    }
+
+    /// <summary>
+    /// Replaces the breadcrumb only when it changes. The heading is recomputed whenever counts refresh
+    /// (after a scan or an edit), and rebuilding identical buttons could swallow a click on one.
+    /// </summary>
+    private void SetBreadcrumb(IReadOnlyList<BreadcrumbItem> crumbs)
+    {
+        if (!crumbs.SequenceEqual(Breadcrumb)) Breadcrumb = crumbs;
     }
 
     /// <summary>A breadcrumb click: shows that folder.</summary>
@@ -670,7 +683,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             case 1:
                 var photo = _selection.First();
                 var details = new PhotoDetailsViewModel(photo, _writer, _keywordSuggestions, _peopleSuggestions, _placeSuggestions,
-                    Operations, _renderer, _popularKeywords);
+                    Operations, _renderer, _popularKeywords, _placeLookup);
                 details.Saved += (_, _) => _ = Library.PhotoChangedAsync(photo.Path);
                 Details = details;
                 _ = details.LoadAsync();

@@ -35,3 +35,4 @@ each under its own licence.
 | Data | Licence |
 |---|---|
 | Place names from [GeoNames](https://www.geonames.org) (towns, counties/states and countries, used by "Fill from GPS"; built into `places.bin` by `build/MakePlaces.cs`) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |
+| Places looked up online with "Look up exact place", from [OpenStreetMap](https://www.openstreetmap.org/copyright) via its Nominatim service (not bundled; fetched when you click) | © OpenStreetMap contributors, [ODbL](https://opendatacommons.org/licenses/odbl/) |

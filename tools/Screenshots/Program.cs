@@ -66,7 +66,7 @@ try
         using var thumbnails = new ThumbnailCache(Path.Combine(appData, "thumbnails"), renderer);
         using var index = new LibraryIndex(Path.Combine(appData, "library.db"));
         var settings = AppSettings.Load(Path.Combine(appData, "settings.json"));
-        var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer);
+        var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, placeLookup: new CannedPlaceLookup());
         var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
         step = "show window"; window.Show();
 
@@ -88,6 +88,9 @@ try
         WaitUntil(() => single.IsLoaded && single.Preview is not null);
         Capture(window, $"{name}-2-photo");
         CaptureTall(window, $"{name}-2-photo-full");
+        WaitFor(single.LookUpExactPlaceCommand.ExecuteAsync(null));
+        CaptureTall(window, $"{name}-2-photo-lookup");
+        single.CloseLookupCommand.Execute(null);
 
         vm.SelectAll();
         var bulk = (BulkDetailsViewModel)vm.Details!;
@@ -317,3 +320,9 @@ static async Task BuildLibraryAsync(string samples, string library, PhotoRendere
             "-overwrite_original", photo]);
 }
 
+/// <summary>Stands in for OpenStreetMap, so rendering never goes online.</summary>
+sealed class CannedPlaceLookup : IExactPlaceLookup
+{
+    public Task<ExactPlace?> LookUpAsync(double latitude, double longitude, CancellationToken cancellationToken = default) =>
+        Task.FromResult<ExactPlace?>(new ExactPlace("Porthcurno Beach", "St Levan", "Cornwall", "United Kingdom"));
+}

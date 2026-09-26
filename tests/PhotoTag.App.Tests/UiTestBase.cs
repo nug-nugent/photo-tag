@@ -58,12 +58,12 @@ public abstract class UiTestBase : IAsyncDisposable
     }
 
     protected async Task<(MainWindow Window, MainWindowViewModel Vm)> OpenAsync(PhotoMetadataWriter? writer, PhotoRenderer? renderer = null,
-        IAppUpdater? updater = null)
+        IAppUpdater? updater = null, IExactPlaceLookup? placeLookup = null)
     {
         var settings = AppSettings.Load(SettingsPath);
         var thumbnails = new ThumbnailCache(Path.Combine(_appData.Path, $"thumbnails{_opened.Count}"), renderer);
         var index = new LibraryIndex(Path.Combine(_appData.Path, $"library{_opened.Count}.db"));
-        var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, updater);
+        var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, updater, placeLookup);
         _opened.Add((vm, index));
         // Tall enough that the whole details panel and all test tiles are on screen.
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 2400 };
