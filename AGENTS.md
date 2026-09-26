@@ -13,7 +13,7 @@ Tags are written into the photos (XMP, plus IPTC for JPEGs) via ExifTool; RAW fi
 | `tests/PhotoTag.Core.Tests` | xUnit v3. `TestImages` builds real JPEGs with hand-made EXIF/XMP; `RawSamples` downloads CC0 RAW files. |
 | `tests/PhotoTag.App.Tests` | Headless UI tests (Avalonia.Headless.XUnit) that drive the real `MainWindow` with keyboard and mouse. `UiTestBase` has the helpers. |
 | `tools/Screenshots` | Renders the main window to PNGs for design work (see "How we work"). |
-| `build/` | `BundleExifTool.cs` (release bundling), `MakeIcons.cs` (app icon), `exiftool.json` (pinned ExifTool + checksums). |
+| `build/` | `BundleExifTool.cs` (release bundling), `MakeIcons.cs` (app icon), `MakePlaces.cs` (GeoNames place data for "Fill from GPS", committed as `src/PhotoTag.Core/Places/places.bin`), `exiftool.json` (pinned ExifTool + checksums). |
 | `.github/workflows/` | `ci.yml` (build + test on 3 OSes), `release.yml` (installers for 5 platforms). |
 
 ## Build and test
@@ -70,6 +70,10 @@ dotnet run --project src/PhotoTag.App
   no equivalent), edited like tags; search matches any part of a name, and the Tags & People panel manages both.
   Names only, no face recognition, and no reading of other apps' face regions (the owner has none). GPS gets an
   "Open in map" link, not a map inside the app.
+- **Places from GPS are offline first** (option C): bundled GeoNames data (every place with 500+ people, plus every
+  UK village; about 3 MB) fills City, State/Province (the county, for the UK) and Country, only where empty. An online
+  "look up exact place" button (OpenStreetMap, one request per click) is still to do. Don't send positions anywhere
+  without the owner agreeing to that button.
 - **No HEIC support.** The owner decided against it (it would need Magick.NET, ~30 MB per platform).
 - **Saving tags updates "date modified"** so backup tools notice; keeping it is an opt-in setting.
 - **PhotoTag doesn't do backups.** The owner plans a NAS with snapshots and off-site copies; PhotoTag should work well

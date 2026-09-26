@@ -28,3 +28,9 @@ each under its own licence.
 | [Tmds.DBus](https://github.com/tmds/Tmds.DBus) (Linux desktop integration) | MIT |
 | [Velopack](https://velopack.io) (installer and updates) | MIT |
 | [Material Design Icons](https://pictogrammers.com/library/mdi/) by Pictogrammers (the app's icons, as vector paths) | Apache-2.0 |
+
+## Data
+
+| Data | Licence |
+|---|---|
+| Place names from [GeoNames](https://www.geonames.org) (towns, counties/states and countries, used by "Fill from GPS"; built into `places.bin` by `build/MakePlaces.cs`) | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/) |

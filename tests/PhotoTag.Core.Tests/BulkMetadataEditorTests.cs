@@ -327,6 +327,38 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
         Assert.Equal(["Mary Smith", "Dad"], PhotoMetadata.Read(b).People);
     }
 
+    private static Task Gps(ExifTool exifTool, string path, double lat, double lon) =>
+        exifTool.ExecuteAsync([$"-GPSLatitude={Math.Abs(lat)}", $"-GPSLatitudeRef={(lat < 0 ? "S" : "N")}",
+            $"-GPSLongitude={Math.Abs(lon)}", $"-GPSLongitudeRef={(lon < 0 ? "W" : "E")}", "-overwrite_original", path], Ct);
+
+    [Fact]
+    public async Task FillPlacesFromGps_FillsOnlyEmptyFields_AndCanBeUndone()
+    {
+        var writer = fixture.RequireWriter();
+        var exifTool = fixture.RequireExifTool();
+        var editor = new BulkMetadataEditor(writer);
+        var empty = Photo("empty.jpg");
+        var named = Photo("named.jpg");
+        var noGps = Photo("nogps.jpg");
+        await Gps(exifTool, empty, 50.2083, -5.4908);
+        await Gps(exifTool, named, 50.2083, -5.4908);
+        await writer.WriteAsync(named, new MetadataChanges { City = "Carbis Bay" }, Ct); // typed by hand: kept
+
+        var result = await editor.FillPlacesFromGpsAsync([PhotoFile.Single(empty), PhotoFile.Single(named), PhotoFile.Single(noGps)],
+            await PlaceFinder.LoadAsync(), cancellationToken: Ct);
+
+        Assert.Equal((2, 1), (result.Changed, result.Unchanged));
+        var e = PhotoMetadata.Read(empty);
+        Assert.Equal(("St Ives", "Cornwall", "United Kingdom"), (e.City, e.State, e.Country));
+        var n = PhotoMetadata.Read(named);
+        Assert.Equal(("Carbis Bay", "Cornwall", "United Kingdom"), (n.City, n.State, n.Country));
+        Assert.Null(PhotoMetadata.Read(noGps).City);
+
+        await editor.UndoAsync(result.Written, cancellationToken: Ct);
+        Assert.Null(PhotoMetadata.Read(empty).City);
+        Assert.Equal(("Carbis Bay", null), (PhotoMetadata.Read(named).City, PhotoMetadata.Read(named).State));
+    }
+
     [Fact]
     public async Task SetFavourite_SetsAndClears_LeavingOtherRatingsAlone()
     {

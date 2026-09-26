@@ -567,7 +567,17 @@
                                         </StackPanel>
 
                                         <StackPanel Spacing="6">
-                                            <TextBlock Classes="label" Text="Place" />
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Classes="label" Text="Place" VerticalAlignment="Center" />
+                                                <Button x:Name="FillFromGpsButton" Grid.Column="1" Classes="small" Command="{Binding FillPlacesFromGpsCommand}"
+                                                        IsVisible="{Binding HasGps}" IsEnabled="{Binding CanEdit}"
+                                                        ToolTip.Tip="Fill the empty boxes with the nearest town, from the photo's GPS (works offline)">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <PathIcon Data="{StaticResource IconMapMarker}" />
+                                                        <TextBlock Text="Fill from GPS" FontSize="12" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
                                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                                 <TextBlock Grid.ColumnSpan="2" Classes="caption" Text="Location" Margin="0,0,0,3" />
                                                 <AutoCompleteBox Grid.Row="1" Grid.ColumnSpan="2" x:Name="LocationBox" IsEnabled="{Binding CanEdit}"
@@ -590,6 +600,8 @@
                                                                  ItemsSource="{Binding CountrySuggestions}"
                                                                  Text="{Binding Country, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                                             </Grid>
+                                            <TextBlock Text="{Binding FillNote}" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                       IsVisible="{Binding FillNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                         </StackPanel>
 
                                         <TextBlock Text="{Binding SaveStatus}" FontSize="12" TextWrapping="Wrap"
@@ -765,7 +777,17 @@
                                                      PlaceholderText="{Binding DescriptionField.Placeholder}" Text="{Binding DescriptionField.Text, Mode=TwoWay}" />
                                         </StackPanel>
                                         <StackPanel Spacing="6" IsVisible="{Binding IsLoaded}">
-                                            <TextBlock Classes="label" Text="Place" />
+                                            <Grid ColumnDefinitions="*,Auto">
+                                                <TextBlock Classes="label" Text="Place" VerticalAlignment="Center" />
+                                                <Button x:Name="BulkFillFromGpsButton" Grid.Column="1" Classes="small" Command="{Binding ReviewFillPlacesCommand}"
+                                                        IsVisible="{Binding AnyGps}" IsEnabled="{Binding CanEdit}"
+                                                        ToolTip.Tip="Fill empty places with the nearest town, from each photo's GPS (works offline)">
+                                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                                        <PathIcon Data="{StaticResource IconMapMarker}" />
+                                                        <TextBlock Text="Fill from GPS…" FontSize="12" />
+                                                    </StackPanel>
+                                                </Button>
+                                            </Grid>
                                             <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
                                                 <TextBlock Grid.ColumnSpan="2" Classes="caption" Text="Location" Margin="0,0,0,3" />
                                                 <AutoCompleteBox Grid.Row="1" Grid.ColumnSpan="2" x:Name="BulkLocationBox" IsEnabled="{Binding CanEdit}"
@@ -802,6 +824,17 @@
                                             </Grid>
                                         </StackPanel>
 
+                                        <Border Classes="notice" IsVisible="{Binding IsConfirmingFill}">
+                                            <StackPanel Spacing="10">
+                                                <TextBlock Text="{Binding FillSummary}" FontSize="12" TextWrapping="Wrap" />
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Button x:Name="BulkConfirmFillButton" Classes="accent" Content="Fill in places"
+                                                            IsVisible="{Binding CanConfirmFill}" IsEnabled="{Binding CanEdit}"
+                                                            Command="{Binding ApplyFillCommand}" />
+                                                    <Button x:Name="BulkCancelFillButton" Content="Close" Command="{Binding CancelFillCommand}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
                                         <TextBlock Classes="caption" TextWrapping="Wrap" IsVisible="{Binding !HasTextEdits}"
                                                    Text="“Mixed” means the photos differ. Type in a box to give them all the same value; nothing is saved until you apply it." />
                                         <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowApplyText}">

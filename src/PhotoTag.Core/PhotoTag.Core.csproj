@@ -8,4 +8,8 @@
   <ItemGroup>
     <InternalsVisibleTo Include="PhotoTag.Core.Tests" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- GeoNames place data for "Fill from GPS", built by build/MakePlaces.cs. -->
+    <EmbeddedResource Include="Places\places.bin" LogicalName="PhotoTag.Core.Places.places.bin" />
+  </ItemGroup>
 </Project>

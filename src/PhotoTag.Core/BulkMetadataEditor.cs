@@ -154,6 +154,26 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
     }
 
     /// <summary>
+    /// Fills each photo's empty City, State/Province and Country from its GPS position, using the
+    /// nearest town (<see cref="PlaceFinder"/>). Places already set are never changed, and photos
+    /// without GPS, or far from any town, are left alone.
+    /// </summary>
+    public Task<BulkResult> FillPlacesFromGpsAsync(IReadOnlyList<PhotoFile> paths, PlaceFinder finder,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        ApplyAsync(paths, current => PlacesFromGps(current, finder), progress, cancellationToken);
+
+    /// <summary>The empty place fields <paramref name="finder"/> can fill for this photo, or null.</summary>
+    public static MetadataChanges? PlacesFromGps(PhotoMetadata photo, PlaceFinder finder)
+    {
+        if (photo is not { Latitude: { } lat, Longitude: { } lon } || finder.Find(lat, lon) is not { } place) return null;
+        var changes = new MetadataChanges();
+        if (string.IsNullOrWhiteSpace(photo.City)) changes = changes with { City = place.City };
+        if (string.IsNullOrWhiteSpace(photo.State) && place.State is not null) changes = changes with { State = place.State };
+        if (string.IsNullOrWhiteSpace(photo.Country)) changes = changes with { Country = place.Country };
+        return changes.IsEmpty ? null : changes;
+    }
+
+    /// <summary>
     /// Makes every photo a favourite, or not. Photos already in that state are left alone, so
     /// unfavouriting doesn't clear ratings below 5★ set in other apps.
     /// </summary>
