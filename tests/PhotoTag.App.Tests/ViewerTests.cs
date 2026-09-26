@@ -84,6 +84,13 @@ public sealed class ViewerTests : UiTestBase
 
         Click(window, Find<Button>(window, "ViewerBackButton"));
         Assert.Null(vm.Viewer);
+
+        // Two quick clicks either side of Ctrl/⌘+A aren't a double-click: the first didn't select just that tile.
+        ClickTile(window, 1);
+        Press(window, PhysicalKey.A, CommandKey);
+        Assert.Equal(3, vm.SelectedCount);
+        ClickTile(window, 1);
+        Assert.Null(vm.Viewer);
         window.Close();
     }
 

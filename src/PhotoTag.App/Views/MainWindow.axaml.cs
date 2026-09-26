@@ -221,6 +221,8 @@ public partial class MainWindow : Window
 
         var command = e.KeyModifiers.HasFlag(CommandModifier);
         var shift = e.KeyModifiers.HasFlag(KeyModifiers.Shift);
+        // A double-click's first click selects just this tile; two quick clicks either side of Ctrl/⌘+A, say, aren't one.
+        var wasOnlySelection = vm.SelectedCount == 1 && photo.IsSelected;
         vm.Select(photo, (command, shift) switch
         {
             (true, true) => SelectionGesture.AddRange,
@@ -230,7 +232,7 @@ public partial class MainWindow : Window
         });
 
         GridScroller.Focus(NavigationMethod.Pointer);
-        if (e.ClickCount == 2 && !command && !shift) vm.OpenViewer(photo);
+        if (e.ClickCount == 2 && !command && !shift && wasOnlySelection) vm.OpenViewer(photo);
         e.Handled = true;
     }
 
