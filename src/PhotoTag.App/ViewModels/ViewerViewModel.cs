@@ -65,6 +65,9 @@ public partial class ViewerViewModel : ViewModelBase, IDisposable
     /// <summary>"6 picked": favourites among the photos being viewed.</summary>
     [ObservableProperty] public partial string PickedText { get; private set; } = "";
 
+    /// <summary>Just the photo, filling the screen: a click on the photo goes in and out, Esc comes out.</summary>
+    [ObservableProperty] public partial bool IsFullScreen { get; set; }
+
     /// <summary>← and → (and the buttons either side of the photo).</summary>
     [RelayCommand]
     private void Previous() => Move(-1);

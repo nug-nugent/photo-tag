@@ -95,6 +95,48 @@ public sealed class ViewerTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task ClickingThePhotoInTheViewer_GoesFullScreen_AndEscComesBack()
+    {
+        for (var i = 0; i < 3; i++) Photo($"p{i}.jpg");
+        var (window, vm) = await OpenAsync(writer: null);
+        var before = window.WindowState;
+        ClickTile(window, 0);
+        Press(window, PhysicalKey.Space);
+        var viewer = Assert.IsType<ViewerViewModel>(vm.Viewer);
+
+        var photo = await WaitForControlAsync(() => FindAll<Panel>(window).FirstOrDefault(p => p.Name == "ViewerPhoto"));
+        Click(window, photo);
+        Assert.True(viewer.IsFullScreen);
+        Assert.Equal(WindowState.FullScreen, window.WindowState);
+        Assert.False(Find<Button>(window, "ViewerBackButton").IsEffectivelyVisible); // just the photo
+        Assert.False(Find<ItemsRepeater>(window, "Filmstrip").IsEffectivelyVisible);
+
+        // Arrows still move; a second click comes out.
+        Press(window, PhysicalKey.ArrowRight);
+        Assert.Same(vm.Photos[1], viewer.Current);
+        Click(window, photo);
+        Assert.False(viewer.IsFullScreen);
+        Assert.Equal(before, window.WindowState);
+
+        // Esc leaves full screen first, then the viewer.
+        Click(window, photo);
+        Press(window, PhysicalKey.Escape);
+        Assert.False(viewer.IsFullScreen);
+        Assert.Equal(before, window.WindowState);
+        Assert.NotNull(vm.Viewer);
+        Press(window, PhysicalKey.Escape);
+        Assert.Null(vm.Viewer);
+
+        // Closing the viewer while full screen puts the window back too.
+        Press(window, PhysicalKey.Space);
+        vm.Viewer!.IsFullScreen = true;
+        Assert.Equal(WindowState.FullScreen, window.WindowState);
+        vm.CloseViewer();
+        Assert.Equal(before, window.WindowState);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task ClickingThePreviewInTheDetailsPanel_OpensTheViewer()
     {
         for (var i = 0; i < 3; i++) Photo($"p{i}.jpg");

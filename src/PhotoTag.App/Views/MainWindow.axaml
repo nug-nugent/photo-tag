@@ -406,6 +406,20 @@
             <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
         </Style>
 
+        <!-- The viewer's stage: black and edge to edge when full screen. -->
+        <Style Selector="Grid.stage">
+            <Setter Property="Background" Value="{DynamicResource StageBrush}" />
+        </Style>
+        <Style Selector="Grid.stage Panel.photo">
+            <Setter Property="Margin" Value="0,24" />
+        </Style>
+        <Style Selector="Grid.stage.fullscreen">
+            <Setter Property="Background" Value="Black" />
+        </Style>
+        <Style Selector="Grid.stage.fullscreen Panel.photo">
+            <Setter Property="Margin" Value="0" />
+        </Style>
+
         <!-- The viewer's filmstrip -->
         <Style Selector="Border.frame">
             <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
@@ -1331,9 +1345,10 @@
         </DockPanel>
 
         <!-- The viewer: one photo fills the window, for picking favourites and quick tagging. -->
-        <Grid x:Name="ViewerPanel" Background="{DynamicResource AppBackgroundBrush}" Focusable="True" RowDefinitions="56,*,96"
+        <Grid x:Name="ViewerPanel" Background="{DynamicResource AppBackgroundBrush}" Focusable="True" RowDefinitions="Auto,*,Auto"
               IsVisible="{Binding Viewer, Converter={x:Static ObjectConverters.IsNotNull}}">
-            <Border BorderBrush="{DynamicResource RuleBrush}" BorderThickness="0,0,0,2" Padding="16,0,0,0">
+            <Border Height="56" BorderBrush="{DynamicResource RuleBrush}" BorderThickness="0,0,0,2" Padding="16,0,0,0"
+                    IsVisible="{Binding !Viewer.IsFullScreen}">
                 <DockPanel>
                     <Button x:Name="ViewerBackButton" DockPanel.Dock="Left" Classes="flat outline" MinHeight="36" Padding="10,0,12,0"
                             VerticalAlignment="Center" Command="{Binding CloseViewerCommand}" ToolTip.Tip="Back to the grid (Esc)">
@@ -1360,14 +1375,16 @@
                 </DockPanel>
             </Border>
 
-            <Grid Grid.Row="1" ColumnDefinitions="*,300">
-                <Grid Background="{DynamicResource StageBrush}" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16" Margin="0">
+            <Grid Grid.Row="1" ColumnDefinitions="*,Auto">
+                <Grid x:Name="ViewerStage" Classes="stage" Classes.fullscreen="{Binding Viewer.IsFullScreen}" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="16">
                     <Button x:Name="ViewerPreviousButton" Classes="flat outline" Width="44" Height="44" Margin="24,0,0,0" Padding="0"
+                            IsVisible="{Binding !Viewer.IsFullScreen}"
                             HorizontalContentAlignment="Center" Command="{Binding Viewer.PreviousCommand}" ToolTip.Tip="Previous (←)">
                         <PathIcon Width="18" Height="18" Data="{StaticResource IconChevronLeft}" />
                     </Button>
-                    <!-- Sized to the photo, so the badge sits on its corner. -->
-                    <Panel Grid.Column="1" Margin="0,24" HorizontalAlignment="Center" VerticalAlignment="Center">
+                    <!-- Sized to the photo, so the badge sits on its corner. A click goes full screen and back. -->
+                    <Panel x:Name="ViewerPhoto" Grid.Column="1" Classes="photo" HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Background="Transparent" Cursor="Hand" PointerPressed="ViewerPhoto_PointerPressed">
                         <Image Source="{Binding Viewer.Current.Thumbnail}" Stretch="Uniform" />
                         <Image x:Name="ViewerImage" Source="{Binding Viewer.Preview}" Stretch="Uniform" />
                         <Border Background="{DynamicResource AccentBrush}" Padding="10,6" HorizontalAlignment="Left" VerticalAlignment="Top"
@@ -1376,14 +1393,16 @@
                         </Border>
                     </Panel>
                     <Button x:Name="ViewerNextButton" Grid.Column="2" Classes="flat outline" Width="44" Height="44" Margin="0,0,24,0" Padding="0"
+                            IsVisible="{Binding !Viewer.IsFullScreen}"
                             HorizontalContentAlignment="Center" Command="{Binding Viewer.NextCommand}" ToolTip.Tip="Next (→)">
                         <PathIcon Width="18" Height="18" Data="{StaticResource IconChevronRight}" />
                     </Button>
                 </Grid>
 
-                <Border Grid.Column="1" BorderBrush="{DynamicResource RuleBrush}" BorderThickness="2,0,0,0">
+                <Border Grid.Column="1" Width="300" BorderBrush="{DynamicResource RuleBrush}" BorderThickness="2,0,0,0"
+                        IsVisible="{Binding !Viewer.IsFullScreen}">
                     <DockPanel Margin="18,20">
-                        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
                             <Grid.Styles>
                                 <Style Selector="TextBlock">
                                     <Setter Property="FontSize" Value="12" />
@@ -1402,6 +1421,8 @@
                             <TextBlock Grid.Row="2" Grid.Column="1" Text="Add a tag" />
                             <TextBlock Grid.Row="3" Classes="shortcut" Text="Esc" />
                             <TextBlock Grid.Row="3" Grid.Column="1" Text="Back to grid" />
+                            <TextBlock Grid.Row="4" Classes="shortcut" Text="Click" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="Full screen (the photo)" />
                         </Grid>
                         <Rectangle DockPanel.Dock="Bottom" Height="2" Fill="{DynamicResource RuleBrush}" Margin="0,14" />
                         <ContentControl Content="{Binding ViewerDetails}">
@@ -1466,7 +1487,8 @@
             </Grid>
 
             <!-- Filmstrip: favourites marked in red underneath, so you can see the set taking shape. -->
-            <Border Grid.Row="2" BorderBrush="{DynamicResource RuleBrush}" BorderThickness="0,2,0,0">
+            <Border Grid.Row="2" Height="96" BorderBrush="{DynamicResource RuleBrush}" BorderThickness="0,2,0,0"
+                    IsVisible="{Binding !Viewer.IsFullScreen}">
                 <ScrollViewer x:Name="FilmstripScroller" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
                     <ItemsRepeater x:Name="Filmstrip" Margin="16,12" ItemsSource="{Binding Viewer.Photos}"
                                    ElementPrepared="Filmstrip_ElementPrepared" ElementClearing="PhotoGrid_ElementClearing">

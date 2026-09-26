@@ -141,13 +141,13 @@ public sealed class BrowsingTests : UiTestBase
         vm.Sort = PhotoSort.Days;
 
         var culture = System.Globalization.CultureInfo.CurrentCulture;
-        Assert.Equal(["2019", "2020", "No date"], vm.DateTree.Select(n => n.Label));
-        var y2019 = vm.DateTree[0];
+        Assert.Equal(["2020", "2019", "No date"], vm.DateTree.Select(n => n.Label)); // most recent year first
+        var y2019 = vm.DateTree[1];
         Assert.Equal([culture.DateTimeFormat.GetMonthName(8), culture.DateTimeFormat.GetMonthName(9)], y2019.Children.Select(m => m.Label));
         Assert.Equal(2, y2019.Children[0].Children.Count);
         Assert.False(y2019.IsExpanded); // two years: both start folded
-        Assert.True(vm.DateTree[1].Children.Single().IsExpanded); // 2020's only month is open inside it
-        Assert.Same(vm.Days[3], vm.DateTree[1].Children.Single().Children.Single().Day);
+        Assert.True(vm.DateTree[0].Children.Single().IsExpanded); // 2020's only month is open inside it
+        Assert.Same(vm.Days[3], vm.DateTree[0].Children.Single().Children.Single().Day);
         Assert.Equal(vm.Days[0].GridIndex, y2019.GridIndex);
 
         // Clicking a year opens it (and jumps to its first day).

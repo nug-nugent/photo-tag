@@ -14,6 +14,7 @@ public partial class MainWindow : Window
 {
     private MainWindowViewModel? _subscribed;
     private ViewerViewModel? _viewer;
+    private WindowState? _stateBeforeFullScreen;
 
     public MainWindow()
     {
@@ -54,6 +55,7 @@ public partial class MainWindow : Window
         if (e.PropertyName != nameof(MainWindowViewModel.Viewer)) return;
 
         if (_viewer is not null) _viewer.PropertyChanged -= OnViewerChanged;
+        SetFullScreen(false);
         _viewer = ViewModel?.Viewer;
         if (_viewer is not null)
         {
@@ -75,6 +77,30 @@ public partial class MainWindow : Window
     private void OnViewerChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ViewerViewModel.Current)) ScrollFilmstrip();
+        if (e.PropertyName == nameof(ViewerViewModel.IsFullScreen)) SetFullScreen(_viewer?.IsFullScreen == true);
+    }
+
+    /// <summary>The viewer's full screen fills the screen, not just the window; leaving puts the window back as it was.</summary>
+    private void SetFullScreen(bool on)
+    {
+        if (on && _stateBeforeFullScreen is null)
+        {
+            _stateBeforeFullScreen = WindowState;
+            WindowState = WindowState.FullScreen;
+        }
+        else if (!on && _stateBeforeFullScreen is { } previous)
+        {
+            _stateBeforeFullScreen = null;
+            WindowState = previous;
+        }
+    }
+
+    private void ViewerPhoto_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || ViewModel?.Viewer is not { } viewer) return;
+        viewer.IsFullScreen = !viewer.IsFullScreen;
+        ViewerPanel.Focus();
+        e.Handled = true;
     }
 
     private async void OpenFolder_Click(object? sender, RoutedEventArgs e)
@@ -125,6 +151,7 @@ public partial class MainWindow : Window
                 // After the key's own text input has gone by, or the box would start with a "t".
                 Dispatcher.UIThread.Post(() => FindNamed("ViewerTagBox")?.Focus(), DispatcherPriority.Background);
                 break;
+            case Key.Escape when viewer.IsFullScreen: viewer.IsFullScreen = false; break;
             case Key.Escape: vm.CloseViewer(); break;
             default: return;
         }
