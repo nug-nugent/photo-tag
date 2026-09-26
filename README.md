@@ -42,6 +42,8 @@ Early days. Today it can:
   every subfolder by tag, person, title, description, place or file name, see every photo in the library, list the
   untagged photos or your favourites (on their own or with a search), and suggestions cover your whole library.
   Under a photo's tags, the library's most used tags are one click away.
+- Keep up with changes made outside PhotoTag: photos copied in, deleted or retagged by another app, and folders
+  added, renamed or deleted, show up by themselves without losing your place or selection
 - Manage tags and people across the library (**Manage tags**): see each with its count, rename or merge them
   (including tidying "beach" and "Beach" into one), or delete one from every photo. These can be undone too.
 
@@ -122,6 +124,10 @@ workflow as a trial, without publishing. The icon is drawn by `dotnet run build/
 - **The library index is incremental.** Opening a folder scans its whole tree in the background, but files whose
   size and modified time are unchanged are skipped (a rescan of 1,600 photos takes about 25 ms). PhotoTag's own edits
   go straight into the index, and it lives in the local app-data folder (`PhotoTag/library.db`).
+- **Outside changes only touch what changed.** A file watcher (`FolderWatcher`) batches changes, and only the
+  folders they're in are looked at again. The grid keeps its tiles, thumbnails and selection. Notifications can go
+  missing (especially from network shares), so the folder on screen is also checked whenever you switch back to
+  PhotoTag, and every 30 seconds on a network share.
 - **Loading is bounded and cancellable.** At most (cores − 1) thumbnails are generated at once. Requests for tiles
   that scroll off screen are cancelled before any work is done.
 

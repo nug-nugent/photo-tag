@@ -41,10 +41,6 @@ makes the index treat everything as new files.
 (keeping tags, favourites, counts) instead of rescanning from scratch.
 **Where:** `LibraryIndex` (schema v1; bump `user_version` if the schema changes).
 
-### 2.3 Notice changes made outside PhotoTag (M)
-**What:** watch the open folder (`FileSystemWatcher`, with polling fallback for network shares) and refresh the grid,
-the details panel and the index when files or sidecars change.
-
 ## 4. Browsing
 
 ### 4.1 More formats (S each)

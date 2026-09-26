@@ -65,6 +65,10 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         Operations.Summary += (_, summary) => StatusText = summary;
         Operations.Completed += (_, result) => _ = Library.PhotosChangedAsync(result.After);
         TagManager = new TagManagerViewModel(Library, Operations, () => RootPath, () => Photos);
+
+        Library.FilesChanged += (_, changes) => _ = OnFilesChangedAsync(changes);
+        Library.IsWriting = () => Operations.IsBusy || Details is PhotoDetailsViewModel { IsSaving: true };
+        Library.FoldersToPoll = () => ShownFolder is { } folder ? [folder] : [];
     }
 
     public ObservableCollection<FolderNodeViewModel> RootFolders { get; } = [];
@@ -780,11 +784,145 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         }
     }
 
+    // --- Changes made outside PhotoTag ----------------------------------------------------
+
+    /// <summary>The folder whose photos the grid shows, or null while searching.</summary>
+    private string? ShownFolder => !IsSearching && SelectedFolder is { IsPlaceholder: false } folder ? folder.Path : null;
+
+    /// <summary>
+    /// The window was activated: look for changes in the folder on screen, in case another app changed
+    /// it and a notification went missing (they can, on network shares). Cheap: one folder listing.
+    /// </summary>
+    public void CheckShownFolder()
+    {
+        if (ShownFolder is { } folder) Library.RefreshFolders([folder]);
+    }
+
+    /// <summary>Completes when the grid and panels have caught up with the last outside change. For tests.</summary>
+    public Task FilesChangedHandling { get; private set; } = Task.CompletedTask;
+
+    /// <summary>One batch at a time, in order.</summary>
+    private Task OnFilesChangedAsync(LibraryChanges changes)
+    {
+        var previous = FilesChangedHandling;
+        return FilesChangedHandling = HandleAfterAsync();
+
+        async Task HandleAfterAsync()
+        {
+            await previous;
+            await HandleFilesChangedAsync(changes);
+        }
+    }
+
+    private async Task HandleFilesChangedAsync(LibraryChanges changes)
+    {
+        // A folder still loading would be merged into as if empty, then replaced: let it finish.
+        await PhotosLoading;
+        if (RootPath is not { } root) return;
+        if (!Directory.Exists(root))
+        {
+            StatusText = $"{root} isn't there any more.";
+            return;
+        }
+
+        // The folder on screen was deleted or renamed: show the nearest one that's still there. Before
+        // the tree drops its node, which would leave nothing selected.
+        var shown = ShownFolder;
+        if (shown is not null && !Directory.Exists(shown))
+        {
+            var parent = Path.GetDirectoryName(shown);
+            while (parent is not null && !Directory.Exists(parent)) parent = Path.GetDirectoryName(parent);
+            SelectedFolder = (parent is null ? null : FindFolder(parent)) ?? RootFolders.FirstOrDefault();
+            shown = null; // selecting it loads its photos
+        }
+
+        foreach (var node in RootFolders.ToList()) await node.RefreshChildrenAsync(changes.Everything ? null : changes.Folders);
+
+        if (shown is not null)
+        {
+            if (changes.Everything || changes.Folders.Contains(shown)
+                || changes.Changed.Concat(changes.Removed).Any(p => PathComparer.Equals(Path.GetDirectoryName(p), shown)))
+            {
+                var files = await Task.Run(() => PhotoFiles.EnumeratePhotos(shown));
+                if (ShownFolder != shown) return;
+                await ReconcileAsync(files);
+            }
+        }
+        else if (IsSearching && _loaded.Any(p => changes.Removed.Contains(p.Path)))
+        {
+            await ReconcileAsync([.. _loaded.Where(p => !changes.Removed.Contains(p.Path)).Select(p => p.File)]);
+        }
+
+        foreach (var photo in _loaded)
+        {
+            if (!changes.Changed.Contains(photo.Path)) continue;
+            photo.FileChanged();
+            if (Details is PhotoDetailsViewModel details && details.Photo == photo) await details.FileChangedAsync();
+        }
+    }
+
+    /// <summary>
+    /// Updates the grid to <paramref name="files"/> without starting again: photos still there keep their
+    /// tiles, thumbnails and selection; new ones are added and missing ones dropped.
+    /// </summary>
+    private async Task ReconcileAsync(IReadOnlyList<PhotoFile> files)
+    {
+        var existing = _loaded.ToDictionary(p => p.Path, PathComparer);
+        var kept = new HashSet<PhotoItemViewModel>();
+        var photos = new List<PhotoItemViewModel>(files.Count);
+        var added = new List<PhotoItemViewModel>();
+        foreach (var file in files)
+        {
+            if (existing.TryGetValue(file.Path, out var photo) && photo.File.Companions.SequenceEqual(file.Companions, PathComparer))
+            {
+                kept.Add(photo);
+                photos.Add(photo);
+            }
+            else
+            {
+                var fresh = new PhotoItemViewModel(file, photos.Count, _thumbnails);
+                added.Add(fresh);
+                photos.Add(fresh);
+            }
+        }
+        var gone = _loaded.Where(p => !kept.Contains(p)).ToList();
+        if (gone.Count == 0 && added.Count == 0) return;
+
+        if (added.Count > 0 && RootPath is { } root)
+        {
+            var summaries = await Library.Index.GetSummariesAsync(root);
+            foreach (var photo in added) photo.Apply(summaries.GetValueOrDefault(photo.Path));
+        }
+        foreach (var photo in added) photo.PropertyChanged += OnPhotoChanged;
+
+        var selectionChanged = false;
+        foreach (var photo in gone)
+        {
+            photo.PropertyChanged -= OnPhotoChanged;
+            photo.Unload();
+            if (photo.IsSelected)
+            {
+                SetSelected(photo, false);
+                selectionChanged = true;
+            }
+            if (CurrentPhoto == photo) CurrentPhoto = null;
+        }
+        if (Viewer is { } viewer && gone.Any(viewer.Photos.Contains)) CloseViewer();
+
+        _loaded = photos;
+        Arrange();
+        if (selectionChanged) OnSelectionChanged();
+        UpdateHeading();
+    }
+
+    private static readonly StringComparer PathComparer =
+        OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
+
     public void Dispose()
     {
         _photosLoad?.Cancel();
         _photosLoad?.Dispose();
-        Library.Cancel();
+        Library.Dispose();
         Viewer?.Dispose();
         (Details as IDisposable)?.Dispose();
         foreach (var photo in _loaded) photo.Unload();

@@ -341,6 +341,44 @@ public sealed class LibraryIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task Refresh_OfOneFolder_ReportsWhatChanged_AndLeavesSubfoldersAlone()
+    {
+        Photo("keep.jpg", "Old");
+        var change = Photo("change.jpg", "Before");
+        var delete = Photo("delete.jpg");
+        var below = Photo(Path.Combine("2020", "below.jpg"), "Below");
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+
+        File.WriteAllBytes(change, TestImages.Jpeg(40, 40, xmpKeywords: ["After"]));
+        File.Delete(delete);
+        var added = Photo("new.jpg", "New");
+        File.Delete(below); // below the folder: not looked at
+
+        var changes = await _index.RefreshAsync(_library, includeSubfolders: false, Ct);
+
+        Assert.Equal([change, added], changes.Changed.Order());
+        Assert.Equal([delete], changes.Removed);
+        Assert.Equal([change], await _index.SearchAsync(_library, new PhotoQuery { Keywords = ["After"] }));
+        Assert.Equal(new FolderCounts(1, 1), await _index.GetFolderCountsAsync(Path.Combine(_library, "2020")));
+        Assert.True((await _index.RefreshAsync(_library, includeSubfolders: false, Ct)).IsEmpty);
+    }
+
+    [Fact]
+    public async Task Refresh_OfAFolderThatIsGone_RemovesEverythingUnderIt()
+    {
+        var a = Photo(Path.Combine("Trip", "a.jpg"));
+        var b = Photo(Path.Combine("Trip", "Day 2", "b.jpg"));
+        Photo("other.jpg");
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+
+        Directory.Delete(Path.Combine(_library, "Trip"), recursive: true);
+        var changes = await _index.RefreshAsync(Path.Combine(_library, "Trip"), includeSubfolders: true, Ct);
+
+        Assert.Equal([a, b], changes.Removed.Order());
+        Assert.Equal(new FolderCounts(1, 0), await _index.GetFolderCountsAsync(_library));
+    }
+
+    [Fact]
     public async Task Cancelling_AScan_Throws_AndLeavesTheIndexUsable()
     {
         for (var i = 0; i < 20; i++) Photo($"p{i}.jpg", "T");

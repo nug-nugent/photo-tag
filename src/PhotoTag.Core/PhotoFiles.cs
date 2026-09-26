@@ -178,6 +178,28 @@ public static class PhotoFiles
         }
     }
 
+    /// <summary>
+    /// Whether <paramref name="path"/> is on a network share: a UNC path, a mapped drive, or an SMB/NFS
+    /// mount. Change notifications from shares can be missed, so the app also polls those.
+    /// </summary>
+    public static bool IsOnNetworkDrive(string path)
+    {
+        try
+        {
+            path = Path.GetFullPath(path);
+            if (OperatingSystem.IsWindows() && path.StartsWith(@"\\", StringComparison.Ordinal)) return true;
+            // The drive (or, on macOS and Linux, the mount) that holds the path: the longest root that's a prefix of it.
+            var drive = DriveInfo.GetDrives()
+                .Where(d => path.StartsWith(d.RootDirectory.FullName, OperatingSystem.IsLinux() ? StringComparison.Ordinal : StringComparison.OrdinalIgnoreCase))
+                .MaxBy(d => d.RootDirectory.FullName.Length);
+            return drive?.DriveType == DriveType.Network;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException)
+        {
+            return false;
+        }
+    }
+
     private static int CompareFileNames(string a, string b) =>
         StringComparer.OrdinalIgnoreCase.Compare(Path.GetFileName(a), Path.GetFileName(b));
 }

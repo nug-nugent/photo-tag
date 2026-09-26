@@ -8,7 +8,7 @@ Tags are written into the photos (XMP, plus IPTC for JPEGs) via ExifTool; RAW fi
 
 | Path | What |
 |---|---|
-| `src/PhotoTag.Core` | No UI code. `PhotoFiles` (discovery, RAW+JPEG pairing, sidecars), `PhotoMetadata` (read), `PhotoMetadataWriter` + `ExifTool` (write, via a long-running `-stay_open` process), `BulkMetadataEditor`, `ImageRenderer`/`PhotoRenderer`/`RawPreviewExtractor` (thumbnails, previews), `ThumbnailCache`, `LibraryIndex` (SQLite). |
+| `src/PhotoTag.Core` | No UI code. `PhotoFiles` (discovery, RAW+JPEG pairing, sidecars), `PhotoMetadata` (read), `PhotoMetadataWriter` + `ExifTool` (write, via a long-running `-stay_open` process), `BulkMetadataEditor`, `ImageRenderer`/`PhotoRenderer`/`RawPreviewExtractor` (thumbnails, previews), `ThumbnailCache`, `LibraryIndex` (SQLite), `FolderWatcher` (changes made outside PhotoTag). |
 | `src/PhotoTag.App` | Avalonia UI, MVVM with CommunityToolkit.Mvvm (`[ObservableProperty]` partial properties) and compiled bindings (`x:DataType` everywhere). `MainWindow.axaml` is the only window; view models in `ViewModels/`. Also `AppUpdater` (Velopack), `SelfCheck` (`--self-check`). |
 | `tests/PhotoTag.Core.Tests` | xUnit v3. `TestImages` builds real JPEGs with hand-made EXIF/XMP; `RawSamples` downloads CC0 RAW files. |
 | `tests/PhotoTag.App.Tests` | Headless UI tests (Avalonia.Headless.XUnit) that drive the real `MainWindow` with keyboard and mouse. `UiTestBase` has the helpers. |
@@ -109,6 +109,11 @@ dotnet run --project src/PhotoTag.App
 - **SkiaSharp's Windows packages include ~100 MB of native `.pdb` files**; `PhotoTag.App.csproj` drops them from the build.
 - **On macOS and Linux ExifTool is a Perl script.** Start it with `ExifToolSetup.Find(...).Create()`, which finds Perl
   (including Homebrew's, since GUI apps don't get the shell's PATH) and reports a missing Perl separately from a missing ExifTool.
+- **Outside changes** (`LibraryViewModel.FilesChanged` → `MainWindowViewModel.HandleFilesChangedAsync`) wait until
+  PhotoTag's own writes are recorded in the index, so they compare equal and aren't mistaken for outside edits. The
+  grid is merged (`ReconcileAsync`), never reloaded, and only after any folder load in progress. Removing the
+  selected folder's node from the tree clears the TreeView's selection, so move the selection first. Windows can
+  deliver a late "changed" notice for a write made just before the watcher started.
 - **Styles match exact types:** `TextBlock.caption` doesn't style a `SelectableTextBlock`; list both.
 - **Line endings:** `.gitattributes` normalises to LF in the repo; Windows checkouts get CRLF. Scripts that edit files
   should cope with both.
