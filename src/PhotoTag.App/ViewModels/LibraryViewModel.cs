@@ -1,5 +1,6 @@
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
+using CommunityToolkit.Mvvm.Input;
 using PhotoTag.Core;
 
 namespace PhotoTag.App.ViewModels;
@@ -38,6 +39,7 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
     private bool _pendingEverything;
     private bool _refreshing;
     private int _recording;
+    private TaskCompletionSource<bool>? _moveAnswer;
 
     public LibraryIndex Index { get; } = index;
 
@@ -46,6 +48,27 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
 
     /// <summary>Completes when the current scan (if any) has finished. For tests and shutdown.</summary>
     public Task ScanCompletion { get; private set; } = Task.CompletedTask;
+
+    /// <summary>
+    /// Where the open folder's photos seem to have been indexed before, while PhotoTag asks whether they moved.
+    /// The scan waits for the answer: if they did, their index entries move too, instead of every photo being read again.
+    /// </summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(MovedText))]
+    public partial PreviousLocation? MovedFrom { get; private set; }
+
+    public string? MovedText => MovedFrom is { } moved
+        ? $"These look like the {moved.PhotoCount:N0} photos PhotoTag knew at {moved.Folder}. If they've moved here, PhotoTag " +
+          "can bring their index with them rather than read every photo again."
+        : null;
+
+    /// <summary>"Yes, they moved here".</summary>
+    [RelayCommand]
+    private void AcceptMove() => _moveAnswer?.TrySetResult(true);
+
+    /// <summary>"No, index them afresh".</summary>
+    [RelayCommand]
+    private void DeclineMove() => _moveAnswer?.TrySetResult(false);
 
     public event EventHandler? CountsChanged;
 
@@ -86,6 +109,7 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         try
         {
             await LoadSuggestionsAsync(); // what's already indexed, before the scan finishes
+            await OfferMoveAsync(root, cts.Token);
             await Index.ScanAsync(root, progress, cts.Token);
             await LoadSuggestionsAsync();
             CountsChanged?.Invoke(this, EventArgs.Empty);
@@ -99,8 +123,43 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
             {
                 IsScanning = false;
                 StatusText = null;
+                MovedFrom = null;
             }
         }
+    }
+
+    /// <summary>If the folder's photos look like ones indexed elsewhere, asks whether they moved, and moves their index if so.</summary>
+    private async Task OfferMoveAsync(string root, CancellationToken cancellationToken)
+    {
+        PreviousLocation? moved;
+        try
+        {
+            moved = await Index.FindPreviousLocationAsync(root, cancellationToken: cancellationToken);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return;
+        }
+        if (moved is null) return;
+
+        var answer = _moveAnswer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var registration = cancellationToken.Register(() => answer.TrySetCanceled(cancellationToken));
+        (MovedFrom, StatusText) = (moved, null);
+        try
+        {
+            if (!await answer.Task) return;
+        }
+        finally
+        {
+            MovedFrom = null;
+            _moveAnswer = null;
+        }
+
+        StatusText = "Moving the index…";
+        await Index.MoveFolderAsync(moved.Folder, root);
+        await LoadSuggestionsAsync();
+        CountsChanged?.Invoke(this, EventArgs.Empty);
+        StatusText = "Indexing…";
     }
 
     // --- Changes made outside PhotoTag -------------------------------------------------------

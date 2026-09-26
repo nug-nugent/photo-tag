@@ -160,6 +160,15 @@ try
         window.Height = window.MinHeight;
         Capture(window, $"{name}-7-smallest");
 
+        // Photos PhotoTag knows at another path (copied to a NAS): it asks whether they moved.
+        window.Width = 1280;
+        window.Height = 800;
+        step = "moved"; vm.OpenRoot(CopyFolder(cornwall.Path, Path.Combine(work, "NAS-" + name, "Cornwall")));
+        WaitUntil(() => vm.Library.MovedFrom is not null);
+        WaitFor(vm.PhotosLoading);
+        WaitForThumbnails(vm);
+        Capture(window, $"{name}-10-moved");
+
         window.Close();
         vm.Dispose();
         WaitFor(vm.Library.ScanCompletion);
@@ -233,6 +242,20 @@ void WaitForThumbnails(MainWindowViewModel vm)
         Console.Error.WriteLine($"Thumbnails: {vm.Photos.Count} photos, {vm.Photos.Count(p => p.Thumbnail is not null)} loaded, {vm.Photos.Count(p => p.LoadFailed)} failed");
         throw;
     }
+}
+
+/// <summary>A copy as a file copy would make it: same files, same modified times.</summary>
+static string CopyFolder(string from, string to)
+{
+    if (Directory.Exists(to)) Directory.Delete(to, recursive: true);
+    foreach (var file in Directory.EnumerateFiles(from, "*", SearchOption.AllDirectories))
+    {
+        var target = Path.Combine(to, Path.GetRelativePath(from, file));
+        Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+        File.Copy(file, target);
+        File.SetLastWriteTimeUtc(target, File.GetLastWriteTimeUtc(file));
+    }
+    return to;
 }
 
 static void Pump(int milliseconds)

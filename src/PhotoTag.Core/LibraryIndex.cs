@@ -16,6 +16,12 @@ public sealed record IndexChanges(IReadOnlyList<string> Changed, IReadOnlyList<s
     public bool IsEmpty => Changed.Count == 0 && Removed.Count == 0;
 }
 
+/// <summary>
+/// Where the photos in a newly opened folder seem to have been indexed before: moved from the PC to a NAS, or
+/// the same share reached another way (<c>Z:\</c> one day, <c>\\nas\photos</c> the next).
+/// </summary>
+public sealed record PreviousLocation(string Folder, int PhotoCount);
+
 /// <summary>Photo and tagged-photo counts for a folder, including its subfolders.</summary>
 public readonly record struct FolderCounts(int Photos, int Tagged);
 
@@ -145,6 +151,126 @@ public sealed class LibraryIndex : IDisposable
         var missing = known.Keys.Where(p => !seen.Contains(p)).ToList();
         var removed = await RemoveMissingAsync(missing).ConfigureAwait(false);
         return (new IndexScanResult(files.Count, updated, unchanged, removed, failed), new IndexChanges([.. changed], missing));
+    }
+
+    // --- Moved folders ---------------------------------------------------------------------
+
+    /// <summary>
+    /// For a folder the index knows nothing under: whether its photos are ones the index knows at another path.
+    /// Samples up to <paramref name="samples"/> photos and looks for the same relative paths elsewhere. It's a
+    /// match when most agree on one old folder and either the files are the same (size and modified time) or
+    /// the old folder has gone. Null if there's no convincing match.
+    /// </summary>
+    public Task<PreviousLocation?> FindPreviousLocationAsync(string folder, int samples = 40,
+        CancellationToken cancellationToken = default) => Task.Run(() =>
+    {
+        folder = NormalizeFolder(folder);
+        using var connection = Open();
+        if (CountUnder(connection, folder) > 0) return null;
+
+        var photos = PhotoFiles.EnumeratePhotosRecursive(folder).Take(samples).Select(p => p.Path).ToList();
+        if (photos.Count == 0) return null;
+
+        var votes = new Dictionary<string, (int Paths, int SameFiles)>(PathComparer);
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT path, size, modified_ticks FROM photos WHERE file_name = @name";
+        foreach (var photo in photos)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var relative = Path.DirectorySeparatorChar + Path.GetRelativePath(folder, photo);
+            (long Size, long Ticks)? stamp;
+            try
+            {
+                stamp = PhotoFiles.GetStamp(photo);
+            }
+            catch (IOException)
+            {
+                stamp = null;
+            }
+
+            command.Parameters.Clear();
+            command.Parameters.AddWithValue("@name", Path.GetFileName(photo));
+            using var reader = command.ExecuteReader();
+            var counted = new HashSet<string>(PathComparer);
+            while (reader.Read())
+            {
+                var known = reader.GetString(0);
+                if (!known.EndsWith(relative, IgnoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)) continue;
+                var old = known[..^relative.Length];
+                if (old.Length == 0 || !counted.Add(old)) continue;
+                var same = stamp == (reader.GetInt64(1), reader.GetInt64(2));
+                var (paths, sameFiles) = votes.GetValueOrDefault(old);
+                votes[old] = (paths + 1, sameFiles + (same ? 1 : 0));
+            }
+        }
+
+        var needed = (int)Math.Ceiling(0.6 * photos.Count);
+        var best = votes.Where(v => v.Value.Paths >= needed && !IsSameOrInside(v.Key, folder) && !IsSameOrInside(folder, v.Key))
+            .OrderByDescending(v => v.Value.Paths).ThenByDescending(v => v.Value.SameFiles)
+            .Select(v => (Folder: v.Key, v.Value.SameFiles))
+            .FirstOrDefault();
+        if (best.Folder is null) return null;
+        // Same names but different files: only believable if the old folder has gone (copied with new dates, then deleted).
+        if (best.SameFiles < needed && (photos.Count < 3 || Directory.Exists(best.Folder))) return null;
+        return new PreviousLocation(best.Folder, CountUnder(connection, best.Folder));
+    }, cancellationToken);
+
+    /// <summary>
+    /// Moves everything the index knows under <paramref name="from"/> to the same places under
+    /// <paramref name="to"/>, keeping tags, people and favourites, so the next scan only reads what differs.
+    /// Anything already indexed under <paramref name="to"/> is replaced. Returns how many photos moved.
+    /// </summary>
+    public async Task<int> MoveFolderAsync(string from, string to)
+    {
+        from = NormalizeFolder(from);
+        to = NormalizeFolder(to);
+        if (IsSameOrInside(from, to) || IsSameOrInside(to, from))
+            throw new ArgumentException($"Can't move {from} to {to}: one is inside the other.", nameof(to));
+
+        await _writeGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            return await Task.Run(() =>
+            {
+                using var connection = Open();
+                using var transaction = connection.BeginTransaction();
+                using (var clear = connection.CreateCommand())
+                {
+                    clear.CommandText = $"DELETE FROM photos WHERE {UnderFolder("folder")}";
+                    AddFolderParameters(clear, to);
+                    clear.ExecuteNonQuery();
+                }
+                using var move = connection.CreateCommand();
+                // SQLite's length() and substr() count characters the same way, so the old prefix comes off exactly.
+                move.CommandText = $"""
+                    UPDATE photos SET path = @to || substr(path, length(@root) + 1), folder = @to || substr(folder, length(@root) + 1)
+                    WHERE {UnderFolder("folder")}
+                    """;
+                AddFolderParameters(move, from);
+                move.Parameters.AddWithValue("@to", to);
+                var moved = move.ExecuteNonQuery();
+                transaction.Commit();
+                return moved;
+            }).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeGate.Release();
+        }
+    }
+
+    private static int CountUnder(SqliteConnection connection, string folder)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT COUNT(*) FROM photos WHERE {UnderFolder("folder")}";
+        AddFolderParameters(command, folder);
+        return Convert.ToInt32(command.ExecuteScalar());
+    }
+
+    private static bool IsSameOrInside(string folder, string path)
+    {
+        var comparison = IgnoreCase ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        return path.Equals(folder, comparison) || path.StartsWith(folder + Path.DirectorySeparatorChar, comparison);
     }
 
     /// <summary>Records metadata PhotoTag has just written, without waiting for the next scan.</summary>
