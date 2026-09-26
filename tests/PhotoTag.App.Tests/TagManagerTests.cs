@@ -21,9 +21,10 @@ public sealed class TagManagerTests : UiTestBase
         return (flyout, vm.TagManager);
     }
 
-    private static T InRow<T>(Flyout flyout, string keyword, string className) where T : Control =>
-        ((Control)flyout.Content!).GetVisualDescendants().OfType<T>()
-            .Single(c => c.Classes.Contains(className) && c.DataContext is TagRowViewModel row && row.Keyword == keyword);
+    /// <summary>A control in a tag's row, once the row is on screen (the list is rebuilt after each edit).</summary>
+    private static Task<T> InRow<T>(Flyout flyout, string keyword, string className) where T : Control =>
+        WaitForControlAsync(() => ((Control)flyout.Content!).GetVisualDescendants().OfType<T>()
+            .SingleOrDefault(c => c.Classes.Contains(className) && c.DataContext is TagRowViewModel row && row.Keyword == keyword));
 
     private static string Summary(TagManagerViewModel tags) =>
         string.Join(", ", tags.Tags.Select(t => $"{t.Keyword} {t.Count}"));
@@ -43,8 +44,8 @@ public sealed class TagManagerTests : UiTestBase
         Assert.Contains("“beach”", tags.Tags[0].SpellingsText);
 
         // Rename "Seaside" to "Beach": the two merge. The box starts with the old name selected, so typing replaces it.
-        Click(window, InRow<Button>(flyout, "Seaside", "tagRename"));
-        var box = InRow<TextBox>(flyout, "Seaside", "tagNewName");
+        Click(window, await InRow<Button>(flyout, "Seaside", "tagRename"));
+        var box = await InRow<TextBox>(flyout, "Seaside", "tagNewName");
         await WaitForAsync(() => IsFocusWithin(window, box));
         window.KeyTextInput("Beach");
         Press(window, PhysicalKey.Enter);
@@ -54,18 +55,18 @@ public sealed class TagManagerTests : UiTestBase
         Assert.DoesNotContain("Seaside", vm.KeywordSuggestions);
 
         // Renaming "Beach" to itself tidies the other spelling.
-        Click(window, InRow<Button>(flyout, "Beach", "tagRename"));
-        Click(window, InRow<Button>(flyout, "Beach", "tagConfirmRename"));
+        Click(window, await InRow<Button>(flyout, "Beach", "tagRename"));
+        Click(window, await InRow<Button>(flyout, "Beach", "tagConfirmRename"));
         await WaitForAsync(() => tags.Tags.Count > 0 && tags.Tags[0].SpellingsText is null);
         Assert.Equal(["Beach"], PhotoMetadata.Read(b).Keywords);
 
         // Delete asks first, then removes the tag from every photo, including the one on screen.
-        Click(window, InRow<Button>(flyout, "Dog", "tagDelete"));
+        Click(window, await InRow<Button>(flyout, "Dog", "tagDelete"));
         var dog = tags.Tags.Single(t => t.Keyword == "Dog");
         Assert.True(dog.IsConfirmingDelete);
         Assert.Contains("from 2 photos", dog.DeleteQuestion);
         Assert.Equal(["Beach", "Dog"], PhotoMetadata.Read(a).Keywords);
-        Click(window, InRow<Button>(flyout, "Dog", "tagConfirmDelete"));
+        Click(window, await InRow<Button>(flyout, "Dog", "tagConfirmDelete"));
         await WaitForAsync(() => Summary(tags) == "Beach 3");
         Assert.Equal(["Beach"], PhotoMetadata.Read(a).Keywords);
         Assert.Empty(PhotoMetadata.Read(d).Keywords);
