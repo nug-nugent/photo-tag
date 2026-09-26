@@ -128,6 +128,45 @@ public sealed class BrowsingTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task JumpToDay_NestsDaysInYearsAndMonths()
+    {
+        Photo("a.jpg", new DateTime(2019, 8, 12, 9, 0, 0));
+        Photo("b.jpg", new DateTime(2019, 8, 13, 9, 0, 0));
+        Photo("c.jpg", new DateTime(2019, 9, 1, 9, 0, 0));
+        Photo("d.jpg", new DateTime(2020, 1, 5, 9, 0, 0));
+        Photo("e.jpg"); // no date
+        var (window, vm) = await OpenAsync(writer: null);
+        await vm.Library.ScanCompletion;
+        await WaitForAsync(() => vm.Photos.All(p => p.IsIndexed));
+        vm.Sort = PhotoSort.Days;
+
+        var culture = System.Globalization.CultureInfo.CurrentCulture;
+        Assert.Equal(["2019", "2020", "No date"], vm.DateTree.Select(n => n.Label));
+        var y2019 = vm.DateTree[0];
+        Assert.Equal([culture.DateTimeFormat.GetMonthName(8), culture.DateTimeFormat.GetMonthName(9)], y2019.Children.Select(m => m.Label));
+        Assert.Equal(2, y2019.Children[0].Children.Count);
+        Assert.False(y2019.IsExpanded); // two years: both start folded
+        Assert.True(vm.DateTree[1].Children.Single().IsExpanded); // 2020's only month is open inside it
+        Assert.Same(vm.Days[3], vm.DateTree[1].Children.Single().Children.Single().Day);
+        Assert.Equal(vm.Days[0].GridIndex, y2019.GridIndex);
+
+        // Clicking a year opens it (and jumps to its first day).
+        var row = await WaitForControlAsync(() => FindAll<Button>(window)
+            .FirstOrDefault(b => b.Classes.Contains("dateNode") && b.DataContext == y2019));
+        Click(window, row);
+        Assert.True(y2019.IsExpanded);
+        await WaitForControlAsync(() => FindAll<Button>(window)
+            .FirstOrDefault(b => b.Classes.Contains("dateNode") && b.DataContext == y2019.Children[0]));
+
+        // Favourites add up the tree.
+        vm.Photos.Single(p => p.FileName == "b.jpg").IsFavourite = true;
+        Assert.Equal(1, y2019.FavouriteCount);
+        Assert.Equal(1, y2019.Children[0].FavouriteCount);
+        Assert.Equal(0, y2019.Children[1].FavouriteCount);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task TileHeart_FavouritesThatPhoto_WithoutChangingTheSelection()
     {
         await using var exifTool = RequireExifTool();

@@ -130,6 +130,10 @@ try
         var scroller = window.GetLogicalDescendants().OfType<ScrollViewer>().Single(s => s.Name == "GridScroller");
         var top = ((PhotoGridLayout)grid.Layout!).GetRect(vm.Days.First(d => d.FavouriteCount > 0).GridIndex)!.Value.Top;
         scroller.Offset = new Vector(0, top + grid.Margin.Top);
+        // And open that day's year and month in "Jump to day".
+        var favouriteYear = vm.DateTree.First(n => n.FavouriteCount > 0);
+        favouriteYear.IsExpanded = true;
+        favouriteYear.Children.First(m => m.FavouriteCount > 0).IsExpanded = true;
         WaitForThumbnails(vm);
         Capture(window, $"{name}-8-days-favourites");
 

@@ -104,6 +104,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <summary>The day headings, for "Jump to day". Empty unless grouped by day.</summary>
     [ObservableProperty] public partial IReadOnlyList<DayHeaderViewModel> Days { get; private set; } = [];
 
+    /// <summary>"Jump to day": the days nested in years and months.</summary>
+    [ObservableProperty] public partial IReadOnlyList<DateNodeViewModel> DateTree { get; private set; } = [];
+
     /// <summary>Raised when tiles change size (a favourite added while favourites are highlighted), so the grid re-lays out.</summary>
     public event EventHandler? GridLayoutChanged;
 
@@ -236,6 +239,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _anchorIndex = CurrentPhoto?.Index ?? -1;
         Photos = ordered;
         Days = days;
+        DateTree = DateNodeViewModel.Build(days);
         GridItems.Reset(items);
         UpdateFeatured(notify: false);
     }
@@ -260,6 +264,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (e.PropertyName != nameof(PhotoItemViewModel.IsFavourite)) return;
         UpdateFeatured();
         foreach (var day in Days) day.Refresh();
+        foreach (var node in DateTree) node.Refresh();
         UpdateHeading();
     }
 
@@ -390,6 +395,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (Sort != PhotoSort.FileName && !hadDates.SequenceEqual(_loaded.Select(p => p.DateTaken))) Arrange();
         else UpdateFeatured();
         foreach (var day in Days) day.Refresh();
+        foreach (var node in DateTree) node.Refresh();
 
         AllCount = $"{summaries.Count:N0}";
         FavouriteCount = $"{summaries.Values.Count(s => s.IsFavourite):N0}";

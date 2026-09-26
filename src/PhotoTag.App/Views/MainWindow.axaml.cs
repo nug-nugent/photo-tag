@@ -252,8 +252,9 @@ public partial class MainWindow : Window
 
     private void JumpToDay_Click(object? sender, RoutedEventArgs e)
     {
-        if (sender is not Control { DataContext: DayHeaderViewModel day } || GridLayout?.GetRect(day.GridIndex) is not { } rect) return;
-        GridScroller.Offset = new Vector(0, rect.Top + PhotoGrid.Margin.Top);
+        if (sender is not Control { DataContext: DateNodeViewModel node }) return;
+        if (node.Children.Count > 0) node.IsExpanded = true; // a year or month: show what's in it too
+        if (GridLayout?.GetRect(node.GridIndex) is { } rect) GridScroller.Offset = new Vector(0, rect.Top + PhotoGrid.Margin.Top);
     }
 
     // --- The command bar, with several photos selected --------------------------------------

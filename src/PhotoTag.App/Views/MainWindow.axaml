@@ -707,23 +707,31 @@
                                     IsVisible="{Binding Days.Count, Converter={x:Static views:Converters.IsPositive}}">
                                 <StackPanel>
                                     <TextBlock Classes="label" Text="JUMP TO DAY" Margin="16,0,16,8" />
-                                    <ItemsControl x:Name="DayList" ItemsSource="{Binding Days}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate x:DataType="vm:DayHeaderViewModel">
-                                                <Button Classes="flat nav" Click="JumpToDay_Click" Padding="16,6">
+                                    <TreeView x:Name="DateTree" ItemsSource="{Binding DateTree}"
+                                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                                        <TreeView.Styles>
+                                            <Style Selector="TreeViewItem" x:DataType="vm:DateNodeViewModel">
+                                                <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                                                <Setter Property="MinHeight" Value="26" />
+                                            </Style>
+                                        </TreeView.Styles>
+                                        <TreeView.ItemTemplate>
+                                            <TreeDataTemplate x:DataType="vm:DateNodeViewModel" ItemsSource="{Binding Children}">
+                                                <Button Classes="flat nav dateNode" Click="JumpToDay_Click" Padding="0,5" Background="Transparent"
+                                                        ToolTip.Tip="Jump to it in the grid">
                                                     <DockPanel>
-                                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4"
+                                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="4" Margin="8,0,0,0"
                                                                     IsVisible="{Binding FavouriteCount, Converter={x:Static views:Converters.IsPositive}}">
                                                             <TextBlock Text="{Binding FavouriteCount}" Classes="muted" VerticalAlignment="Center" />
                                                             <PathIcon Width="11" Height="11" Data="{StaticResource IconHeart}"
                                                                       Foreground="{DynamicResource AccentBrush}" />
                                                         </StackPanel>
-                                                        <TextBlock Text="{Binding ShortLabel}" FontSize="14" />
+                                                        <TextBlock Text="{Binding Label}" FontSize="14" VerticalAlignment="Center" />
                                                     </DockPanel>
                                                 </Button>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
+                                            </TreeDataTemplate>
+                                        </TreeView.ItemTemplate>
+                                    </TreeView>
                                 </StackPanel>
                             </Border>
                         </StackPanel>
