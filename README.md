@@ -68,7 +68,9 @@ first that your backup tool compares file contents or checksums, not just dates 
 Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) and, for tag editing,
 [ExifTool](https://exiftool.org/) on your PATH (Windows: `winget install OliverBetz.ExifTool`; macOS:
 `brew install exiftool`; Debian/Ubuntu: `sudo apt install libimage-exiftool-perl`). Without ExifTool the app
-still browses, read-only. Release builds will bundle ExifTool, so end users won't need to install it.
+still browses, read-only. Release builds bundle ExifTool, so end users don't need to install it. On macOS and Linux
+the bundled ExifTool is the Perl version and runs on the system's Perl, which macOS and almost every Linux
+distribution include; if Perl is missing, the app says so.
 
 ```bash
 dotnet run --project src/PhotoTag.App

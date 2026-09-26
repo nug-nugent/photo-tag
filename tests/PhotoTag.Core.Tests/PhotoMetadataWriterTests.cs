@@ -7,8 +7,7 @@ public sealed class ExifToolFixture : IAsyncDisposable
 {
     public ExifToolFixture()
     {
-        var path = ExifTool.Locate();
-        if (path is not null) ExifTool = new ExifTool(path);
+        ExifTool = ExifToolSetup.Find().Create();
     }
 
     public ExifTool? ExifTool { get; }

@@ -47,23 +47,26 @@ public abstract class UiTestBase : IAsyncDisposable
 
     protected static ExifTool RequireExifTool()
     {
-        var path = ExifTool.Locate();
-        if (path is null)
+        var exifTool = ExifToolSetup.Find().Create();
+        if (exifTool is null)
         {
             if (Environment.GetEnvironmentVariable("PHOTOTAG_REQUIRE_EXIFTOOL") == "1")
                 Assert.Fail("ExifTool is required (PHOTOTAG_REQUIRE_EXIFTOOL=1) but wasn't found.");
             Assert.Skip("ExifTool isn't installed.");
         }
-        return new ExifTool(path);
+        return exifTool;
     }
 
     protected async Task<(MainWindow Window, MainWindowViewModel Vm)> OpenAsync(PhotoMetadataWriter? writer, PhotoRenderer? renderer = null,
-        IAppUpdater? updater = null, IExactPlaceLookup? placeLookup = null)
+        IAppUpdater? updater = null, IExactPlaceLookup? placeLookup = null, ExifToolStatus exifToolStatus = ExifToolStatus.NotFound)
     {
         var settings = AppSettings.Load(SettingsPath);
         var thumbnails = new ThumbnailCache(Path.Combine(_appData.Path, $"thumbnails{_opened.Count}"), renderer);
         var index = new LibraryIndex(Path.Combine(_appData.Path, $"library{_opened.Count}.db"));
-        var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, updater, placeLookup);
+        var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, updater, placeLookup)
+        {
+            ExifToolMissingText = MainWindowViewModel.ExifToolMissingMessage(exifToolStatus),
+        };
         _opened.Add((vm, index));
         // Tall enough that the whole details panel and all test tiles are on screen.
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 2400 };

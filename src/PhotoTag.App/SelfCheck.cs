@@ -33,11 +33,16 @@ internal static class SelfCheck
 
         await Check("exiftool", async () =>
         {
-            var path = ExifTool.Locate(AppContext.BaseDirectory) ?? throw new FileNotFoundException("No ExifTool found.");
-            await using var exifTool = new ExifTool(path);
+            var setup = ExifToolSetup.Find(AppContext.BaseDirectory);
+            if (setup.Status == ExifToolStatus.NotFound) throw new FileNotFoundException("No ExifTool found.");
+            if (setup.Status == ExifToolStatus.PerlMissing)
+                throw new FileNotFoundException($"Perl is missing: {setup.ExecutablePath} is the Perl version of ExifTool and there's no perl to run it.");
+            await using var exifTool = setup.Create()!;
             var version = (await exifTool.ExecuteAsync(["-ver"])).Trim();
+            var path = setup.ExecutablePath!;
             var bundled = path.StartsWith(AppContext.BaseDirectory, StringComparison.OrdinalIgnoreCase);
-            return $"{version} at {path}{(bundled ? " (bundled)" : " (NOT bundled)")}";
+            var perl = setup.PerlPath is null ? "" : $", run by {setup.PerlPath}";
+            return $"{version} at {path}{(bundled ? " (bundled)" : " (NOT bundled)")}{perl}";
         });
 
         await Check("sqlite", () =>
@@ -60,7 +65,7 @@ internal static class SelfCheck
 
         results["runtime"] = $"{System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier} / .NET {Environment.Version}";
         results["passed"] = passed.ToString();
-        await File.WriteAllTextAsync(reportPath, JsonSerializer.Serialize(results, new JsonSerializerOptions { WriteIndented = true }));
+        await File.WriteAllTextAsync(reportPath, JsonSerializer.Serialize(results, AppJsonContext.Default.DictionaryStringString));
         return passed ? 0 : 1;
     }
 }

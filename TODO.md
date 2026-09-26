@@ -22,19 +22,6 @@ Windows: Azure Trusted Signing (`vpk pack --azureTrustedSignFile`). Secrets go i
 up the accounts.
 **Done when:** a fresh download opens without warnings on both.
 
-### 1.3 Smaller downloads with .NET trimming (M)
-**Why:** installers are ~70 MB (mostly the .NET runtime and ExifTool's 35 MB).
-**What:** try `PublishTrimmed` for the App. Expect trim warnings (warnings are errors here): `AppSettings` needs a
-System.Text.Json source-generated context; MetadataExtractor/XmpCore may need `TrimmerRootAssembly`. Run every package's
-`--self-check` and the full test suite against a trimmed build before accepting it.
-**Done when:** meaningfully smaller installers, all release self-checks green.
-
-### 1.4 Linux/macOS without Perl (S to investigate)
-**Why:** the bundled ExifTool on macOS/Linux is the Perl version and relies on the system `perl`. Most distros have it;
-Apple has deprecated scripting runtimes in macOS and could remove it.
-**What:** make the self-check and the app's ExifTool-missing message distinguish "Perl missing" from "ExifTool missing";
-document it. If macOS ever drops Perl, bundle a relocatable Perl.
-
 ## 2. Photos on a NAS
 
 The owner is planning to keep photos on a NAS (PhotoTag opens the network share; the NAS does snapshots and off-site

@@ -84,11 +84,13 @@ public sealed class TagEditingTests : UiTestBase
         window.Close();
     }
 
-    [AvaloniaFact]
-    public async Task WithoutExifTool_PanelIsReadOnly_AndExplainsWhy()
+    [AvaloniaTheory]
+    [InlineData(ExifToolStatus.NotFound, "needs ExifTool")]
+    [InlineData(ExifToolStatus.PerlMissing, "needs Perl")]
+    public async Task WithoutExifTool_PanelIsReadOnly_AndExplainsWhy(ExifToolStatus status, string explanation)
     {
         Photo("photo.jpg", "Existing");
-        var (window, vm) = await OpenAsync(writer: null);
+        var (window, vm) = await OpenAsync(writer: null, exifToolStatus: status);
         var details = await SelectSingleAsync(window, vm, 0, waitForEditable: false);
         await WaitForAsync(() => details.IsLoaded);
 
@@ -96,7 +98,7 @@ public sealed class TagEditingTests : UiTestBase
         Assert.Equal(["Existing"], details.Keywords);
         Assert.False(Find<AutoCompleteBox>(window, "NewTagBox").IsEffectivelyEnabled);
         Assert.False(Find<TextBox>(window, "TitleBox").IsEffectivelyEnabled);
-        Assert.Contains(FindAll<TextBlock>(window), t => t.IsEffectivelyVisible && t.Text?.Contains("needs ExifTool") == true);
+        Assert.Contains(FindAll<TextBlock>(window), t => t.IsEffectivelyVisible && t.Text?.Contains(explanation) == true);
         window.Close();
     }
 
