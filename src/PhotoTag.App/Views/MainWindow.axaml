@@ -433,8 +433,8 @@
             <Border DockPanel.Dock="Top" Height="56" Padding="16,0" BorderBrush="{DynamicResource RuleBrush}" BorderThickness="0,0,0,2">
                 <Grid ColumnDefinitions="216,Auto,*,Auto,Auto" ColumnSpacing="12">
                     <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
-                        <Rectangle Width="14" Height="14" Fill="{DynamicResource AccentBrush}" />
-                        <TextBlock Text="PhotoTag" FontSize="15" FontWeight="ExtraBold" />
+                        <Image Source="/Assets/icon-256.png" Width="26" Height="26" RenderOptions.BitmapInterpolationMode="HighQuality" />
+                        <TextBlock Text="PhotoTag" FontSize="15" FontWeight="ExtraBold" VerticalAlignment="Center" />
                     </StackPanel>
 
                     <ItemsControl Grid.Column="1" x:Name="Breadcrumb" ItemsSource="{Binding Breadcrumb}" VerticalAlignment="Center">
@@ -927,7 +927,8 @@
                                 <DataTemplate x:DataType="vm:PhotoDetailsViewModel">
                                     <StackPanel>
                                         <!-- Thumbnail shows instantly; the sharper preview replaces it when ready. -->
-                                        <Border Height="226" Background="{DynamicResource StageBrush}" ClipToBounds="True">
+                                        <Border x:Name="DetailsPreview" Height="226" Background="{DynamicResource StageBrush}" ClipToBounds="True" Cursor="Hand"
+                                                PointerPressed="DetailsPreview_PointerPressed" ToolTip.Tip="View large (Space)">
                                             <Panel>
                                                 <Image Source="{Binding Photo.Thumbnail}" Stretch="Uniform" />
                                                 <Image Source="{Binding Preview}" Stretch="Uniform" />

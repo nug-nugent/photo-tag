@@ -236,6 +236,14 @@ public partial class MainWindow : Window
         e.Handled = true;
     }
 
+    // Clicking the preview in the details panel opens that photo in the viewer.
+    private void DetailsPreview_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (ViewModel is { } vm && sender is Control { DataContext: PhotoDetailsViewModel details }) vm.OpenViewer(details.Photo);
+        e.Handled = true;
+    }
+
     private void TileHeart_Click(object? sender, RoutedEventArgs e)
     {
         if (ViewModel is { } vm && sender is Control { DataContext: PhotoItemViewModel photo }) _ = vm.ToggleFavouriteAsync(photo);

@@ -95,6 +95,19 @@ public sealed class ViewerTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task ClickingThePreviewInTheDetailsPanel_OpensTheViewer()
+    {
+        for (var i = 0; i < 3; i++) Photo($"p{i}.jpg");
+        var (window, vm) = await OpenAsync(writer: null);
+        await SelectSingleAsync(window, vm, 1, waitForEditable: false);
+
+        Click(window, await WaitForControlAsync(() => FindAll<Border>(window).FirstOrDefault(b => b.Name == "DetailsPreview")));
+        var viewer = Assert.IsType<ViewerViewModel>(vm.Viewer);
+        Assert.Same(vm.Photos[1], viewer.Current);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task CommandBar_ActsOnTheSelection_AndViewsJustThosePhotos()
     {
         await using var exifTool = RequireExifTool();
