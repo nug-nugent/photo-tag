@@ -89,16 +89,27 @@ public abstract class UiTestBase : IAsyncDisposable
         return details;
     }
 
+    /// <summary>
+    /// Runs queued work and a render tick. Headless layout only happens on render ticks, so without one
+    /// a list that was just rebuilt may have no rows yet (seen on slower CI machines).
+    /// </summary>
+    protected static void Settle()
+    {
+        Dispatcher.UIThread.RunJobs();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick();
+        Dispatcher.UIThread.RunJobs();
+    }
+
     protected static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 15000)
     {
         var stopwatch = Stopwatch.StartNew();
         while (!condition())
         {
             if (stopwatch.ElapsedMilliseconds > timeoutMs) throw new TimeoutException("Condition not met in time.");
-            Dispatcher.UIThread.RunJobs();
+            Settle();
             await Task.Delay(20);
         }
-        Dispatcher.UIThread.RunJobs();
+        Settle();
     }
 
     protected static async Task WaitForAsync(Func<Task<bool>> condition, int timeoutMs = 15000)
@@ -107,15 +118,23 @@ public abstract class UiTestBase : IAsyncDisposable
         while (!await condition())
         {
             if (stopwatch.ElapsedMilliseconds > timeoutMs) throw new TimeoutException("Condition not met in time.");
-            Dispatcher.UIThread.RunJobs();
+            Settle();
             await Task.Delay(20);
         }
-        Dispatcher.UIThread.RunJobs();
+        Settle();
+    }
+
+    /// <summary>Waits for a control to be on screen with a size, e.g. a row in a list that was just rebuilt.</summary>
+    protected static async Task<T> WaitForControlAsync<T>(Func<T?> find) where T : Control
+    {
+        T? found = null;
+        await WaitForAsync(() => (found = find()) is { IsEffectivelyVisible: true, Bounds.Width: > 0 });
+        return found!;
     }
 
     protected static void Click(Window window, Control control, RawInputModifiers modifiers = RawInputModifiers.None)
     {
-        Dispatcher.UIThread.RunJobs();
+        Settle();
         var centre = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)
                      ?? throw new InvalidOperationException("Control isn't in the window.");
         window.MouseDown(centre, MouseButton.Left, modifiers);
@@ -129,7 +148,7 @@ public abstract class UiTestBase : IAsyncDisposable
 
     protected static IReadOnlyList<T> FindAll<T>(Window window) where T : Control
     {
-        Dispatcher.UIThread.RunJobs();
+        Settle();
         return [.. window.GetVisualDescendants().OfType<T>()];
     }
 

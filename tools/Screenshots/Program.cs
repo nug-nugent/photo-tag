@@ -92,6 +92,9 @@ try
         var bulk = (BulkDetailsViewModel)vm.Details!;
         WaitUntil(() => bulk.IsLoaded);
         Capture(window, $"{name}-3-several");
+        WaitFor(bulk.ReviewFillPlacesCommand.ExecuteAsync(null));
+        CaptureTall(window, $"{name}-3-several-fill");
+        bulk.CancelFillCommand.Execute(null);
         CaptureTall(window, $"{name}-3-several-full");
 
         vm.ClearSelection();
@@ -273,8 +276,10 @@ static async Task BuildLibraryAsync(string samples, string library, PhotoRendere
         });
     }
 
-    // Porthcurno, so the details panel shows GPS and "Open in map".
-    await exifTool.ExecuteAsync(["-GPSLatitude=50.0421", "-GPSLatitudeRef=N", "-GPSLongitude=5.6543", "-GPSLongitudeRef=W",
-        "-overwrite_original", photos[1]]);
+    // GPS: Porthcurno on the photo the details panel shows, and St Ives and Mousehole on photos with no
+    // place yet, for "Fill from GPS".
+    foreach (var (photo, lat, lon) in new[] { (photos[1], 50.0421, 5.6543), (photos[0], 50.2083, 5.4908), (photos[3], 50.0833, 5.5389) })
+        await exifTool.ExecuteAsync([$"-GPSLatitude={lat}", "-GPSLatitudeRef=N", $"-GPSLongitude={lon}", "-GPSLongitudeRef=W",
+            "-overwrite_original", photo]);
 }
 

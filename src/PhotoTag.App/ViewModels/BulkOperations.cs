@@ -58,6 +58,13 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
         RunAsync(photos, favourite ? "Adding to favourites:" : "Removing from favourites:",
             (e, paths, p, ct) => e.SetFavouriteAsync(paths, favourite, p, ct));
 
+    /// <summary>Fills the photos' empty City, State/Province and Country from their GPS positions.</summary>
+    public async Task FillPlacesFromGpsAsync(IReadOnlyList<PhotoItemViewModel> photos)
+    {
+        var finder = await PlaceFinder.LoadAsync();
+        await RunAsync(photos, "Filling places from GPS on", (e, paths, p, ct) => e.FillPlacesFromGpsAsync(paths, finder, p, ct));
+    }
+
     /// <summary>Gives every photo the same value for each field (title, city…); an empty value clears it.</summary>
     public Task SetTextAsync(IReadOnlyList<PhotoItemViewModel> photos, IReadOnlyDictionary<TextField, string> values)
     {

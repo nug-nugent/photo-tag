@@ -77,7 +77,15 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial string? Coordinates { get; private set; }
 
     /// <summary>The GPS position on OpenStreetMap, for "Open in map"; null without GPS.</summary>
-    [ObservableProperty] public partial Uri? MapUri { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(HasGps))]
+    public partial Uri? MapUri { get; private set; }
+
+    public bool HasGps => MapUri is not null;
+    private (double Latitude, double Longitude)? _gps;
+
+    /// <summary>What "Fill from GPS" did, e.g. "Nearest town: St Ives (0.2 km away)".</summary>
+    [ObservableProperty] public partial string? FillNote { get; private set; }
 
     /// <summary>An OpenStreetMap page with a marker at the position, zoomed to street level.</summary>
     internal static Uri MapLink(double latitude, double longitude) => new(string.Create(CultureInfo.InvariantCulture,
@@ -226,6 +234,41 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         _ = SaveAsync(new MetadataChanges().With(field, NormalizeText(value)));
     }
 
+    /// <summary>Fills the empty place boxes from the photo's GPS, using the nearest town (offline).</summary>
+    [RelayCommand]
+    private async Task FillPlacesFromGps()
+    {
+        if (_gps is not { } gps) return;
+        var finder = await PlaceFinder.LoadAsync();
+        var current = new PhotoMetadata { Latitude = gps.Latitude, Longitude = gps.Longitude, City = City, State = State, Country = Country };
+        var place = finder.Find(gps.Latitude, gps.Longitude);
+        if (place is null)
+        {
+            FillNote = $"No town within {PlaceFinder.MaxDistanceKm:F0} km of this spot.";
+            return;
+        }
+
+        var near = string.Create(CultureInfo.CurrentCulture, $"Nearest town: {place.City} ({place.DistanceKm:F1} km away).");
+        if (BulkMetadataEditor.PlacesFromGps(current, finder) is not { } changes)
+        {
+            FillNote = $"{near} City, state/province and country are already filled in.";
+            return;
+        }
+
+        _applying = true;
+        try
+        {
+            foreach (var field in TextFields.Places)
+                if (changes.Get(field) is { } value) SetText(field, value);
+        }
+        finally
+        {
+            _applying = false;
+        }
+        FillNote = near;
+        await SaveAsync(changes);
+    }
+
     private void SetText(TextField field, string? value)
     {
         switch (field)
@@ -321,9 +364,18 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         Dimensions = JoinNonEmpty(" · ",
             m.Width is { } w && m.Height is { } h ? $"{w:N0} × {h:N0}" : null,
             FormatBytes(fileSize));
-        (Coordinates, MapUri) = m.Latitude is { } lat && m.Longitude is { } lon
-            ? (string.Create(CultureInfo.InvariantCulture, $"{lat:F5}, {lon:F5}"), MapLink(lat, lon))
-            : (null, null);
+        if (m.Latitude is { } lat && m.Longitude is { } lon)
+        {
+            _gps = (lat, lon);
+            Coordinates = string.Create(CultureInfo.InvariantCulture, $"{lat:F5}, {lon:F5}");
+            MapUri = MapLink(lat, lon);
+        }
+        else
+        {
+            _gps = null;
+            Coordinates = null;
+            MapUri = null;
+        }
 
         _applying = true;
         try

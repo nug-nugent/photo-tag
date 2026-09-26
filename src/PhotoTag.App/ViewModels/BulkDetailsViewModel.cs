@@ -169,6 +169,66 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
 
     private static string PhotoCount(int count) => count == 1 ? "1 photo" : $"{count:N0} photos";
 
+    // --- Fill places from GPS --------------------------------------------------------------
+
+    [ObservableProperty] public partial bool IsConfirmingFill { get; private set; }
+
+    /// <summary>What "Fill from GPS" would do, e.g. "Fills in the place on 14 of 21 photos…".</summary>
+    [ObservableProperty] public partial string? FillSummary { get; private set; }
+
+    /// <summary>False when there's nothing to fill, so the summary is just information.</summary>
+    [ObservableProperty] public partial bool CanConfirmFill { get; private set; }
+
+    public bool AnyGps => Photos.Any(p => p.Metadata is { Latitude: not null, Longitude: not null });
+
+    /// <summary>Shows what filling places from GPS would change, to confirm.</summary>
+    [RelayCommand]
+    private async Task ReviewFillPlaces()
+    {
+        var finder = await PlaceFinder.LoadAsync();
+        var metadata = Photos.Select(p => p.Metadata ?? new PhotoMetadata()).ToList();
+        var noGps = metadata.Count(m => m.Latitude is null || m.Longitude is null);
+        var fills = metadata
+            .Select(m => (Photo: m, Changes: BulkMetadataEditor.PlacesFromGps(m, finder)))
+            .Where(f => f.Changes is not null)
+            .ToList();
+        var untouched = metadata.Count - noGps - fills.Count;
+
+        var parts = new List<string>();
+        if (fills.Count > 0)
+        {
+            // Name the most common place, as found, so the summary is concrete.
+            var places = fills.Select(f => finder.Find(f.Photo.Latitude!.Value, f.Photo.Longitude!.Value)!)
+                .GroupBy(p => string.Join(", ", new[] { p.City, p.State, p.Country }.OfType<string>()))
+                .OrderByDescending(g => g.Count())
+                .ToList();
+            var others = places.Count - 1;
+            parts.Add($"This fills in the place on {fills.Count:N0} of {metadata.Count:N0} photos: {places[0].Key}"
+                      + (others == 0 ? "." : $", and {others:N0} other {(others == 1 ? "place" : "places")}."));
+        }
+        else
+        {
+            parts.Add("There's nothing to fill in.");
+        }
+        if (noGps > 0) parts.Add($"{PhotoCount(noGps)} {(noGps == 1 ? "has" : "have")} no GPS.");
+        if (untouched > 0) parts.Add($"{PhotoCount(untouched)} already {(untouched == 1 ? "has" : "have")} a place, or {(untouched == 1 ? "is" : "are")} far from any town.");
+        if (fills.Count > 0) parts.Add("Places you've typed are kept, and you can undo it afterwards.");
+
+        FillSummary = string.Join(" ", parts);
+        CanConfirmFill = fills.Count > 0;
+        IsConfirmingFill = true;
+    }
+
+    [RelayCommand]
+    private Task ApplyFill()
+    {
+        IsConfirmingFill = false;
+        return _operations.FillPlacesFromGpsAsync(Photos);
+    }
+
+    [RelayCommand]
+    private void CancelFill() => IsConfirmingFill = false;
+
     /// <summary>Reads metadata for any selected photo we haven't seen yet, then builds the summary.</summary>
     public async Task LoadAsync()
     {
@@ -250,6 +310,9 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
         FavouriteNote = favourites > 0 && !AllFavourites ? $"{favourites:N0} of {metadata.Count:N0} are favourites; the heart adds the rest." : null;
 
         ShowText(metadata);
+        foreach (var field in TextFields.Places)
+            foreach (var m in metadata) _places.Add(field, m.Get(field)); // e.g. places just filled from GPS
+        OnPropertyChanged(nameof(AnyGps));
     }
 
     /// <summary>Tags or people and how many of the photos have each, most common first, keeping the spelling first seen.</summary>

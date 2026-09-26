@@ -62,13 +62,13 @@ the details panel and the index when files or sidecars change.
 
 ### 3.6 People and places (in parts)
 The owner chose separate fields over tags. **Done:** place fields (Location, City, State/Province, Country; see
-`TextField`), people (`ListField.People`) and an "Open in map" link. Still to do:
+`TextField`), people (`ListField.People`), an "Open in map" link and offline "Fill from GPS". Still to do:
 
-- **Fill places from GPS (M):** fill City, State/Province and Country (maybe Location) from each photo's GPS. The owner
-  finds this very useful. Ask them first: an online service (e.g. Nominatim: about one request a second, and it sends
-  coordinates out) or a bundled offline dataset (e.g. GeoNames: several MB, less precise). It should only fill empty
-  fields, say what it will change, and run as an undoable bulk edit. GPS isn't in the index yet (schema v3), so either
-  add it or read the files.
+- **"Look up exact place" (S–M):** the online half of the owner's choice (option C). Offline "Fill from GPS" (GeoNames,
+  `PlaceFinder`) is done; add a button on one photo that asks OpenStreetMap's Nominatim reverse geocoder for the exact
+  spot, to fill Location (beach, park, venue) and any empty place fields. One request per click only (Nominatim's
+  usage policy: at most 1/second, a real User-Agent, no bulk jobs, attribution "© OpenStreetMap contributors").
+  Say in the UI that it sends the photo's position to OpenStreetMap.
 
 ## 4. Browsing
 
