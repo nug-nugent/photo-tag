@@ -302,6 +302,32 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
     }
 
     [Fact]
+    public async Task People_AddRemoveRename_AndUndo_LeaveTagsAlone()
+    {
+        var writer = fixture.RequireWriter();
+        var editor = new BulkMetadataEditor(writer);
+        var a = Photo("a.jpg", "Mum"); // a tag that happens to match a name
+        var b = Photo("b.jpg");
+        PhotoFile[] both = [PhotoFile.Single(a), PhotoFile.Single(b)];
+
+        var added = await editor.AddAsync(both, ListField.People, ["Mum", "Dad"], cancellationToken: Ct);
+        Assert.Equal(2, added.Changed);
+        Assert.All([a, b], p => Assert.Equal(["Mum", "Dad"], PhotoMetadata.Read(p).People));
+        Assert.Equal(["Mum"], PhotoMetadata.Read(a).Keywords);
+        Assert.Equal(["Mum", "Dad"], added.After[b].People);
+
+        await editor.RenameAsync(both, ListField.People, "mum", "Mary Smith", cancellationToken: Ct);
+        Assert.Equal(["Mary Smith", "Dad"], PhotoMetadata.Read(a).People);
+        Assert.Equal(["Mum"], PhotoMetadata.Read(a).Keywords); // the tag isn't renamed
+
+        var removed = await editor.RemoveAsync(both, ListField.People, ["DAD"], cancellationToken: Ct);
+        Assert.Equal(["Mary Smith"], PhotoMetadata.Read(b).People);
+
+        await editor.UndoAsync(removed.Written, cancellationToken: Ct);
+        Assert.Equal(["Mary Smith", "Dad"], PhotoMetadata.Read(b).People);
+    }
+
+    [Fact]
     public async Task SetFavourite_SetsAndClears_LeavingOtherRatingsAlone()
     {
         var editor = RequireEditor();

@@ -5,9 +5,10 @@ using PhotoTag.Core;
 namespace PhotoTag.App.ViewModels;
 
 /// <summary>
-/// The "Tags" panel: every tag in the open library with its count, and rename, merge (rename to a
-/// tag that exists) and delete everywhere. The edits run through <see cref="BulkOperations"/>, so
-/// they show progress in the status bar and can be cancelled like any bulk edit.
+/// The "Tags & People" panel: every tag (or person) in the open library with its count, and rename,
+/// merge (rename to one that exists) and delete everywhere. The edits run through
+/// <see cref="BulkOperations"/>, so they show progress in the status bar and can be cancelled like
+/// any bulk edit.
 /// </summary>
 public partial class TagManagerViewModel : ViewModelBase
 {
@@ -51,6 +52,26 @@ public partial class TagManagerViewModel : ViewModelBase
 
     [ObservableProperty] public partial string? Filter { get; set; }
 
+    /// <summary>Which list the panel shows: tags or people.</summary>
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(FieldIndex), nameof(HelpText), nameof(FilterPlaceholder))]
+    public partial ListField Field { get; set; }
+
+    /// <summary>For the Tags | People switch.</summary>
+    public int FieldIndex
+    {
+        get => (int)Field;
+        set => Field = (ListField)value;
+    }
+
+    private bool IsPeople => Field == ListField.People;
+
+    public string HelpText => IsPeople
+        ? "Renaming a person to a name that's already used merges the two. Changes are saved into every photo they're in."
+        : "Renaming a tag to one that already exists merges the two. Changes are saved into every photo that has the tag.";
+
+    public string FilterPlaceholder => IsPeople ? "Filter people" : "Filter tags";
+
     [ObservableProperty] public partial string? Heading { get; private set; }
 
     /// <summary>"No tags yet", or "No tags match …"; null when there are tags to show.</summary>
@@ -78,13 +99,20 @@ public partial class TagManagerViewModel : ViewModelBase
 
     partial void OnFilterChanged(string? value) => ApplyFilter();
 
+    partial void OnFieldChanged(ListField value)
+    {
+        Filter = null;
+        if (_isOpen) Loading = LoadAsync();
+    }
+
     private async Task LoadAsync()
     {
         var root = _root();
-        IReadOnlyList<KeywordCount> keywords = root is null ? [] : await _library.Index.GetKeywordsAsync(root);
+        IReadOnlyList<KeywordCount> keywords = root is null ? [] : await _library.Index.GetValuesAsync(Field, root);
         // Most used first, as the index returns them.
         _all = [.. keywords.Select(k => new TagRowViewModel(this, k))];
-        Heading = root is null ? "Tags" : $"Tags in {Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}";
+        var what = IsPeople ? "People" : "Tags";
+        Heading = root is null ? what : $"{what} in {Path.GetFileName(root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))}";
         ApplyFilter();
     }
 
@@ -94,9 +122,10 @@ public partial class TagManagerViewModel : ViewModelBase
         Tags = string.IsNullOrEmpty(filter)
             ? _all
             : [.. _all.Where(t => t.Keyword.Contains(filter, StringComparison.CurrentCultureIgnoreCase))];
+        var what = IsPeople ? "people" : "tags";
         EmptyText = Tags.Count > 0 ? null
-            : _all.Count == 0 ? "No tags yet."
-            : $"No tags match “{filter}”.";
+            : _all.Count == 0 ? $"No {what} yet."
+            : $"No {what} match “{filter}”.";
     }
 
     internal void StartRename(TagRowViewModel row)
@@ -117,25 +146,27 @@ public partial class TagManagerViewModel : ViewModelBase
         var to = (row.NewName ?? "").Trim();
         if (to.Length == 0)
         {
-            row.Error = "Enter a name for the tag.";
+            row.Error = IsPeople ? "Enter the person's name." : "Enter a name for the tag.";
             return;
         }
         if (to.Contains(','))
         {
-            row.Error = "Tags can't contain commas.";
+            row.Error = IsPeople ? "Names can't contain commas." : "Tags can't contain commas.";
             return;
         }
         row.Reset();
         // Renaming to exactly the same name only does something if other spellings need tidying.
         if (to == row.Keyword && row.OtherSpellings.Count == 0) return;
 
-        await RunAsync(row.Keyword, files => _operations.RenameKeywordAsync(files, row.Keyword, to, _shown()));
+        var field = Field;
+        await RunAsync(row.Keyword, files => _operations.RenameAsync(files, field, row.Keyword, to, _shown()));
     }
 
     internal async Task DeleteAsync(TagRowViewModel row)
     {
         row.Reset();
-        await RunAsync(row.Keyword, files => _operations.DeleteKeywordAsync(files, row.Keyword, _shown()));
+        var field = Field;
+        await RunAsync(row.Keyword, files => _operations.DeleteAsync(files, field, row.Keyword, _shown()));
     }
 
     private async Task RunAsync(string keyword, Func<IReadOnlyList<PhotoFile>, Task> edit)
@@ -143,7 +174,8 @@ public partial class TagManagerViewModel : ViewModelBase
         if (!CanEdit || _root() is not { } root) return;
 
         // Every spelling (the index matches tags ignoring case); pairs need their RAW so both files change.
-        var paths = await _library.Index.SearchAsync(root, new PhotoQuery { Keywords = [keyword] });
+        var query = IsPeople ? new PhotoQuery { People = [keyword] } : new PhotoQuery { Keywords = [keyword] };
+        var paths = await _library.Index.SearchAsync(root, query);
         var files = await Task.Run(() => paths.Where(File.Exists).Select(PhotoFiles.WithCompanions).ToList());
         if (files.Count == 0)
         {

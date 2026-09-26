@@ -61,11 +61,9 @@ the details panel and the index when files or sidecars change.
 ## 3. Tagging features
 
 ### 3.6 People and places (in parts)
-The owner chose separate fields over tags. **Place fields are done** (Location, City, State/Province, Country; see
-`TextField`). Still to do, one PR each:
+The owner chose separate fields over tags. **Done:** place fields (Location, City, State/Province, Country; see
+`TextField`) and people (`ListField.People`). Still to do, one PR each:
 
-- **People (M):** a list of names in `XMP-iptcExt:PersonInImage`, edited like tags (chips, suggestions, bulk add and
-  remove), with rename and merge like the Tags panel. Names only, no face recognition.
 - **"Open in map" link (S):** open the photo's GPS position on OpenStreetMap in the browser. The owner doesn't want a map
   inside the app.
 - **Fill places from GPS (M):** fill City, State/Province and Country (maybe Location) from each photo's GPS. The owner

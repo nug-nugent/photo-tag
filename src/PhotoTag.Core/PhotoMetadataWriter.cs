@@ -9,6 +9,7 @@ namespace PhotoTag.Core;
 public sealed record MetadataChanges
 {
     public IReadOnlyList<string>? Keywords { get; init; }
+    public IReadOnlyList<string>? People { get; init; }
     public string? Title { get; init; }
     public string? Description { get; init; }
     public string? Location { get; init; }
@@ -31,7 +32,7 @@ public sealed record MetadataChanges
     /// <summary>Set when <see cref="Keywords"/> renames a tag, so nested keywords are renamed rather than dropped.</summary>
     internal KeywordRename? Rename { get; init; }
 
-    public bool IsEmpty => Keywords is null && Favourite is null && Rating is null && HierarchicalKeywords is null
+    public bool IsEmpty => Keywords is null && People is null && Favourite is null && Rating is null && HierarchicalKeywords is null
                            && TextFields.All.All(f => this.Get(f) is null);
 }
 
@@ -140,6 +141,7 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         return changes with
         {
             Keywords = changes.Keywords ?? (embedded.Keywords.Count > 0 ? embedded.Keywords : null),
+            People = changes.People ?? (embedded.People.Count > 0 ? embedded.People : null),
             Title = changes.Title ?? embedded.Title,
             Description = changes.Description ?? embedded.Description,
             Location = changes.Location ?? embedded.Location,
@@ -189,6 +191,10 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             SetList(args, "XMP-dc:Subject", normalized);
             if (isJpeg) SetList(args, "IPTC:Keywords", normalized);
         }
+
+        // IPTC's older fields have no equivalent, so people go in XMP only.
+        if (changes.People is { } people)
+            SetList(args, "XMP-iptcExt:PersonInImage", NormalizeKeywords(people));
 
         if (changes.HierarchicalKeywords is { } hierarchy)
             SetList(args, "XMP-lr:HierarchicalSubject", hierarchy);

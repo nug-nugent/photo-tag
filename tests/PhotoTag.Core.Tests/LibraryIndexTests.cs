@@ -175,6 +175,51 @@ public sealed class LibraryIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task People_AreSearchedByAnyPartOfTheName_AndCounted()
+    {
+        var a = Photo("a.jpg", "Beach");
+        var b = Photo("b.jpg");
+        Photo("c.jpg");
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+        await _index.UpdateAsync([
+            (a, new PhotoMetadata { Keywords = ["Beach"], People = ["Mary Smith", "Dad"] }),
+            (b, new PhotoMetadata { People = ["mary smith"] }),
+        ]);
+
+        Assert.Equal([a, b], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["smith"] }));
+        Assert.Equal([a], await _index.SearchAsync(_library, new PhotoQuery { Terms = ["smith", "beach"] }));
+        Assert.Equal([a], await _index.SearchAsync(_library, new PhotoQuery { People = ["dad"] }));
+        Assert.Empty(await _index.SearchAsync(_library, new PhotoQuery { People = ["smith"] })); // whole names only
+        Assert.Empty(await _index.SearchAsync(_library, new PhotoQuery { Keywords = ["Dad"] })); // people aren't tags
+
+        var people = await _index.GetValuesAsync(ListField.People);
+        Assert.Equal(("Mary Smith", 2), (people[0].Keyword, people[0].Count));
+        Assert.Equal(["mary smith"], people[0].OtherSpellings);
+        Assert.Equal(("Dad", 1), (people[1].Keyword, people[1].Count));
+        Assert.Equal(["Beach"], (await _index.GetKeywordsAsync()).Select(k => k.Keyword));
+    }
+
+    [Fact]
+    public async Task AnIndexFromVersion2_GainsPeople_AndItsPhotosAreReadAgain()
+    {
+        var path = Path.Combine(_dir.Path, "index", "v2.db");
+        var photo = Photo("a.jpg", "Beach");
+        using (var current = new LibraryIndex(path)) await current.ScanAsync(_library, cancellationToken: Ct);
+        using (var connection = new Microsoft.Data.Sqlite.SqliteConnection($"Data Source={path};Pooling=False"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "DROP TABLE photo_people; PRAGMA user_version = 2;";
+            command.ExecuteNonQuery();
+        }
+        using var upgraded = new LibraryIndex(path);
+
+        Assert.Equal([photo], await upgraded.SearchAsync(_library, new PhotoQuery { Keywords = ["beach"] }));
+        Assert.Equal(1, (await upgraded.ScanAsync(_library, cancellationToken: Ct)).Updated);
+        Assert.Empty(await upgraded.GetValuesAsync(ListField.People));
+    }
+
+    [Fact]
     public async Task Search_Untagged()
     {
         Photo("tagged.jpg", "Beach");

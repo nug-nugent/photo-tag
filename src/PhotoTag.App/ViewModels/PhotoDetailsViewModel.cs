@@ -18,6 +18,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private readonly CancellationTokenSource _cts = new();
     private readonly PhotoMetadataWriter? _writer;
     private readonly KeywordSuggestions _suggestions;
+    private readonly KeywordSuggestions _peopleSuggestions;
     private readonly PlaceSuggestions _places;
     private readonly BulkOperations _operations;
     private readonly PhotoRenderer _renderer;
@@ -29,8 +30,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private long _fileSize;
 
     public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions,
-        PlaceSuggestions places, BulkOperations operations, PhotoRenderer renderer)
+        KeywordSuggestions people, PlaceSuggestions places, BulkOperations operations, PhotoRenderer renderer)
     {
+        _peopleSuggestions = people;
         _places = places;
         Photo = photo;
         _renderer = renderer;
@@ -58,6 +60,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private static string SidecarName(string raw) =>
         System.IO.Path.GetFileName(PhotoFiles.FindSidecar(raw) ?? PhotoFiles.NewSidecarPath(raw));
     public ObservableCollection<string> KeywordSuggestions => _suggestions.Items;
+    public ObservableCollection<string> PeopleSuggestions => _peopleSuggestions.Items;
     public ObservableCollection<string> LocationSuggestions => _places.For(TextField.Location);
     public ObservableCollection<string> CitySuggestions => _places.For(TextField.City);
     public ObservableCollection<string> StateSuggestions => _places.For(TextField.State);
@@ -86,8 +89,10 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     public bool CanEdit => IsLoaded && _writer is not null && !_operations.IsBusy;
 
     public ObservableCollection<string> Keywords { get; } = [];
+    public ObservableCollection<string> People { get; } = [];
 
     [ObservableProperty] public partial string? NewKeyword { get; set; }
+    [ObservableProperty] public partial string? NewPerson { get; set; }
     [ObservableProperty] public partial string? Title { get; set; }
     [ObservableProperty] public partial string? Description { get; set; }
     [ObservableProperty] public partial string? Location { get; set; }
@@ -151,25 +156,44 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     }
 
     [RelayCommand]
-    private async Task AddKeyword()
+    private Task AddKeyword()
     {
-        // "beach, family" adds both.
-        var toAdd = (NewKeyword ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Where(k => !Keywords.Contains(k, StringComparer.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var text = NewKeyword;
         NewKeyword = "";
-        if (toAdd.Count == 0) return;
-
-        foreach (var keyword in toAdd) Keywords.Add(keyword);
-        await SaveAsync(new MetadataChanges { Keywords = [.. Keywords] });
+        return AddToListAsync(ListField.Tags, Keywords, text);
     }
 
     [RelayCommand]
-    private async Task RemoveKeyword(string keyword)
+    private Task RemoveKeyword(string keyword) => RemoveFromListAsync(ListField.Tags, Keywords, keyword);
+
+    [RelayCommand]
+    private Task AddPerson()
     {
-        if (!Keywords.Remove(keyword)) return;
-        await SaveAsync(new MetadataChanges { Keywords = [.. Keywords] });
+        var text = NewPerson;
+        NewPerson = "";
+        return AddToListAsync(ListField.People, People, text);
+    }
+
+    [RelayCommand]
+    private Task RemovePerson(string name) => RemoveFromListAsync(ListField.People, People, name);
+
+    /// <summary>"beach, family" adds both.</summary>
+    private async Task AddToListAsync(ListField field, ObservableCollection<string> list, string? text)
+    {
+        var toAdd = (text ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .Where(v => !list.Contains(v, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (toAdd.Count == 0) return;
+
+        foreach (var value in toAdd) list.Add(value);
+        await SaveAsync(new MetadataChanges().With(field, [.. list]));
+    }
+
+    private async Task RemoveFromListAsync(ListField field, ObservableCollection<string> list, string value)
+    {
+        if (!list.Remove(value)) return;
+        await SaveAsync(new MetadataChanges().With(field, [.. list]));
     }
 
     partial void OnIsFavouriteChanged(bool value) => Photo.IsFavourite = value; // the grid tile's ♥
@@ -238,6 +262,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
                 _places.Add(field, text);
             }
             if (changes.Keywords is { } keywords) _suggestions.Add(keywords);
+            if (changes.People is { } people) _peopleSuggestions.Add(people);
             if (!SaveFailed) SaveStatus = _pendingSaves == 1 ? "Saved" : "Saving…";
         }
         catch (Exception e) when (e is ExifToolException or IOException or UnauthorizedAccessException)
@@ -299,6 +324,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
             Keywords.Clear();
             foreach (var keyword in m.Keywords) Keywords.Add(keyword);
             _suggestions.Add(m.Keywords);
+            People.Clear();
+            foreach (var person in m.People) People.Add(person);
+            _peopleSuggestions.Add(m.People);
 
             foreach (var field in TextFields.All)
             {
