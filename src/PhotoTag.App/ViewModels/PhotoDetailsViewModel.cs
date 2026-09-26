@@ -76,6 +76,13 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     /// <summary>GPS position, as "50.04213, -5.65432".</summary>
     [ObservableProperty] public partial string? Coordinates { get; private set; }
 
+    /// <summary>The GPS position on OpenStreetMap, for "Open in map"; null without GPS.</summary>
+    [ObservableProperty] public partial Uri? MapUri { get; private set; }
+
+    /// <summary>An OpenStreetMap page with a marker at the position, zoomed to street level.</summary>
+    internal static Uri MapLink(double latitude, double longitude) => new(string.Create(CultureInfo.InvariantCulture,
+        $"https://www.openstreetmap.org/?mlat={latitude:F6}&mlon={longitude:F6}#map=16/{latitude:F6}/{longitude:F6}"));
+
     // --- Editable metadata ---------------------------------------------------------------
 
     [ObservableProperty]
@@ -314,9 +321,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         Dimensions = JoinNonEmpty(" · ",
             m.Width is { } w && m.Height is { } h ? $"{w:N0} × {h:N0}" : null,
             FormatBytes(fileSize));
-        Coordinates = m.Latitude is { } lat && m.Longitude is { } lon
-            ? string.Create(CultureInfo.InvariantCulture, $"{lat:F5}, {lon:F5}")
-            : null;
+        (Coordinates, MapUri) = m.Latitude is { } lat && m.Longitude is { } lon
+            ? (string.Create(CultureInfo.InvariantCulture, $"{lat:F5}, {lon:F5}"), MapLink(lat, lon))
+            : (null, null);
 
         _applying = true;
         try
