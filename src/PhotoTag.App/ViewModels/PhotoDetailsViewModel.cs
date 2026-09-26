@@ -22,6 +22,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private readonly PlaceSuggestions _places;
     private readonly BulkOperations _operations;
     private readonly PhotoRenderer _renderer;
+    private readonly PopularKeywords? _popular;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private int _pendingSaves;
     private Task _lastSave = Task.CompletedTask;
@@ -30,7 +31,8 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private long _fileSize;
 
     public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions,
-        KeywordSuggestions people, PlaceSuggestions places, BulkOperations operations, PhotoRenderer renderer)
+        KeywordSuggestions people, PlaceSuggestions places, BulkOperations operations, PhotoRenderer renderer,
+        PopularKeywords? popular = null)
     {
         _peopleSuggestions = people;
         _places = places;
@@ -41,6 +43,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         _operations = operations;
         _operations.PropertyChanged += OnOperationsChanged;
         _operations.Completed += OnOperationCompleted;
+        _popular = popular;
+        if (_popular is not null) _popular.Changed += OnPopularChanged;
+        Keywords.CollectionChanged += (_, _) => UpdateSuggestedKeywords();
     }
 
     public PhotoItemViewModel Photo { get; }
@@ -69,9 +74,17 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial Bitmap? Preview { get; private set; }
     [ObservableProperty] public partial string? Error { get; private set; }
     [ObservableProperty] public partial string? DateTaken { get; private set; }
-    [ObservableProperty] public partial string? Camera { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CameraSummary))]
+    public partial string? Camera { get; private set; }
+
+    /// <summary>One line under the file name: "Fujifilm X-T30 · 1/500 s · f/2 · ISO 160 · 23 mm".</summary>
+    public string? CameraSummary => JoinNonEmpty(" · ", Camera, Exposure);
+
     [ObservableProperty] public partial string? Lens { get; private set; }
-    [ObservableProperty] public partial string? Exposure { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CameraSummary))]
+    public partial string? Exposure { get; private set; }
     [ObservableProperty] public partial string? Dimensions { get; private set; }
     /// <summary>GPS position, as "50.04213, -5.65432".</summary>
     [ObservableProperty] public partial string? Coordinates { get; private set; }
@@ -115,10 +128,14 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial string? State { get; set; }
     [ObservableProperty] public partial string? Country { get; set; }
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FavouriteToolTip))]
+    [NotifyPropertyChangedFor(nameof(FavouriteToolTip), nameof(FavouriteLabel))]
     public partial bool IsFavourite { get; private set; }
 
-    public string FavouriteToolTip => IsFavourite ? "Remove from favourites" : "Add to favourites";
+    public string FavouriteToolTip => IsFavourite ? "Remove from favourites (F)" : "Add to favourites (F)";
+
+    /// <summary>The favourite button's label: what it is, or what clicking does.</summary>
+    public string FavouriteLabel => IsFavourite ? "Favourite" : "Mark favourite";
+
     [ObservableProperty] public partial string? SaveStatus { get; private set; }
     [ObservableProperty] public partial bool SaveFailed { get; private set; }
 
@@ -180,6 +197,24 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private Task RemoveKeyword(string keyword) => RemoveFromListAsync(ListField.Tags, Keywords, keyword);
+
+    /// <summary>The library's most used tags that this photo doesn't have yet, for one-click adding.</summary>
+    public ObservableCollection<string> SuggestedKeywords { get; } = [];
+
+    [RelayCommand]
+    private Task AddSuggestedKeyword(string keyword) => AddToListAsync(ListField.Tags, Keywords, keyword);
+
+    private void OnPopularChanged(object? sender, EventArgs e) => UpdateSuggestedKeywords();
+
+    partial void OnIsLoadedChanged(bool value) => UpdateSuggestedKeywords();
+
+    private void UpdateSuggestedKeywords()
+    {
+        var suggested = IsLoaded && _popular is not null ? _popular.Suggest(Keywords, 6).ToList() : [];
+        if (suggested.SequenceEqual(SuggestedKeywords)) return;
+        SuggestedKeywords.Clear();
+        foreach (var keyword in suggested) SuggestedKeywords.Add(keyword);
+    }
 
     [RelayCommand]
     private Task AddPerson()
@@ -418,6 +453,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     {
         _operations.PropertyChanged -= OnOperationsChanged;
         _operations.Completed -= OnOperationCompleted;
+        if (_popular is not null) _popular.Changed -= OnPopularChanged;
         _cts.Cancel();
         _cts.Dispose();
         Preview?.Dispose();

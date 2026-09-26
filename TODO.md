@@ -72,14 +72,7 @@ The owner chose separate fields over tags. **Done:** place fields (Location, Cit
 
 ## 4. Browsing
 
-### 4.1 Large viewer (M)
-Double-click (or Enter/Space) opens a full-window view with ←/→ to move between photos, using `PhotoRenderer` at screen
-size. A favourite shortcut (e.g. F) there and in the grid would make tagging much faster.
-
-### 4.2 Sort and group (S)
-Sort the grid by file name (current) or date taken (from the index), optionally grouped by day.
-
-### 4.3 More formats (S each)
+### 4.1 More formats (S each)
 TIFF (probably via SkiaSharp or ExifTool previews). **Not HEIC:** the owner explicitly decided against it (it would need
 Magick.NET, ~30 MB per platform).
 

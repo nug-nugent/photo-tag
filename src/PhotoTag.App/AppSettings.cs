@@ -3,6 +3,16 @@ using System.Text.Json.Serialization;
 
 namespace PhotoTag.App;
 
+/// <summary>How the grid orders photos.</summary>
+public enum PhotoSort
+{
+    FileName,
+    DateTaken,
+
+    /// <summary>By date taken, with a heading for each day.</summary>
+    Days,
+}
+
 /// <summary>Per-user settings, stored as JSON next to the thumbnail cache.</summary>
 public sealed class AppSettings
 {
@@ -22,6 +32,13 @@ public sealed class AppSettings
 
     /// <summary>Check GitHub Releases for a new version at startup (installed copies only).</summary>
     public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>How the grid is ordered: by file name, date taken, or grouped by day.</summary>
+    [JsonConverter(typeof(JsonStringEnumConverter<PhotoSort>))]
+    public PhotoSort Sort { get; set; } = PhotoSort.FileName;
+
+    /// <summary>When grouped by day, show favourites at double size.</summary>
+    public bool HighlightFavourites { get; set; } = true;
 
     public static AppSettings Load(string? filePath = null)
     {

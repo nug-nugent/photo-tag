@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
@@ -34,6 +35,14 @@ public abstract class UiTestBase : IAsyncDisposable
     {
         Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(DirPath, name))!);
         return TestImages.Write(DirPath, name, TestImages.Jpeg(120, 90, xmpKeywords: keywords.Length > 0 ? keywords : null));
+    }
+
+    /// <summary>Creates a test photo taken at <paramref name="taken"/>.</summary>
+    protected string Photo(string name, DateTime taken, params string[] keywords)
+    {
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(DirPath, name))!);
+        var exif = new TestImages.Exif { DateTimeOriginal = taken.ToString("yyyy:MM:dd HH:mm:ss", CultureInfo.InvariantCulture) };
+        return TestImages.Write(DirPath, name, TestImages.Jpeg(120, 90, exif, keywords.Length > 0 ? keywords : null));
     }
 
     protected static ExifTool RequireExifTool()

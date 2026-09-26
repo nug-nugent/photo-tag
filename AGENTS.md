@@ -42,12 +42,14 @@ dotnet run --project src/PhotoTag.App
   mouse/keyboard input**: the owner may be using the machine, and it has collided before. Headless mode doesn't really
   decode bitmaps, so check image sizes and orientation in Core tests instead.
 - **To see the UI, render it:** `dotnet run --project tools/Screenshots` draws the real window with Skia (no window
-  appears, no input) in each state (folder, one photo, several, Tags panel, settings, search, smallest size), light
+  appears, no input) in each state (folder, one photo, several, Tags panel, settings, search, by day, viewer, smallest size), light
   and dark, into `artifacts/screenshots`. It builds a sample library from `tests/.samples` (run the tests once first)
   and needs ExifTool. Look at the PNGs before and after any UI change.
 - **Releases:** push a `vX.Y.Z` tag. PRs touching packaging run `release.yml` as a trial (no publishing). Each package
   runs `PhotoTag --self-check` on a matching runner before anything is published.
-- Keep Core free of UI code, and keep the photo grid virtualized (`ItemsRepeater`); folders can hold thousands of photos.
+- Keep Core free of UI code, and keep the photo grid virtualized (`ItemsRepeater` with `PhotoGridLayout`, which only
+  creates tiles near the viewport); folders can hold thousands of photos. The grid's items are a `ResettableList`: a
+  new ItemsSource would leave stale tiles behind with a custom layout, a Reset makes the repeater clear them.
 
 ## Decisions already made (don't re-litigate without the owner)
 
@@ -67,7 +69,7 @@ dotnet run --project src/PhotoTag.App
 - **People and places are separate fields, not tags** (the owner's choice). Places are Location, City,
   State/Province and Country: `XMP-iptcCore:Location` and `XMP-photoshop:City/State/Country`, plus the IPTC fields for
   JPEGs. The UI says "State/Province". People are `XMP-iptcExt:PersonInImage` (XMP only: the older IPTC fields have
-  no equivalent), edited like tags; search matches any part of a name, and the Tags & People panel manages both.
+  no equivalent), edited like tags; search matches any part of a name, and the Manage tags panel (Tags | People) manages both.
   Names only, no face recognition, and no reading of other apps' face regions (the owner has none). GPS gets an
   "Open in map" link, not a map inside the app.
 - **Places from GPS are offline first** (option C): bundled GeoNames data (every place with 500+ people, plus every
@@ -78,6 +80,10 @@ dotnet run --project src/PhotoTag.App
 - **Saving tags updates "date modified"** so backup tools notice; keeping it is an opt-in setting.
 - **PhotoTag doesn't do backups.** The owner plans a NAS with snapshots and off-site copies; PhotoTag should work well
   with photos on a share (see TODO.md).
+- **The look comes from the owner's claude.ai design** ("PhotoTag Redesign", all three directions combined): warm
+  greys, 2px rules, square corners, red for favourites and what still needs tagging, blue for where you are. The
+  palette is in `App.axaml`; tags each get their own hue (`TagColors`). The design's Archivo font is bundled (static
+  weights from Omnibus-Type/Archivo, OFL, in `Assets/Fonts`), with Inter as the fallback for symbols.
 - **Releases are unsigned** for now, auto-update from GitHub Releases (Velopack), MIT licence.
 
 ## Gotchas

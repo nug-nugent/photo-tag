@@ -40,13 +40,13 @@ public sealed class LibraryTests : UiTestBase
         var (window, vm) = await OpenAsync(writer: null);
         var (root, year) = await WaitForIndexAsync(vm);
 
-        Assert.Equal("5 · 4 tagged", root.CountText);
-        Assert.Equal("4 · 3 tagged", year.CountText);
-        Assert.Contains(FindAll<TextBlock>(window), t => t.Text == "5 · 4 tagged" && t.IsEffectivelyVisible);
+        Assert.Equal("4 / 5", root.CountText);
+        Assert.Equal("3 / 4", year.CountText);
+        Assert.Contains(FindAll<TextBlock>(window), t => t.Text == "4 / 5" && t.IsEffectivelyVisible);
 
         year.IsExpanded = true;
         await year.ChildrenLoading;
-        Assert.Equal("1 · 1 tagged", year.Children.Single().CountText);
+        Assert.Equal("1 / 1", year.Children.Single().CountText);
         window.Close();
     }
 
@@ -148,7 +148,7 @@ public sealed class LibraryTests : UiTestBase
         await details.SaveCompletion;
 
         await WaitForAsync(() => root.Counts.Tagged == 5);
-        Assert.Equal("5 · 5 tagged", root.CountText);
+        Assert.Equal("5 / 5", root.CountText);
 
         // Re-run the untagged search: nothing left.
         Click(window, Find<ToggleButton>(window, "UntaggedButton")); // off
@@ -203,8 +203,9 @@ public sealed class LibraryTests : UiTestBase
     private static int VisibleHearts(Window window, MainWindowViewModel vm)
     {
         window.UpdateLayout();
-        // Only tiles showing the current photos: the grid keeps recycled tiles around.
-        return FindAll<Border>(window).Count(b => b.Classes.Contains("tileHeart") && b.IsEffectivelyVisible
+        // Every tile has a heart button; favourites' are filled ("on"). Only tiles showing the current
+        // photos count: the grid keeps recycled tiles around.
+        return FindAll<Button>(window).Count(b => b.Classes.Contains("tileHeart") && b.Classes.Contains("on") && b.IsEffectivelyVisible
                                                   && b.DataContext is PhotoItemViewModel p && vm.Photos.Contains(p));
     }
 

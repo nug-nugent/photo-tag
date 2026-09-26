@@ -12,8 +12,10 @@
 
   <ItemGroup>
     <AvaloniaResource Include="Assets\icon-256.png" />
+    <AvaloniaResource Include="Assets\Fonts\*.ttf" />
     <None Include="..\..\LICENSE" Link="LICENSE.txt" CopyToPublishDirectory="PreserveNewest" />
     <None Include="..\..\THIRD-PARTY-NOTICES.md" Link="THIRD-PARTY-NOTICES.md" CopyToPublishDirectory="PreserveNewest" />
+    <None Include="Assets\Fonts\OFL.txt" Link="Archivo-OFL.txt" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
