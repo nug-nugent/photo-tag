@@ -19,7 +19,11 @@ macOS open **System Settings → Privacy & Security** and click **Open Anyway**.
 Early days. Today it can:
 
 - Browse a folder tree (subfolders load lazily, off the UI thread)
-- Show a virtualized thumbnail grid that stays responsive with thousands of photos, with a ♥ on favourites
+- Show a virtualized thumbnail grid that stays responsive with thousands of photos. Every tile has a ♥ to favourite
+  it in one click, a dot for each tag, and a red mark if it has no tags yet. Sort by file name or date taken, or
+  group by day with favourites at double size, so each day reads as its highlights (and jump from day to day)
+- Open a large viewer (double-click, Space or Enter) to go through photos one at a time: ← → to move, F to
+  favourite, T to add a tag, with a filmstrip that marks favourites in red
 - Show a details panel for the selected photo: preview, date taken, camera, exposure, size, and GPS with an
   "Open in map" link (OpenStreetMap, in your browser)
 - Fill in places from GPS, offline: the nearest town, county/state and country, for one photo or many at once.
@@ -32,9 +36,10 @@ Early days. Today it can:
 - Show and tag camera RAW files (Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2,
   Pentax PEF, DNG…). RAW+JPEG pairs appear as one photo.
 - Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search across
-  every subfolder by tag, person, title, description, place or file name, list the untagged photos or your
-  favourites (on their own or with a search), and suggestions cover your whole library
-- Manage tags and people across the library (**Tags & people**): see each with its count, rename or merge them
+  every subfolder by tag, person, title, description, place or file name, see every photo in the library, list the
+  untagged photos or your favourites (on their own or with a search), and suggestions cover your whole library.
+  Under a photo's tags, the library's most used tags are one click away.
+- Manage tags and people across the library (**Manage tags**): see each with its count, rename or merge them
   (including tidying "beach" and "Beach" into one), or delete one from every photo. These can be undone too.
 
 Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs, also as IPTC for older

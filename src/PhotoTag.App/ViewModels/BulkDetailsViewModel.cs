@@ -54,10 +54,13 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
 
     /// <summary>True if every selected photo is a favourite.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FavouriteToolTip))]
+    [NotifyPropertyChangedFor(nameof(FavouriteToolTip), nameof(FavouriteActionLabel))]
     public partial bool AllFavourites { get; private set; }
 
     public string FavouriteToolTip => AllFavourites ? "Remove all of them from favourites" : "Add all of them to favourites";
+
+    /// <summary>The command bar's favourite button: what clicking it does.</summary>
+    public string FavouriteActionLabel => AllFavourites ? "Unfavourite" : "Favourite";
 
     [ObservableProperty] public partial string? FavouriteNote { get; private set; }
 

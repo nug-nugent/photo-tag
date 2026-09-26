@@ -17,6 +17,7 @@ using Avalonia.Threading;
 using PhotoTag.App;
 using PhotoTag.App.ViewModels;
 using PhotoTag.App.Views;
+using Avalonia.Controls.Primitives;
 using PhotoTag.Core;
 
 var repo = FindRepoRoot();
@@ -116,6 +117,29 @@ try
         WaitFor(vm.PhotosLoading);
         WaitForThumbnails(vm);
         Capture(window, $"{name}-6-search");
+
+        // Every photo, grouped by day, favourites at double size.
+        vm.ClearSearchCommand.Execute(null);
+        vm.ShowAllPhotos = true;
+        WaitFor(vm.PhotosLoading);
+        vm.Sort = PhotoSort.Days;
+        WaitForThumbnails(vm);
+        Capture(window, $"{name}-8-days");
+        // Down to the first day with favourites, as "Jump to day" would.
+        var grid = window.GetLogicalDescendants().OfType<ItemsRepeater>().Single(r => r.Name == "PhotoGrid");
+        var scroller = window.GetLogicalDescendants().OfType<ScrollViewer>().Single(s => s.Name == "GridScroller");
+        var top = ((PhotoGridLayout)grid.Layout!).GetRect(vm.Days.First(d => d.FavouriteCount > 0).GridIndex)!.Value.Top;
+        scroller.Offset = new Vector(0, top + grid.Margin.Top);
+        WaitForThumbnails(vm);
+        Capture(window, $"{name}-8-days-favourites");
+
+        // The viewer, with a favourite showing.
+        vm.Select(vm.Photos.First(p => p.IsFavourite));
+        vm.OpenViewer();
+        WaitUntil(() => vm.Viewer?.Preview is not null && vm.Details is PhotoDetailsViewModel { IsLoaded: true });
+        Capture(window, $"{name}-9-viewer");
+        vm.CloseViewer();
+        vm.Sort = PhotoSort.FileName;
 
         // Narrowest the window allows.
         vm.ClearSearchCommand.Execute(null);
@@ -275,6 +299,12 @@ static async Task BuildLibraryAsync(string samples, string library, PhotoRendere
             Country = i % 3 != 0 ? "United Kingdom" : null,
         });
     }
+
+    // Three days in Cornwall and a weekend in Scotland, for the grid grouped by day.
+    var dated = photos.Select((p, i) => (Photo: p, Date: new DateTime(2024, 8, 12, 9, 0, 0).AddDays(i * 3 / photos.Count).AddMinutes(i * 37)))
+        .Concat(Directory.GetFiles(scotland, "*.jpg").Order().Select((p, i) => (Photo: p, Date: new DateTime(2025, 5, 3, 10, 0, 0).AddDays(i / 4).AddMinutes(i * 23))));
+    foreach (var (photo, date) in dated)
+        await exifTool.ExecuteAsync([$"-DateTimeOriginal={date:yyyy:MM:dd HH:mm:ss}", "-overwrite_original", photo]);
 
     // GPS: Porthcurno on the photo the details panel shows, and St Ives and Mousehole on photos with no
     // place yet, for "Fill from GPS".

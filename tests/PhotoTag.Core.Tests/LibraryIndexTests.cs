@@ -255,6 +255,36 @@ public sealed class LibraryIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task Summaries_HaveWhatTheGridShows_ForPhotosUnderTheFolder()
+    {
+        var beach = Photo("beach.jpg", "Beach", "Dog");
+        var plain = Photo(Path.Combine("sub", "plain.jpg"));
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+        await _index.UpdateAsync([(plain, new PhotoMetadata
+        {
+            Rating = PhotoMetadataWriter.FavouriteRating,
+            DateTaken = new DateTime(2019, 8, 12, 14, 30, 5),
+            Title = "First swim",
+            City = "St Ives",
+        })]);
+
+        var all = await _index.GetSummariesAsync(_library);
+        Assert.Equal(2, all.Count);
+        Assert.Equal(["Beach", "Dog"], all[beach].Keywords.Order());
+        Assert.False(all[beach].IsFavourite);
+        Assert.Null(all[beach].DateTaken);
+
+        var summary = all[plain];
+        Assert.True(summary.IsFavourite);
+        Assert.Empty(summary.Keywords);
+        Assert.Equal(new DateTime(2019, 8, 12, 14, 30, 5), summary.DateTaken);
+        Assert.Equal("First swim", summary.Title);
+        Assert.Equal("St Ives", summary.City);
+
+        Assert.Equal([plain], (await _index.GetSummariesAsync(Path.Combine(_library, "sub"))).Keys);
+    }
+
+    [Fact]
     public async Task Keywords_AreCountedAcrossTheLibrary()
     {
         Photo("a.jpg", "Beach", "Dog");

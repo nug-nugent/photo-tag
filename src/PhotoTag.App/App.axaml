@@ -5,34 +5,60 @@
     <!-- "Default" follows the OS light/dark setting. -->
 
     <Application.Styles>
-        <FluentTheme />
+        <FluentTheme>
+            <FluentTheme.Palettes>
+                <ColorPaletteResources x:Key="Light" Accent="#EC3013" BaseHigh="#201E1D" AltHigh="#FFFFFF" />
+                <ColorPaletteResources x:Key="Dark" Accent="#FF4A2B" BaseHigh="#F1EFEE" AltHigh="#121110" />
+            </FluentTheme.Palettes>
+        </FluentTheme>
     </Application.Styles>
 
     <Application.Resources>
         <ResourceDictionary>
-            <!-- A calm palette on top of Fluent: tinted side panes, hairline dividers, muted secondary text. -->
+            <!-- Warm greys, hard 2px rules and square corners, with red for favourites and what needs doing,
+                 and blue for where you are. -->
             <ResourceDictionary.ThemeDictionaries>
                 <ResourceDictionary x:Key="Light">
-                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#FFFFFF" />
-                    <SolidColorBrush x:Key="PaneBrush" Color="#F5F5F7" />
-                    <SolidColorBrush x:Key="DividerBrush" Color="#E1E1E6" />
-                    <SolidColorBrush x:Key="MutedTextBrush" Color="#6C6C75" />
-                    <SolidColorBrush x:Key="ChipBrush" Color="#E7E7EC" />
-                    <SolidColorBrush x:Key="TileHoverBrush" Color="#EFEFF3" />
-                    <SolidColorBrush x:Key="PhotoWellBrush" Color="#ECECF0" />
-                    <SolidColorBrush x:Key="HeartBrush" Color="#E0245E" />
+                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#F3F2F2" />
+                    <SolidColorBrush x:Key="StageBrush" Color="#EAE9E9" />
+                    <SolidColorBrush x:Key="InkBrush" Color="#201E1D" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#6B6664" />
+                    <SolidColorBrush x:Key="RuleBrush" Color="#201E1D" />
+                    <SolidColorBrush x:Key="SoftBrush" Color="#D6D3D2" />
+                    <SolidColorBrush x:Key="FieldBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="TintBrush" Color="#FBD9D2" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#EC3013" />
+                    <SolidColorBrush x:Key="LinkBrush" Color="#A8200B" />
+                    <SolidColorBrush x:Key="BlueBrush" Color="#2450D6" />
+                    <SolidColorBrush x:Key="NavBrush" Color="#1D3A8A" />
+                    <SolidColorBrush x:Key="NavInkBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="HoverBrush" Color="#E4E2E1" />
+                    <SolidColorBrush x:Key="HeartOffBrush" Color="#59141211" />
+                    <SolidColorBrush x:Key="HeartOnBrush" Color="#201E1D" />
                 </ResourceDictionary>
                 <ResourceDictionary x:Key="Dark">
-                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1B1B1D" />
-                    <SolidColorBrush x:Key="PaneBrush" Color="#242427" />
-                    <SolidColorBrush x:Key="DividerBrush" Color="#3A3A3F" />
-                    <SolidColorBrush x:Key="MutedTextBrush" Color="#A2A2AB" />
-                    <SolidColorBrush x:Key="ChipBrush" Color="#38383E" />
-                    <SolidColorBrush x:Key="TileHoverBrush" Color="#2E2E33" />
-                    <SolidColorBrush x:Key="PhotoWellBrush" Color="#2C2C31" />
-                    <SolidColorBrush x:Key="HeartBrush" Color="#FF4F7E" />
+                    <SolidColorBrush x:Key="AppBackgroundBrush" Color="#1B1918" />
+                    <SolidColorBrush x:Key="StageBrush" Color="#121110" />
+                    <SolidColorBrush x:Key="InkBrush" Color="#F1EFEE" />
+                    <SolidColorBrush x:Key="MutedTextBrush" Color="#A6A19E" />
+                    <SolidColorBrush x:Key="RuleBrush" Color="#4A4543" />
+                    <SolidColorBrush x:Key="SoftBrush" Color="#3A3634" />
+                    <SolidColorBrush x:Key="FieldBrush" Color="#121110" />
+                    <SolidColorBrush x:Key="TintBrush" Color="#4A1C14" />
+                    <SolidColorBrush x:Key="AccentBrush" Color="#FF4A2B" />
+                    <SolidColorBrush x:Key="LinkBrush" Color="#FF8A75" />
+                    <SolidColorBrush x:Key="BlueBrush" Color="#6F93FF" />
+                    <SolidColorBrush x:Key="NavBrush" Color="#2D4FB8" />
+                    <SolidColorBrush x:Key="NavInkBrush" Color="#FFFFFF" />
+                    <SolidColorBrush x:Key="HoverBrush" Color="#2A2726" />
+                    <SolidColorBrush x:Key="HeartOffBrush" Color="#59141211" />
+                    <SolidColorBrush x:Key="HeartOnBrush" Color="#121110" />
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
+
+            <!-- Square corners everywhere, as in the design. -->
+            <CornerRadius x:Key="ControlCornerRadius">0</CornerRadius>
+            <CornerRadius x:Key="OverlayCornerRadius">0</CornerRadius>
 
             <!-- Icons: Material Design Icons (Pictogrammers), Apache License 2.0. See THIRD-PARTY-NOTICES.md. -->
             <StreamGeometry x:Key="IconFolder">M10,4H4C2.89,4 2,4.89 2,6V18A2,2 0 0,0 4,20H20A2,2 0 0,0 22,18V8C22,6.89 21.1,6 20,6H12L10,4Z</StreamGeometry>
@@ -48,6 +74,10 @@
             <StreamGeometry x:Key="IconUndo">M12.5,8C9.85,8 7.45,9 5.6,10.6L2,7V16H11L7.38,12.38C8.77,11.22 10.54,10.5 12.5,10.5C16.04,10.5 19.05,12.81 20.1,16L22.47,15.22C21.08,11.03 17.15,8 12.5,8Z</StreamGeometry>
             <StreamGeometry x:Key="IconMapMarker">M12,11.5A2.5,2.5 0 0,1 9.5,9A2.5,2.5 0 0,1 12,6.5A2.5,2.5 0 0,1 14.5,9A2.5,2.5 0 0,1 12,11.5M12,2A7,7 0 0,0 5,9C5,14.25 12,22 12,22C12,22 19,14.25 19,9A7,7 0 0,0 12,2Z</StreamGeometry>
             <StreamGeometry x:Key="IconImage">M8.5,13.5L11,16.5L14.5,12L19,18H5M21,19V5C21,3.89 20.1,3 19,3H5A2,2 0 0,0 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19Z</StreamGeometry>
+            <StreamGeometry x:Key="IconChevronLeft">M15.41,16.58L10.83,12L15.41,7.41L14,6L8,12L14,18L15.41,16.58Z</StreamGeometry>
+            <StreamGeometry x:Key="IconChevronRight">M8.59,16.58L13.17,12L8.59,7.41L10,6L16,12L10,18L8.59,16.58Z</StreamGeometry>
+            <StreamGeometry x:Key="IconChevronDown">M7.41,8.58L12,13.17L16.59,8.58L18,10L12,16L6,10L7.41,8.58Z</StreamGeometry>
+            <StreamGeometry x:Key="IconCheck">M21,7L9,19L3.5,13.5L4.91,12.09L9,16.17L19.59,5.59L21,7Z</StreamGeometry>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

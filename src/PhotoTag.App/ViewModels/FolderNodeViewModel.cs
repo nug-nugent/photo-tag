@@ -31,10 +31,20 @@ public partial class FolderNodeViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsExpanded { get; set; }
 
-    /// <summary>e.g. "1,500 · 320 tagged", or null before the folder is indexed.</summary>
+    /// <summary>Tagged out of all, e.g. "320 / 1,500", or null before the folder is indexed (or if it has no photos).</summary>
     [ObservableProperty] public partial string? CountText { get; private set; }
 
-    [ObservableProperty] public partial FolderCounts Counts { get; private set; }
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(TaggedPercent), nameof(HasPhotos))]
+    public partial FolderCounts Counts { get; private set; }
+
+    /// <summary>How much of the folder is tagged, 0–100, for its progress bar.</summary>
+    public double TaggedPercent => Counts.Photos == 0 ? 0 : 100.0 * Counts.Tagged / Counts.Photos;
+
+    public bool HasPhotos => Counts.Photos > 0;
+
+    /// <summary>The folder being shown: its row gets a red edge and a red progress bar.</summary>
+    [ObservableProperty] public partial bool IsSelected { get; set; }
 
     /// <summary>Completes once subfolders have been loaded. For tests.</summary>
     public Task ChildrenLoading { get; private set; } = Task.CompletedTask;
@@ -58,12 +68,7 @@ public partial class FolderNodeViewModel : ViewModelBase
         if (_index is null || IsPlaceholder) return;
 
         Counts = await _index.GetFolderCountsAsync(Path);
-        CountText = Counts switch
-        {
-            { Photos: 0 } => null,
-            { Tagged: 0 } c => $"{c.Photos:N0}",
-            var c => $"{c.Photos:N0} · {c.Tagged:N0} tagged",
-        };
+        CountText = Counts.Photos == 0 ? null : $"{Counts.Tagged:N0} / {Counts.Photos:N0}";
 
         foreach (var child in Children.ToList()) await child.RefreshCountsAsync();
     }

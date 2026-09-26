@@ -18,6 +18,16 @@ public sealed record KeywordCount(string Keyword, int Count)
     public IReadOnlyList<string> OtherSpellings { get; init; } = [];
 }
 
+/// <summary>One photo as the index knows it: enough for a grid tile, and to sort and group by day.</summary>
+public sealed record PhotoSummary
+{
+    public DateTime? DateTaken { get; init; }
+    public bool IsFavourite { get; init; }
+    public IReadOnlyList<string> Keywords { get; init; } = [];
+    public string? Title { get; init; }
+    public string? City { get; init; }
+}
+
 /// <summary>What to search for. Keywords and terms must all match (AND), ignoring case.</summary>
 public sealed record PhotoQuery
 {
@@ -199,6 +209,57 @@ public sealed class LibraryIndex : IDisposable
         while (reader.Read()) paths.Add(reader.GetString(0));
         return paths;
     });
+
+    /// <summary>
+    /// What the grid shows on each tile (favourite, tags, title) and sorts and groups by (date taken, city),
+    /// for every photo under <paramref name="root"/>: two queries rather than a file read per tile.
+    /// </summary>
+    public Task<IReadOnlyDictionary<string, PhotoSummary>> GetSummariesAsync(string root) =>
+        Task.Run<IReadOnlyDictionary<string, PhotoSummary>>(() =>
+        {
+            using var connection = Open();
+            var folder = NormalizeFolder(root);
+
+            var keywords = new Dictionary<long, List<string>>();
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = $"""
+                    SELECT k.photo_id, k.keyword FROM photo_keywords k JOIN photos p ON p.id = k.photo_id
+                    WHERE {UnderFolder("p.folder")}
+                    """;
+                AddFolderParameters(command, folder);
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    var id = reader.GetInt64(0);
+                    if (!keywords.TryGetValue(id, out var list)) keywords[id] = list = [];
+                    list.Add(reader.GetString(1));
+                }
+            }
+
+            var summaries = new Dictionary<string, PhotoSummary>(PathComparer);
+            using (var command = connection.CreateCommand())
+            {
+                command.CommandText = $"SELECT id, path, date_taken, rating, title, city FROM photos WHERE {UnderFolder("folder")}";
+                AddFolderParameters(command, folder);
+                using var reader = command.ExecuteReader();
+                while (reader.Read())
+                {
+                    DateTime? date = reader.IsDBNull(2)
+                        ? null
+                        : DateTime.TryParse(reader.GetString(2), CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+                    summaries[reader.GetString(1)] = new PhotoSummary
+                    {
+                        DateTaken = date,
+                        IsFavourite = !reader.IsDBNull(3) && reader.GetInt32(3) >= PhotoMetadataWriter.FavouriteRating,
+                        Keywords = keywords.TryGetValue(reader.GetInt64(0), out var list) ? list : [],
+                        Title = reader.IsDBNull(4) ? null : reader.GetString(4),
+                        City = reader.IsDBNull(5) ? null : reader.GetString(5),
+                    };
+                }
+            }
+            return summaries;
+        });
 
     /// <summary>Every value of a place field in the index (every city, say), for suggestions.</summary>
     public Task<IReadOnlyList<string>> GetPlaceValuesAsync(TextField field) => Task.Run<IReadOnlyList<string>>(() =>
