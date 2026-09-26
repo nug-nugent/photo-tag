@@ -95,10 +95,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [ObservableProperty] public partial string? State { get; set; }
     [ObservableProperty] public partial string? Country { get; set; }
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FavouriteGlyph), nameof(FavouriteToolTip))]
+    [NotifyPropertyChangedFor(nameof(FavouriteToolTip))]
     public partial bool IsFavourite { get; private set; }
 
-    public string FavouriteGlyph => IsFavourite ? "♥" : "♡";
     public string FavouriteToolTip => IsFavourite ? "Remove from favourites" : "Add to favourites";
     [ObservableProperty] public partial string? SaveStatus { get; private set; }
     [ObservableProperty] public partial bool SaveFailed { get; private set; }

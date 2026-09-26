@@ -49,10 +49,9 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
 
     /// <summary>True if every selected photo is a favourite.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(FavouriteGlyph), nameof(FavouriteToolTip))]
+    [NotifyPropertyChangedFor(nameof(FavouriteToolTip))]
     public partial bool AllFavourites { get; private set; }
 
-    public string FavouriteGlyph => AllFavourites ? "♥" : "♡";
     public string FavouriteToolTip => AllFavourites ? "Remove all of them from favourites" : "Add all of them to favourites";
 
     [ObservableProperty] public partial string? FavouriteNote { get; private set; }
@@ -152,19 +151,15 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     {
         _showingText = true;
         foreach (var field in _textFields.Where(f => !f.IsEdited))
-            (field.Text, field.Placeholder) = Common(metadata.Select(m => m.Get(field.Field)), field.Field.Lower());
+            (field.Text, field.Placeholder) = Common(metadata.Select(m => m.Get(field.Field)));
         _showingText = false;
     }
 
-    private static (string Text, string? Placeholder) Common(IEnumerable<string?> values, string field)
+    /// <summary>The value they all share, or "Mixed" as a placeholder when they differ.</summary>
+    private static (string Text, string? Placeholder) Common(IEnumerable<string?> values)
     {
         var distinct = values.Select(PhotoMetadataWriter.NormalizeText).Distinct().ToList();
-        return distinct switch
-        {
-            [""] => ("", $"Add a {field} to all of them"),
-            [var shared] => (shared, null),
-            _ => ("", "Different on each photo. Type to replace them all."),
-        };
+        return distinct is [var shared] ? (shared, null) : ("", "Mixed");
     }
 
     private static string PhotoCount(int count) => count == 1 ? "1 photo" : $"{count:N0} photos";

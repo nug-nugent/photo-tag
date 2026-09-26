@@ -23,5 +23,7 @@
     <!-- Held at 3.x: Avalonia.Headless.XUnit 12 is built against xunit.v3 3.2.2 and fails with 4.x. -->
     <PackageVersion Include="xunit.v3" Version="3.2.2" />
     <PackageVersion Include="Avalonia.Headless.XUnit" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Headless" Version="$(AvaloniaVersion)" />
+    <PackageVersion Include="Avalonia.Skia" Version="$(AvaloniaVersion)" />
   </ItemGroup>
 </Project>

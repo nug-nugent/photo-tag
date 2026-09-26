@@ -58,8 +58,8 @@ public sealed class PlaceTests : UiTestBase
         var bulk = Assert.IsType<BulkDetailsViewModel>(vm.Details);
         await WaitForAsync(() => bulk.IsLoaded && bulk.CanEdit);
 
-        Assert.Equal("Different on each photo. Type to replace them all.", bulk.CityField.Placeholder);
-        Assert.Equal("Add a state/province to all of them", bulk.StateField.Placeholder);
+        Assert.Equal("Mixed", bulk.CityField.Placeholder);
+        Assert.Null(bulk.StateField.Placeholder);
 
         Find<AutoCompleteBox>(window, "BulkCityBox").Focus();
         window.KeyTextInput("St Ives");
