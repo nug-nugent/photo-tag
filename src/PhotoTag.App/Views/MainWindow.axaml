@@ -519,7 +519,7 @@
                                     </StackPanel>
                                     <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
                                         <TextBlock TextWrapping="Wrap" FontSize="12"
-                                                   Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
+                                                   Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ExifToolMissingText}" />
                                     </Border>
                                     <TextBox x:Name="TagFilterBox" PlaceholderText="{Binding FilterPlaceholder}" Text="{Binding Filter, Mode=TwoWay}">
                                         <TextBox.InnerLeftContent>
@@ -986,7 +986,7 @@
 
                                             <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
                                                 <TextBlock TextWrapping="Wrap" FontSize="12"
-                                                           Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
+                                                           Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ExifToolMissingText}" />
                                             </Border>
 
                                             <!-- Tags: chips in a box with room to type more (Enter, or comma-separated), and suggestions under it. -->
@@ -1177,7 +1177,7 @@
                                                    IsVisible="{Binding LoadingText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                         <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
                                             <TextBlock TextWrapping="Wrap" FontSize="12"
-                                                       Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
+                                                       Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ExifToolMissingText}" />
                                         </Border>
 
                                         <StackPanel Spacing="8" IsVisible="{Binding IsLoaded}">

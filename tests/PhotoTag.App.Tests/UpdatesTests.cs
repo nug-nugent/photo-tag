@@ -95,7 +95,7 @@ public sealed class UpdatesTests : UiTestBase
             Assert.Contains("decoded 32x24", json);
             // In a test run ExifTool comes from PATH (if installed), so only check it was reported.
             Assert.Contains("\"exiftool\"", json);
-            Assert.Equal(ExifTool.Locate() is null ? 1 : 0, exitCode);
+            Assert.Equal(ExifToolSetup.Find().Status == ExifToolStatus.Ready ? 0 : 1, exitCode);
         }
         finally
         {

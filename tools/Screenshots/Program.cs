@@ -41,10 +41,11 @@ AppBuilder.Configure<App>()
     .SetupWithoutStarting();
 SynchronizationContext.SetSynchronizationContext(new AvaloniaSynchronizationContext());
 
-var exifToolPath = ExifTool.Locate() ?? throw new InvalidOperationException("ExifTool must be on PATH.");
+var exifToolSetup = ExifToolSetup.Find();
+if (exifToolSetup.Status != ExifToolStatus.Ready) throw new InvalidOperationException($"ExifTool must be on PATH ({exifToolSetup.Status}).");
 // No top-level awaits: their continuations would be posted to a dispatcher nothing is pumping.
-var exifTool = new ExifTool(exifToolPath);
-var previewTool = new ExifTool(exifToolPath);
+var exifTool = exifToolSetup.Create()!;
+var previewTool = exifToolSetup.Create()!;
 var writer = new PhotoMetadataWriter(exifTool);
 var renderer = new PhotoRenderer(new RawPreviewExtractor(previewTool));
 

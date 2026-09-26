@@ -19,8 +19,6 @@ public sealed class AppSettings
     public static readonly string DefaultFilePath = Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhotoTag", "settings.json");
 
-    private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-
     /// <summary>Where <see cref="Save"/> writes. Tests point this at a temp file.</summary>
     [JsonIgnore]
     public string FilePath { get; private set; } = DefaultFilePath;
@@ -47,7 +45,7 @@ public sealed class AppSettings
         try
         {
             if (File.Exists(filePath))
-                settings = JsonSerializer.Deserialize<AppSettings>(File.ReadAllText(filePath)) ?? settings;
+                settings = JsonSerializer.Deserialize(File.ReadAllText(filePath), AppJsonContext.Default.AppSettings) ?? settings;
         }
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
         {
@@ -62,7 +60,7 @@ public sealed class AppSettings
         try
         {
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, JsonOptions));
+            File.WriteAllText(FilePath, JsonSerializer.Serialize(this, AppJsonContext.Default.AppSettings));
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
@@ -70,3 +68,12 @@ public sealed class AppSettings
         }
     }
 }
+
+/// <summary>
+/// The JSON PhotoTag reads and writes, generated at compile time: release builds are trimmed, which
+/// can remove the members reflection-based serialization would look for.
+/// </summary>
+[JsonSourceGenerationOptions(WriteIndented = true)]
+[JsonSerializable(typeof(AppSettings))]
+[JsonSerializable(typeof(Dictionary<string, string>))]
+internal sealed partial class AppJsonContext : JsonSerializerContext;

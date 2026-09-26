@@ -19,13 +19,20 @@ public sealed class ExifTool : IAsyncDisposable
     private int _commandId;
     private bool _disposed;
 
-    public ExifTool(string executablePath) => ExecutablePath = executablePath;
+    /// <param name="perlPath">The Perl to run it with, when <paramref name="executablePath"/> is the Perl script.</param>
+    public ExifTool(string executablePath, string? perlPath = null)
+    {
+        ExecutablePath = executablePath;
+        PerlPath = perlPath;
+    }
 
     public string ExecutablePath { get; }
+    public string? PerlPath { get; }
 
     /// <summary>
     /// Finds ExifTool: the PHOTOTAG_EXIFTOOL environment variable, then a copy bundled with the
     /// app (in <paramref name="appDirectory"/> or its <c>exiftool</c> subfolder), then the PATH.
+    /// <see cref="ExifToolSetup.Find"/> also finds the Perl it may need.
     /// </summary>
     public static string? Locate(string? appDirectory = null)
     {
@@ -98,7 +105,7 @@ public sealed class ExifTool : IAsyncDisposable
         if (_process is { HasExited: false }) return _process;
         KillProcess();
 
-        var startInfo = new ProcessStartInfo(ExecutablePath)
+        var startInfo = new ProcessStartInfo(PerlPath ?? ExecutablePath)
         {
             RedirectStandardInput = true,
             RedirectStandardOutput = true,
@@ -109,6 +116,7 @@ public sealed class ExifTool : IAsyncDisposable
             UseShellExecute = false,
             CreateNoWindow = true,
         };
+        if (PerlPath is not null) startInfo.ArgumentList.Add(ExecutablePath);
         foreach (var argument in new[] { "-stay_open", "True", "-@", "-" }) startInfo.ArgumentList.Add(argument);
 
         _process = Process.Start(startInfo) ?? throw new ExifToolException($"Couldn't start {ExecutablePath}");
