@@ -82,8 +82,8 @@ dotnet run --project src/PhotoTag.App
   with photos on a share (see TODO.md).
 - **The look comes from the owner's claude.ai design** ("PhotoTag Redesign", all three directions combined): warm
   greys, 2px rules, square corners, red for favourites and what still needs tagging, blue for where you are. The
-  palette is in `App.axaml`; tags each get their own hue (`TagColors`). The design uses the Archivo font, not yet
-  bundled (Inter for now).
+  palette is in `App.axaml`; tags each get their own hue (`TagColors`). The design's Archivo font is bundled (static
+  weights from Omnibus-Type/Archivo, OFL, in `Assets/Fonts`), with Inter as the fallback for symbols.
 - **Releases are unsigned** for now, auto-update from GitHub Releases (Velopack), MIT licence.
 
 ## Gotchas

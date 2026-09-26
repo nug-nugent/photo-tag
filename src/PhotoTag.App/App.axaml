@@ -56,6 +56,9 @@
                 </ResourceDictionary>
             </ResourceDictionary.ThemeDictionaries>
 
+            <!-- The design's typeface, bundled (OFL, Assets/Fonts). Inter fills in any symbol Archivo lacks (arrows, ⌘). -->
+            <FontFamily x:Key="ContentControlThemeFontFamily">avares://PhotoTag/Assets/Fonts#Archivo, fonts:Inter#Inter</FontFamily>
+
             <!-- Square corners everywhere, as in the design. -->
             <CornerRadius x:Key="ControlCornerRadius">0</CornerRadius>
             <CornerRadius x:Key="OverlayCornerRadius">0</CornerRadius>
