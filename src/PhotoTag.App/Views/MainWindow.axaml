@@ -1089,16 +1089,38 @@
                                                                          Text="{Binding Country, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                                                     </Grid>
                                                 </Border>
-                                                <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding HasGps}">
+                                                <WrapPanel IsVisible="{Binding HasGps}">
                                                     <Button x:Name="FillFromGpsButton" Classes="flat link" Command="{Binding FillPlacesFromGpsCommand}"
                                                             IsEnabled="{Binding CanEdit}"
                                                             ToolTip.Tip="Fill the empty boxes with the nearest town, from the photo's GPS (works offline)"
                                                             Content="Fill from GPS" />
-                                                    <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" />
+                                                    <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" Margin="6,0" />
+                                                    <Button x:Name="LookUpPlaceButton" Classes="flat link" Command="{Binding LookUpExactPlaceCommand}"
+                                                            IsVisible="{Binding CanLookUpPlace}" IsEnabled="{Binding CanEdit}"
+                                                            ToolTip.Tip="Ask OpenStreetMap what's at this spot, such as a beach, park or venue. This sends the photo's GPS position to OpenStreetMap."
+                                                            Content="Look up exact place" />
+                                                    <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" Margin="6,0"
+                                                               IsVisible="{Binding CanLookUpPlace}" />
                                                     <HyperlinkButton x:Name="OpenMapLink" Content="Open in map" NavigateUri="{Binding MapUri}"
                                                                      Padding="0" FontSize="12" VerticalAlignment="Center"
                                                                      ToolTip.Tip="Show this spot on OpenStreetMap, in your browser" />
-                                                </StackPanel>
+                                                </WrapPanel>
+                                                <Border Classes="notice" IsVisible="{Binding IsShowingLookup}">
+                                                    <StackPanel Spacing="10">
+                                                        <TextBlock Text="{Binding LookupText}" FontSize="12" TextWrapping="Wrap" />
+                                                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsLookingUp}">
+                                                            <Button x:Name="LookupFillButton" Classes="accent" Content="Fill empty boxes"
+                                                                    IsVisible="{Binding CanUseLookup}" IsEnabled="{Binding CanEdit}"
+                                                                    Command="{Binding FillFromLookupCommand}" />
+                                                            <Button x:Name="LookupReplaceButton" Content="Use all"
+                                                                    ToolTip.Tip="Replace what's in the boxes with what OpenStreetMap says"
+                                                                    IsVisible="{Binding CanUseLookup}" IsEnabled="{Binding CanEdit}"
+                                                                    Command="{Binding ReplaceWithLookupCommand}" />
+                                                            <Button x:Name="LookupCloseButton" Content="Close" Command="{Binding CloseLookupCommand}" />
+                                                        </StackPanel>
+                                                        <TextBlock Classes="caption" Text="© OpenStreetMap contributors" IsVisible="{Binding CanUseLookup}" />
+                                                    </StackPanel>
+                                                </Border>
                                                 <TextBlock Text="{Binding FillNote}" Classes="caption" TextWrapping="Wrap"
                                                            IsVisible="{Binding FillNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                             </StackPanel>

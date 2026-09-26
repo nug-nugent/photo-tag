@@ -32,8 +32,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions,
         KeywordSuggestions people, PlaceSuggestions places, BulkOperations operations, PhotoRenderer renderer,
-        PopularKeywords? popular = null)
+        PopularKeywords? popular = null, IExactPlaceLookup? placeLookup = null)
     {
+        _placeLookup = placeLookup;
         _peopleSuggestions = people;
         _places = places;
         Photo = photo;
@@ -91,10 +92,73 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     /// <summary>The GPS position on OpenStreetMap, for "Open in map"; null without GPS.</summary>
     [ObservableProperty]
-    [NotifyPropertyChangedFor(nameof(HasGps))]
+    [NotifyPropertyChangedFor(nameof(HasGps), nameof(CanLookUpPlace))]
     public partial Uri? MapUri { get; private set; }
 
     public bool HasGps => MapUri is not null;
+
+    // --- Look up exact place (online) ---------------------------------------------------------
+    // One request per click, only when asked: the photo's position goes to OpenStreetMap.
+
+    private readonly IExactPlaceLookup? _placeLookup;
+
+    public bool CanLookUpPlace => _placeLookup is not null && HasGps;
+
+    [ObservableProperty] public partial bool IsShowingLookup { get; private set; }
+    [ObservableProperty] public partial bool IsLookingUp { get; private set; }
+
+    /// <summary>"OpenStreetMap: Porthcurno Beach, St Levan, Cornwall, United Kingdom", or why there's nothing.</summary>
+    [ObservableProperty] public partial string? LookupText { get; private set; }
+
+    [ObservableProperty]
+    [NotifyPropertyChangedFor(nameof(CanUseLookup))]
+    public partial ExactPlace? LookedUp { get; private set; }
+
+    public bool CanUseLookup => LookedUp is not null;
+
+    [RelayCommand]
+    private async Task LookUpExactPlace()
+    {
+        if (_gps is not { } gps || _placeLookup is null) return;
+        (LookedUp, LookupText, IsShowingLookup, IsLookingUp) = (null, "Asking OpenStreetMap…", true, true);
+        try
+        {
+            LookedUp = await _placeLookup.LookUpAsync(gps.Latitude, gps.Longitude);
+            LookupText = LookedUp is null ? "OpenStreetMap has nothing at this spot." : $"OpenStreetMap: {LookedUp}";
+        }
+        catch (PlaceLookupException e)
+        {
+            LookupText = e.Message;
+        }
+        finally
+        {
+            IsLookingUp = false;
+        }
+    }
+
+    [RelayCommand]
+    private Task FillFromLookup() => UseLookupAsync(onlyWhereEmpty: true);
+
+    [RelayCommand]
+    private Task ReplaceWithLookup() => UseLookupAsync(onlyWhereEmpty: false);
+
+    [RelayCommand]
+    private void CloseLookup() => IsShowingLookup = false;
+
+    private async Task UseLookupAsync(bool onlyWhereEmpty)
+    {
+        if (LookedUp is not { } place) return;
+        IsShowingLookup = false;
+        var current = new PhotoMetadata { Location = Location, City = City, State = State, Country = Country };
+        var changes = place.ToChanges(onlyWhereEmpty, current);
+        if (changes.IsEmpty)
+        {
+            FillNote = onlyWhereEmpty ? "Nothing to fill: those boxes already have something in them." : "Already the same as OpenStreetMap.";
+            return;
+        }
+        FillNote = "From OpenStreetMap (© OpenStreetMap contributors).";
+        await ApplyPlaceChangesAsync(changes);
+    }
     private (double Latitude, double Longitude)? _gps;
 
     /// <summary>What "Fill from GPS" did, e.g. "Nearest town: St Ives (0.2 km away)".</summary>
@@ -290,6 +354,13 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        FillNote = near;
+        await ApplyPlaceChangesAsync(changes);
+    }
+
+    /// <summary>Shows new place values in the boxes and saves them as one edit.</summary>
+    private Task ApplyPlaceChangesAsync(MetadataChanges changes)
+    {
         _applying = true;
         try
         {
@@ -300,8 +371,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         {
             _applying = false;
         }
-        FillNote = near;
-        await SaveAsync(changes);
+        return SaveAsync(changes);
     }
 
     private void SetText(TextField field, string? value)

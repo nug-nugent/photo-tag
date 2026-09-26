@@ -28,6 +28,9 @@ Early days. Today it can:
   "Open in map" link (OpenStreetMap, in your browser)
 - Fill in places from GPS, offline: the nearest town, county/state and country, for one photo or many at once.
   Only empty fields are filled, and it can be undone. (Place data from GeoNames, CC BY 4.0.)
+- Look up the exact place for one photo online ("Look up exact place"): OpenStreetMap names the beach, park or venue
+  at the photo's GPS position. It's only sent when you click, and you see the answer before anything is saved.
+  (© OpenStreetMap contributors.)
 - Edit tags, people, title, description and place (location, city, state/province, country), and mark favourites
   (♥). Changes are written straight into the photo file.
 - Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and tag them, add people, favourite them, or
