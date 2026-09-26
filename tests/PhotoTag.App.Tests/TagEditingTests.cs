@@ -74,12 +74,12 @@ public sealed class TagEditingTests : UiTestBase
         Click(window, heart);
         await WaitForSaveAsync(details);
         Assert.True(details.IsFavourite);
-        Assert.Equal("♥", heart.Content);
+        Assert.Contains("on", heart.Classes); // filled and red
 
         Click(window, heart);
         await WaitForSaveAsync(details);
         Assert.False(details.IsFavourite);
-        Assert.Equal("♡", heart.Content);
+        Assert.DoesNotContain("on", heart.Classes);
         Assert.False(PhotoMetadata.Read(photo).IsFavourite);
         window.Close();
     }

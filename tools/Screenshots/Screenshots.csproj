@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!--
+    Renders PhotoTag's real main window to PNGs, in each state and in light and dark, without
+    showing a window or touching the mouse and keyboard. For design work; see Program.cs.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" />
+    <PackageReference Include="Avalonia.Skia" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\PhotoTag.App\PhotoTag.App.csproj" />
+    <ProjectReference Include="..\..\src\PhotoTag.Core\PhotoTag.Core.csproj" />
+  </ItemGroup>
+</Project>

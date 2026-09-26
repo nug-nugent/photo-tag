@@ -5,131 +5,257 @@
         x:Class="PhotoTag.App.Views.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         Title="PhotoTag" Icon="/Assets/icon-256.png" Width="1280" Height="720" MinWidth="800" MinHeight="500"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen" Background="{DynamicResource AppBackgroundBrush}">
 
     <Window.Styles>
-        <Style Selector="Border.tile">
-            <Setter Property="Padding" Value="6" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderThickness" Value="2" />
-            <Setter Property="BorderBrush" Value="Transparent" />
-            <Setter Property="CornerRadius" Value="6" />
-        </Style>
-        <Style Selector="Border.tile:pointerover">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
-        </Style>
-        <Style Selector="Border.tile.selected">
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
-            <Setter Property="Background" Value="{DynamicResource SystemControlHighlightListAccentLowBrush}" />
-        </Style>
-        <Style Selector="Border.badge">
-            <Setter Property="Background" Value="#CC000000" />
-            <Setter Property="CornerRadius" Value="3" />
-            <Setter Property="Padding" Value="5,1" />
-            <Setter Property="TextElement.Foreground" Value="White" />
-        </Style>
-        <Style Selector="Border.chip.partial">
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
-            <Setter Property="BorderThickness" Value="1" />
-        </Style>
+        <!-- Text -->
         <Style Selector="TextBlock.label">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+        </Style>
+        <!-- Type selectors don't match subclasses, so SelectableTextBlock is listed too. -->
+        <Style Selector="TextBlock.caption, SelectableTextBlock.caption">
             <Setter Property="FontSize" Value="11" />
-            <Setter Property="Opacity" Value="0.6" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
         </Style>
-        <Style Selector="Border.chip">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
-            <Setter Property="CornerRadius" Value="10" />
-            <Setter Property="Padding" Value="8,2" />
-            <Setter Property="Margin" Value="0,0,4,4" />
-        </Style>
-        <Style Selector="Button.chipRemove">
-            <Setter Property="Padding" Value="4,0" />
-            <Setter Property="MinHeight" Value="0" />
-            <Setter Property="FontSize" Value="10" />
-            <Setter Property="Background" Value="Transparent" />
-        </Style>
-        <Style Selector="Button.favourite">
-            <Setter Property="Padding" Value="2,0" />
-            <Setter Property="FontSize" Value="22" />
-            <Setter Property="Background" Value="Transparent" />
-            <Setter Property="Foreground" Value="Crimson" />
-        </Style>
-        <Style Selector="Border.notice">
-            <Setter Property="Background" Value="{DynamicResource SystemControlBackgroundBaseLowBrush}" />
-            <Setter Property="CornerRadius" Value="6" />
-            <Setter Property="Padding" Value="10,8" />
+        <Style Selector="TextBlock.muted, SelectableTextBlock.muted">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
         </Style>
         <Style Selector="TextBlock.error">
             <Setter Property="Foreground" Value="OrangeRed" />
-            <Setter Property="Opacity" Value="1" />
+        </Style>
+
+        <!-- Buttons: quiet icon buttons, and pill-shaped filter toggles. -->
+        <Style Selector="Button.icon">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="7" />
+        </Style>
+        <Style Selector="Button.icon PathIcon, Button.small PathIcon">
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Height" Value="16" />
+        </Style>
+        <Style Selector="Button.small">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="5" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+        </Style>
+        <Style Selector="Button.small PathIcon">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+        </Style>
+        <Style Selector="ToggleButton.filter">
+            <Setter Property="CornerRadius" Value="16" />
+            <Setter Property="Padding" Value="12,5" />
+        </Style>
+        <Style Selector="PathIcon.inline">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+        </Style>
+
+        <!-- The heart: outline when off, filled and red when on. -->
+        <Style Selector="Button.favourite">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="6" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+        </Style>
+        <Style Selector="Button.favourite PathIcon">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+        </Style>
+        <Style Selector="Button.favourite.on">
+            <Setter Property="Foreground" Value="{DynamicResource HeartBrush}" />
+        </Style>
+
+        <!-- Photo tiles -->
+        <Style Selector="Border.tile">
+            <Setter Property="Padding" Value="8,8,8,6" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="2" />
+            <Setter Property="BorderBrush" Value="Transparent" />
+            <Setter Property="CornerRadius" Value="8" />
+        </Style>
+        <Style Selector="Border.tile:pointerover">
+            <Setter Property="Background" Value="{DynamicResource TileHoverBrush}" />
+        </Style>
+        <Style Selector="Border.tile.selected">
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemAccentColor}" />
+            <Setter Property="Background">
+                <SolidColorBrush Color="{DynamicResource SystemAccentColor}" Opacity="0.14" />
+            </Setter>
+        </Style>
+        <Style Selector="Border.badge">
+            <Setter Property="Background" Value="#B3000000" />
+            <Setter Property="CornerRadius" Value="4" />
+            <Setter Property="Padding" Value="5,2" />
+            <Setter Property="Margin" Value="5" />
+            <Setter Property="TextElement.Foreground" Value="White" />
+            <Setter Property="TextElement.FontSize" Value="10" />
+            <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+        </Style>
+
+        <!-- Tag chips -->
+        <Style Selector="Border.chip">
+            <Setter Property="Background" Value="{DynamicResource ChipBrush}" />
+            <Setter Property="CornerRadius" Value="12" />
+            <Setter Property="Padding" Value="10,3,4,3" />
+            <Setter Property="Margin" Value="0,0,6,6" />
+        </Style>
+        <Style Selector="Border.chip.partial">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderBrush" Value="{DynamicResource DividerBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+        </Style>
+        <Style Selector="Button.chipRemove">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+            <Setter Property="Padding" Value="4" />
+            <Setter Property="MinHeight" Value="0" />
+            <Setter Property="CornerRadius" Value="10" />
+            <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+        </Style>
+        <Style Selector="Button.chipRemove PathIcon">
+            <Setter Property="Width" Value="10" />
+            <Setter Property="Height" Value="10" />
+        </Style>
+
+        <!-- Panes and notices -->
+        <Style Selector="Border.notice">
+            <Setter Property="Background" Value="{DynamicResource ChipBrush}" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12,10" />
+        </Style>
+        <Style Selector="GridSplitter">
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="MinWidth" Value="5" />
+        </Style>
+
+        <!-- Folder tree: a lighter selection than Fluent's full accent fill. -->
+        <Style Selector="TreeViewItem">
+            <Setter Property="MinHeight" Value="30" />
+        </Style>
+        <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background">
+                <SolidColorBrush Color="{DynamicResource SystemAccentColor}" Opacity="0.18" />
+            </Setter>
+        </Style>
+        <Style Selector="TreeViewItem:selected:pointerover /template/ Border#PART_LayoutRoot">
+            <Setter Property="Background">
+                <SolidColorBrush Color="{DynamicResource SystemAccentColor}" Opacity="0.26" />
+            </Setter>
+        </Style>
+        <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot > ContentPresenter">
+            <Setter Property="Foreground" Value="{DynamicResource SystemControlForegroundBaseHighBrush}" />
         </Style>
     </Window.Styles>
 
     <DockPanel>
         <!-- Toolbar -->
-        <Border DockPanel.Dock="Top" Padding="8" BorderThickness="0,0,0,1"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-            <DockPanel>
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="6">
-                    <AutoCompleteBox x:Name="SearchBox" Width="260" PlaceholderText="Search (comma = and)…"
+        <Border DockPanel.Dock="Top" Padding="10,8" Background="{DynamicResource PaneBrush}"
+                BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,0,1">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <Button Click="OpenFolder_Click" ToolTip.Tip="Choose the folder of photos to show">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <PathIcon Classes="inline" Data="{StaticResource IconFolder}" />
+                        <TextBlock Text="Open folder…" />
+                    </StackPanel>
+                </Button>
+                <TextBlock Grid.Column="1" Text="{Binding RootPath}" Classes="muted" FontSize="13" VerticalAlignment="Center"
+                           TextTrimming="PrefixCharacterEllipsis" ToolTip.Tip="{Binding RootPath}" />
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
+                    <AutoCompleteBox x:Name="SearchBox" Width="280" PlaceholderText="Search tags, titles, places…"
                                      ToolTip.Tip="Finds photos with a tag, or with the words in their title, description, place or file name. Separate several with commas to match them all."
                                      IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
                                      Text="{Binding SearchText, Mode=TwoWay}"
                                      ItemsSource="{Binding KeywordSuggestions}"
                                      FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
+                        <AutoCompleteBox.InnerLeftContent>
+                            <PathIcon Classes="inline" Data="{StaticResource IconSearch}" Margin="10,0,0,0"
+                                      Foreground="{DynamicResource MutedTextBrush}" />
+                        </AutoCompleteBox.InnerLeftContent>
+                        <AutoCompleteBox.InnerRightContent>
+                            <Button x:Name="ClearSearchButton" Classes="small" ToolTip.Tip="Clear search (Esc)" Margin="0,0,4,0"
+                                    IsVisible="{Binding IsSearching}" Command="{Binding ClearSearchCommand}">
+                                <PathIcon Data="{StaticResource IconClose}" />
+                            </Button>
+                        </AutoCompleteBox.InnerRightContent>
                         <AutoCompleteBox.KeyBindings>
                             <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
                             <KeyBinding Gesture="Escape" Command="{Binding ClearSearchCommand}" />
                         </AutoCompleteBox.KeyBindings>
                     </AutoCompleteBox>
-                    <ToggleButton x:Name="UntaggedButton" Content="Untagged"
+                    <ToggleButton x:Name="UntaggedButton" Classes="filter" Content="Untagged"
                                   ToolTip.Tip="Show photos with no tags, anywhere in the library"
                                   IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
                                   IsChecked="{Binding ShowUntagged, Mode=TwoWay}" />
-                    <ToggleButton x:Name="FavouritesButton" Content="♥ Favourites"
+                    <ToggleButton x:Name="FavouritesButton" Classes="filter"
                                   ToolTip.Tip="Show only favourites, anywhere in the library (combines with the search)"
                                   IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                  IsChecked="{Binding ShowFavourites, Mode=TwoWay}" />
-                    <Button x:Name="ClearSearchButton" Content="✕" ToolTip.Tip="Clear search (Esc)"
-                            IsVisible="{Binding IsSearching}" Command="{Binding ClearSearchCommand}" />
-                    <Button x:Name="TagsButton" Content="Tags…" ToolTip.Tip="Rename, merge or delete tags across the library"
+                                  IsChecked="{Binding ShowFavourites, Mode=TwoWay}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Classes="inline" Data="{StaticResource IconHeart}" />
+                            <TextBlock Text="Favourites" />
+                        </StackPanel>
+                    </ToggleButton>
+                    <Rectangle Width="1" Margin="6,6" Fill="{DynamicResource DividerBrush}" />
+                    <Button x:Name="TagsButton" Classes="icon" ToolTip.Tip="Tags: rename, merge or delete them across the library"
                             IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <StackPanel Orientation="Horizontal" Spacing="6">
+                            <PathIcon Data="{StaticResource IconTag}" />
+                            <TextBlock Text="Tags" />
+                        </StackPanel>
                         <Button.Flyout>
                             <Flyout Placement="BottomEdgeAlignedRight" Opened="TagsFlyout_Opened" Closed="TagsFlyout_Closed">
-                                <StackPanel x:Name="TagManagerPanel" Width="380" Spacing="8" DataContext="{Binding TagManager}"
+                                <StackPanel x:Name="TagManagerPanel" Width="380" Spacing="10" DataContext="{Binding TagManager}"
                                             x:DataType="vm:TagManagerViewModel">
-                                    <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" />
-                                    <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
-                                               Text="Renaming a tag to one that already exists merges the two. Changes are saved into every photo that has the tag." />
+                                    <StackPanel Spacing="2">
+                                        <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" FontSize="15" />
+                                        <TextBlock Classes="caption" TextWrapping="Wrap"
+                                                   Text="Renaming a tag to one that already exists merges the two. Changes are saved into every photo that has the tag." />
+                                    </StackPanel>
                                     <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
                                         <TextBlock TextWrapping="Wrap" FontSize="12"
                                                    Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
                                     </Border>
-                                    <TextBox x:Name="TagFilterBox" PlaceholderText="Filter tags…" Text="{Binding Filter, Mode=TwoWay}" />
-                                    <TextBlock Text="{Binding EmptyText}" Opacity="0.6" Margin="0,4"
+                                    <TextBox x:Name="TagFilterBox" PlaceholderText="Filter tags" Text="{Binding Filter, Mode=TwoWay}">
+                                        <TextBox.InnerLeftContent>
+                                            <PathIcon Classes="inline" Data="{StaticResource IconSearch}" Margin="10,0,0,0"
+                                                      Foreground="{DynamicResource MutedTextBrush}" />
+                                        </TextBox.InnerLeftContent>
+                                    </TextBox>
+                                    <TextBlock Text="{Binding EmptyText}" Classes="muted" Margin="0,4"
                                                IsVisible="{Binding EmptyText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                    <ListBox x:Name="TagList" ItemsSource="{Binding Tags}" MaxHeight="440"
+                                    <ListBox x:Name="TagList" ItemsSource="{Binding Tags}" MaxHeight="440" Background="Transparent"
                                              IsVisible="{Binding EmptyText, Converter={x:Static ObjectConverters.IsNull}}">
                                         <ListBox.ItemTemplate>
                                             <DataTemplate x:DataType="vm:TagRowViewModel">
-                                                <StackPanel Spacing="6">
+                                                <StackPanel Spacing="8">
                                                     <DockPanel>
-                                                        <Button DockPanel.Dock="Right" Classes="chipRemove tagDelete" Content="✕"
+                                                        <Button DockPanel.Dock="Right" Classes="small tagDelete"
                                                                 ToolTip.Tip="Delete this tag from every photo"
-                                                                IsEnabled="{Binding Owner.CanEdit}" Command="{Binding StartDeleteCommand}" />
-                                                        <Button DockPanel.Dock="Right" Classes="chipRemove tagRename" Content="✎"
+                                                                IsEnabled="{Binding Owner.CanEdit}" Command="{Binding StartDeleteCommand}">
+                                                            <PathIcon Data="{StaticResource IconDelete}" />
+                                                        </Button>
+                                                        <Button DockPanel.Dock="Right" Classes="small tagRename"
                                                                 ToolTip.Tip="Rename, or merge into another tag"
-                                                                IsEnabled="{Binding Owner.CanEdit}" Command="{Binding StartRenameCommand}" />
-                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" FontSize="11" Opacity="0.6"
+                                                                IsEnabled="{Binding Owner.CanEdit}" Command="{Binding StartRenameCommand}">
+                                                            <PathIcon Data="{StaticResource IconPencil}" />
+                                                        </Button>
+                                                        <TextBlock DockPanel.Dock="Right" Text="{Binding CountText}" Classes="muted"
                                                                    VerticalAlignment="Center" Margin="8,0" />
                                                         <StackPanel VerticalAlignment="Center">
                                                             <TextBlock Text="{Binding Keyword}" TextTrimming="CharacterEllipsis" />
-                                                            <TextBlock Text="{Binding SpellingsText}" FontSize="11" Opacity="0.6" TextWrapping="Wrap"
+                                                            <TextBlock Text="{Binding SpellingsText}" Classes="caption" TextWrapping="Wrap"
                                                                        IsVisible="{Binding SpellingsText, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                                         </StackPanel>
                                                     </DockPanel>
-                                                    <StackPanel Spacing="6" IsVisible="{Binding IsRenaming}">
+                                                    <StackPanel Spacing="8" IsVisible="{Binding IsRenaming}">
                                                         <TextBox Classes="tagNewName" Text="{Binding NewName, Mode=TwoWay}" PlaceholderText="New name"
                                                                  IsVisible="{Binding IsRenaming}" PropertyChanged="TagNewName_PropertyChanged">
                                                             <TextBox.KeyBindings>
@@ -144,10 +270,10 @@
                                                             <Button Content="Cancel" Command="{Binding CancelCommand}" />
                                                         </StackPanel>
                                                     </StackPanel>
-                                                    <StackPanel Spacing="6" IsVisible="{Binding IsConfirmingDelete}">
+                                                    <StackPanel Spacing="8" IsVisible="{Binding IsConfirmingDelete}">
                                                         <TextBlock Text="{Binding DeleteQuestion}" FontSize="12" TextWrapping="Wrap" />
                                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                                            <Button Classes="tagConfirmDelete" Content="Delete" Command="{Binding DeleteCommand}" />
+                                                            <Button Classes="accent tagConfirmDelete" Content="Delete" Command="{Binding DeleteCommand}" />
                                                             <Button Content="Cancel" Command="{Binding CancelCommand}" />
                                                         </StackPanel>
                                                     </StackPanel>
@@ -159,39 +285,35 @@
                             </Flyout>
                         </Button.Flyout>
                     </Button>
-                    <Button x:Name="SettingsButton" Content="⚙" ToolTip.Tip="Settings">
+                    <Button x:Name="SettingsButton" Classes="icon" ToolTip.Tip="Settings">
+                        <PathIcon Data="{StaticResource IconSettings}" />
                         <Button.Flyout>
                             <Flyout Placement="BottomEdgeAlignedRight">
-                                <StackPanel Width="340" Spacing="6">
+                                <StackPanel Width="340" Spacing="8">
                                     <TextBlock Text="Saving tags" FontWeight="SemiBold" />
                                     <CheckBox x:Name="PreserveModifiedTimeBox" IsEnabled="{Binding CanEditTags}"
                                               IsChecked="{Binding PreserveModifiedTime, Mode=TwoWay}">
                                         <TextBlock TextWrapping="Wrap" Text="Keep each photo's “date modified” when saving tags" />
                                     </CheckBox>
-                                    <TextBlock FontSize="11" Opacity="0.7" TextWrapping="Wrap"
+                                    <TextBlock Classes="caption" TextWrapping="Wrap"
                                                Text="Leave this off if you back up your photos. Many backup and sync tools only copy files whose date modified has changed, so with it on, some edits (a new favourite, say) would never be backed up." />
                                     <Separator Margin="0,6" />
                                     <TextBlock Text="Updates" FontWeight="SemiBold" />
                                     <CheckBox x:Name="CheckForUpdatesBox" IsEnabled="{Binding Updates.CanUpdate}"
                                               IsChecked="{Binding Updates.CheckAutomatically, Mode=TwoWay}"
                                               Content="Check for new versions when PhotoTag starts" />
-                                    <TextBlock Text="{Binding Updates.VersionText}" FontSize="11" Opacity="0.7" />
+                                    <TextBlock Text="{Binding Updates.VersionText}" Classes="caption" />
                                 </StackPanel>
                             </Flyout>
                         </Button.Flyout>
                     </Button>
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="12">
-                    <Button Content="Open folder…" Click="OpenFolder_Click" />
-                    <TextBlock Text="{Binding RootPath}" VerticalAlignment="Center" Opacity="0.7"
-                               TextTrimming="CharacterEllipsis" />
-                </StackPanel>
-            </DockPanel>
+            </Grid>
         </Border>
 
         <!-- Status bar -->
-        <Border DockPanel.Dock="Bottom" Padding="10,4" BorderThickness="0,1,0,0"
-                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+        <Border DockPanel.Dock="Bottom" Padding="12,5" Background="{DynamicResource PaneBrush}"
+                BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0">
             <DockPanel>
                 <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" Spacing="8" Margin="12,0,0,0"
                             IsVisible="{Binding Updates.IsUpdateReady}">
@@ -206,51 +328,63 @@
                     <Button x:Name="CancelBulkButton" Content="Cancel" Padding="10,2" FontSize="12"
                             Command="{Binding Operations.CancelCommand}" />
                 </StackPanel>
-                <TextBlock DockPanel.Dock="Right" Text="{Binding Library.StatusText}" FontSize="12" Margin="12,0"
-                           Opacity="0.7" VerticalAlignment="Center" />
+                <TextBlock DockPanel.Dock="Right" Text="{Binding Library.StatusText}" Classes="muted" Margin="12,0"
+                           VerticalAlignment="Center" />
                 <TextBlock DockPanel.Dock="Right" Text="{Binding SelectionText}" FontSize="12" Margin="12,0"
                            VerticalAlignment="Center" />
-                <Button x:Name="UndoButton" DockPanel.Dock="Right" Content="Undo" Padding="10,2" FontSize="12" Margin="12,0,0,0"
-                        ToolTip.Tip="{Binding Operations.UndoToolTip}" IsVisible="{Binding Operations.CanUndo}"
-                        Command="{Binding UndoCommand}" />
-                <Panel VerticalAlignment="Center">
-                    <TextBlock Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis"
-                               IsVisible="{Binding !Operations.IsBusy}" />
-                    <TextBlock Text="{Binding Operations.ProgressText}" FontSize="12" TextTrimming="CharacterEllipsis"
-                               IsVisible="{Binding Operations.IsBusy}" />
-                </Panel>
+                <StackPanel Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+                    <Panel VerticalAlignment="Center">
+                        <TextBlock Text="{Binding StatusText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                   IsVisible="{Binding !Operations.IsBusy}" />
+                        <TextBlock Text="{Binding Operations.ProgressText}" FontSize="12" TextTrimming="CharacterEllipsis"
+                                   IsVisible="{Binding Operations.IsBusy}" />
+                    </Panel>
+                    <Button x:Name="UndoButton" Padding="8,2" FontSize="12"
+                            ToolTip.Tip="{Binding Operations.UndoToolTip}" IsVisible="{Binding Operations.CanUndo}"
+                            Command="{Binding UndoCommand}">
+                        <StackPanel Orientation="Horizontal" Spacing="5">
+                            <PathIcon Width="12" Height="12" Data="{StaticResource IconUndo}" />
+                            <TextBlock Text="Undo" />
+                        </StackPanel>
+                    </Button>
+                </StackPanel>
             </DockPanel>
         </Border>
 
-        <Grid ColumnDefinitions="260,Auto,*,Auto,340">
+        <Grid ColumnDefinitions="270,Auto,*,Auto,340">
             <!-- Folder tree -->
-            <TreeView Grid.Column="0" ItemsSource="{Binding RootFolders}" SelectedItem="{Binding SelectedFolder}">
-                <TreeView.Styles>
-                    <Style Selector="TreeViewItem" x:DataType="vm:FolderNodeViewModel">
-                        <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
-                    </Style>
-                </TreeView.Styles>
-                <TreeView.ItemTemplate>
-                    <TreeDataTemplate x:DataType="vm:FolderNodeViewModel" ItemsSource="{Binding Children}">
-                        <StackPanel Orientation="Horizontal" Spacing="8">
-                            <TextBlock Text="{Binding Name}" />
-                            <TextBlock Text="{Binding CountText}" FontSize="11" Opacity="0.55" VerticalAlignment="Center" />
-                        </StackPanel>
-                    </TreeDataTemplate>
-                </TreeView.ItemTemplate>
-            </TreeView>
+            <Border Grid.Column="0" Background="{DynamicResource PaneBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,0,1,0">
+                <TreeView ItemsSource="{Binding RootFolders}" SelectedItem="{Binding SelectedFolder}" Margin="4,6"
+                          ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                    <TreeView.Styles>
+                        <Style Selector="TreeViewItem" x:DataType="vm:FolderNodeViewModel">
+                            <Setter Property="IsExpanded" Value="{Binding IsExpanded, Mode=TwoWay}" />
+                        </Style>
+                    </TreeView.Styles>
+                    <TreeView.ItemTemplate>
+                        <TreeDataTemplate x:DataType="vm:FolderNodeViewModel" ItemsSource="{Binding Children}">
+                            <StackPanel Orientation="Horizontal" Spacing="8">
+                                <PathIcon Classes="inline" Data="{StaticResource IconFolder}" Opacity="0.7" />
+                                <TextBlock Text="{Binding Name}" VerticalAlignment="Center" />
+                                <TextBlock Text="{Binding CountText}" Classes="caption" VerticalAlignment="Center" />
+                            </StackPanel>
+                        </TreeDataTemplate>
+                    </TreeView.ItemTemplate>
+                </TreeView>
+            </Border>
 
-            <GridSplitter Grid.Column="1" Width="4" ResizeDirection="Columns" />
+            <GridSplitter Grid.Column="1" ResizeDirection="Columns" />
 
             <!-- Thumbnail grid: ItemsRepeater only creates tiles for what's on screen.
                  Focusable so arrow keys, Shift+arrows, Ctrl/⌘+A and Esc work once a tile is clicked. -->
             <ScrollViewer x:Name="GridScroller" Grid.Column="2" Focusable="True" KeyDown="Grid_KeyDown">
-                <ItemsRepeater x:Name="PhotoGrid" Margin="8" ItemsSource="{Binding Photos}"
+                <ItemsRepeater x:Name="PhotoGrid" Margin="10" ItemsSource="{Binding Photos}"
                                ElementPrepared="PhotoGrid_ElementPrepared"
                                ElementClearing="PhotoGrid_ElementClearing">
                     <ItemsRepeater.Layout>
-                        <layout:UniformGridLayout MinItemWidth="150" MinItemHeight="176"
-                                                  MinColumnSpacing="6" MinRowSpacing="6"
+                        <layout:UniformGridLayout MinItemWidth="156" MinItemHeight="142"
+                                                  MinColumnSpacing="4" MinRowSpacing="4"
                                                   ItemsStretch="Uniform" />
                     </ItemsRepeater.Layout>
                     <ItemsRepeater.ItemTemplate>
@@ -258,309 +392,343 @@
                             <Border Classes="tile" Classes.selected="{Binding IsSelected}"
                                     PointerPressed="Tile_PointerPressed"
                                     ToolTip.Tip="{Binding Path}">
-                                <DockPanel>
-                                    <TextBlock DockPanel.Dock="Bottom" Text="{Binding FileName}" FontSize="12"
-                                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" Margin="0,4,0,0" />
-                                    <Panel>
-                                        <TextBlock Text="{Binding LoadFailedText}" IsVisible="{Binding LoadFailed}"
-                                                   FontSize="11" Opacity="0.6" TextWrapping="Wrap" TextAlignment="Center"
-                                                   HorizontalAlignment="Center" VerticalAlignment="Center" />
-                                        <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
-                                        <Border Classes="badge" IsVisible="{Binding Badge, Converter={x:Static ObjectConverters.IsNotNull}}"
-                                                HorizontalAlignment="Right" VerticalAlignment="Top" Margin="4">
-                                            <TextBlock Text="{Binding Badge}" FontSize="10" FontWeight="SemiBold" />
+                                <Grid RowDefinitions="*,Auto">
+                                    <TextBlock Text="{Binding LoadFailedText}" IsVisible="{Binding LoadFailed}"
+                                               Classes="caption" TextWrapping="Wrap" TextAlignment="Center"
+                                               HorizontalAlignment="Center" VerticalAlignment="Center" />
+                                    <!-- Sized to the photo, so the badges sit on its corners. -->
+                                    <Panel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                        <Border CornerRadius="4" ClipToBounds="True">
+                                            <Image Source="{Binding Thumbnail}" Stretch="Uniform" />
                                         </Border>
                                         <Border Classes="badge tileHeart" IsVisible="{Binding IsFavourite}"
-                                                HorizontalAlignment="Left" VerticalAlignment="Top" Margin="4"
+                                                HorizontalAlignment="Left" VerticalAlignment="Top" Padding="4,3"
                                                 ToolTip.Tip="Favourite">
-                                            <TextBlock Text="♥" FontSize="12" Foreground="Crimson" />
+                                            <PathIcon Width="11" Height="11" Data="{StaticResource IconHeart}" Foreground="#FF4F7E" />
+                                        </Border>
+                                        <Border Classes="badge" IsVisible="{Binding Badge, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                HorizontalAlignment="Right" VerticalAlignment="Top">
+                                            <TextBlock Text="{Binding Badge}" />
                                         </Border>
                                     </Panel>
-                                </DockPanel>
+                                    <TextBlock Grid.Row="1" Text="{Binding FileName}" FontSize="12" Margin="0,6,0,0"
+                                               TextTrimming="CharacterEllipsis" HorizontalAlignment="Center" />
+                                </Grid>
                             </Border>
                         </DataTemplate>
                     </ItemsRepeater.ItemTemplate>
                 </ItemsRepeater>
             </ScrollViewer>
 
-            <GridSplitter Grid.Column="3" Width="4" ResizeDirection="Columns" />
+            <GridSplitter Grid.Column="3" ResizeDirection="Columns" />
 
-            <!-- Details for the selected photo -->
-            <ScrollViewer Grid.Column="4">
-                <Panel>
-                    <TextBlock Text="Select a photo to see its details." Opacity="0.6" Margin="16"
-                               TextWrapping="Wrap"
-                               IsVisible="{Binding Details, Converter={x:Static ObjectConverters.IsNull}}" />
-                    <ContentControl Content="{Binding Details}">
-                        <ContentControl.DataTemplates>
-                            <DataTemplate x:DataType="vm:PhotoDetailsViewModel">
-                                <StackPanel Margin="12" Spacing="12">
-                                    <!-- Thumbnail shows instantly; the sharper preview replaces it when ready. -->
-                                    <Panel MaxHeight="360">
-                                        <Image Source="{Binding Photo.Thumbnail}" Stretch="Uniform" />
-                                        <Image Source="{Binding Preview}" Stretch="Uniform" />
-                                    </Panel>
+            <!-- Details for the selected photo, or for several -->
+            <Border Grid.Column="4" Background="{DynamicResource PaneBrush}"
+                    BorderBrush="{DynamicResource DividerBrush}" BorderThickness="1,0,0,0">
+                <ScrollViewer>
+                    <Panel>
+                        <StackPanel Spacing="10" Margin="24" VerticalAlignment="Top" HorizontalAlignment="Center"
+                                    IsVisible="{Binding Details, Converter={x:Static ObjectConverters.IsNull}}">
+                            <PathIcon Width="36" Height="36" Data="{StaticResource IconImage}" Opacity="0.35" Margin="0,40,0,0" />
+                            <TextBlock Text="Select a photo to see and edit its details." Classes="muted"
+                                       TextWrapping="Wrap" TextAlignment="Center" />
+                            <TextBlock Text="Ctrl/⌘-click or Shift-click to select several and edit them together." Classes="caption"
+                                       TextWrapping="Wrap" TextAlignment="Center" />
+                        </StackPanel>
+                        <ContentControl Content="{Binding Details}">
+                            <ContentControl.DataTemplates>
+                                <DataTemplate x:DataType="vm:PhotoDetailsViewModel">
+                                    <StackPanel Margin="16" Spacing="16">
+                                        <!-- Thumbnail shows instantly; the sharper preview replaces it when ready. -->
+                                        <Border CornerRadius="6" ClipToBounds="True" HorizontalAlignment="Center" MaxHeight="300">
+                                            <Panel>
+                                                <Image Source="{Binding Photo.Thumbnail}" Stretch="Uniform" />
+                                                <Image Source="{Binding Preview}" Stretch="Uniform" />
+                                            </Panel>
+                                        </Border>
 
-                                    <StackPanel Spacing="2">
-                                        <SelectableTextBlock Text="{Binding FileName}" FontWeight="SemiBold" TextWrapping="Wrap" />
-                                        <SelectableTextBlock Text="{Binding Folder}" FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding FilesNote}" FontSize="11" Opacity="0.75" TextWrapping="Wrap" Margin="0,4,0,0"
-                                                   IsVisible="{Binding FilesNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                    </StackPanel>
-
-                                    <TextBlock Text="{Binding Error}" Foreground="OrangeRed" TextWrapping="Wrap"
-                                               IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-                                    <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
-                                        <TextBlock TextWrapping="Wrap" FontSize="12"
-                                                   Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
-                                    </Border>
-
-                                    <!-- Tags: chips with a remove button, plus a box to add more (Enter, or comma-separated). -->
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Classes="label" Text="Tags" />
-                                        <ItemsControl ItemsSource="{Binding Keywords}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <WrapPanel />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="x:String">
-                                                    <Border Classes="chip">
-                                                        <StackPanel Orientation="Horizontal" Spacing="2">
-                                                            <TextBlock Text="{Binding}" FontSize="12" VerticalAlignment="Center" />
-                                                            <Button Classes="chipRemove" Content="✕"
-                                                                    ToolTip.Tip="Remove tag"
-                                                                    IsVisible="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).CanEdit}"
-                                                                    Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).RemoveKeywordCommand}"
-                                                                    CommandParameter="{Binding}" />
-                                                        </StackPanel>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <AutoCompleteBox x:Name="NewTagBox" PlaceholderText="Add a tag…"
-                                                         IsEnabled="{Binding CanEdit}"
-                                                         Text="{Binding NewKeyword, Mode=TwoWay}"
-                                                         ItemsSource="{Binding KeywordSuggestions}"
-                                                         FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
-                                            <AutoCompleteBox.KeyBindings>
-                                                <KeyBinding Gesture="Enter" Command="{Binding AddKeywordCommand}" />
-                                            </AutoCompleteBox.KeyBindings>
-                                        </AutoCompleteBox>
-                                    </StackPanel>
-
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Classes="label" Text="Favourite" />
-                                        <Button x:Name="FavouriteButton" Classes="favourite" HorizontalAlignment="Left"
-                                                IsEnabled="{Binding CanEdit}" Content="{Binding FavouriteGlyph}"
-                                                ToolTip.Tip="{Binding FavouriteToolTip}"
-                                                Command="{Binding ToggleFavouriteCommand}" />
-                                    </StackPanel>
-
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Classes="label" Text="Title" />
-                                        <TextBox x:Name="TitleBox" IsEnabled="{Binding CanEdit}" PlaceholderText="Add a title"
-                                                 Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                                    </StackPanel>
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Classes="label" Text="Description" />
-                                        <TextBox x:Name="DescriptionBox" IsEnabled="{Binding CanEdit}" PlaceholderText="Add a description"
-                                                 AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="8"
-                                                 Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                                    </StackPanel>
-                                    <StackPanel Spacing="4">
-                                        <TextBlock Classes="label" Text="Place" />
-                                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
-                                            <TextBlock Grid.Row="0" Classes="label" Text="Location" VerticalAlignment="Center" />
-                                            <AutoCompleteBox Grid.Row="0" Grid.Column="1" x:Name="LocationBox" IsEnabled="{Binding CanEdit}"
-                                                             PlaceholderText="e.g. a beach, park or venue" FilterMode="Contains" MinimumPrefixLength="1"
-                                                             ItemsSource="{Binding LocationSuggestions}"
-                                                             Text="{Binding Location, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                                            <TextBlock Grid.Row="1" Classes="label" Text="City" VerticalAlignment="Center" />
-                                            <AutoCompleteBox Grid.Row="1" Grid.Column="1" x:Name="CityBox" IsEnabled="{Binding CanEdit}"
-                                                             PlaceholderText="City, town or village" FilterMode="Contains" MinimumPrefixLength="1"
-                                                             ItemsSource="{Binding CitySuggestions}"
-                                                             Text="{Binding City, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                                            <TextBlock Grid.Row="2" Classes="label" Text="State/Province" VerticalAlignment="Center" />
-                                            <AutoCompleteBox Grid.Row="2" Grid.Column="1" x:Name="StateBox" IsEnabled="{Binding CanEdit}"
-                                                             PlaceholderText="Or county" FilterMode="Contains" MinimumPrefixLength="1"
-                                                             ItemsSource="{Binding StateSuggestions}"
-                                                             Text="{Binding State, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                                            <TextBlock Grid.Row="3" Classes="label" Text="Country" VerticalAlignment="Center" />
-                                            <AutoCompleteBox Grid.Row="3" Grid.Column="1" x:Name="CountryBox" IsEnabled="{Binding CanEdit}"
-                                                             PlaceholderText="" FilterMode="Contains" MinimumPrefixLength="1"
-                                                             ItemsSource="{Binding CountrySuggestions}"
-                                                             Text="{Binding Country, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                                        </Grid>
-                                    </StackPanel>
-
-                                    <TextBlock Text="{Binding SaveStatus}" FontSize="12" TextWrapping="Wrap"
-                                               Classes.error="{Binding SaveFailed}" Opacity="0.7"
-                                               IsVisible="{Binding SaveStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
-
-                                    <StackPanel IsVisible="{Binding DateTaken, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                        <TextBlock Classes="label" Text="Taken" />
-                                        <TextBlock Text="{Binding DateTaken}" TextWrapping="Wrap" />
-                                    </StackPanel>
-                                    <StackPanel IsVisible="{Binding Camera, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                        <TextBlock Classes="label" Text="Camera" />
-                                        <TextBlock Text="{Binding Camera}" TextWrapping="Wrap" />
-                                        <TextBlock Text="{Binding Lens}" TextWrapping="Wrap" Opacity="0.8"
-                                                   IsVisible="{Binding Lens, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                        <TextBlock Text="{Binding Exposure}" TextWrapping="Wrap" Opacity="0.8"
-                                                   IsVisible="{Binding Exposure, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                    </StackPanel>
-                                    <StackPanel IsVisible="{Binding Dimensions, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                        <TextBlock Classes="label" Text="File" />
-                                        <TextBlock Text="{Binding Dimensions}" />
-                                    </StackPanel>
-                                    <StackPanel IsVisible="{Binding Coordinates, Converter={x:Static ObjectConverters.IsNotNull}}">
-                                        <TextBlock Classes="label" Text="GPS" />
-                                        <SelectableTextBlock Text="{Binding Coordinates}" />
-                                    </StackPanel>
-                                </StackPanel>
-                            </DataTemplate>
-                            <DataTemplate x:DataType="vm:BulkDetailsViewModel">
-                                <StackPanel Margin="12" Spacing="12">
-                                    <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" FontSize="16" />
-                                    <TextBlock Text="{Binding LoadingText}" Opacity="0.7" TextWrapping="Wrap"
-                                               IsVisible="{Binding LoadingText, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                    <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
-                                        <TextBlock TextWrapping="Wrap" FontSize="12"
-                                                   Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
-                                    </Border>
-
-                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
-                                        <TextBlock Classes="label" Text="Tags" />
-                                        <TextBlock Text="Tags on only some of these photos show a count. Use + to add one to all of them, ✕ to remove it from all."
-                                                   FontSize="11" Opacity="0.6" TextWrapping="Wrap" />
-                                        <ItemsControl ItemsSource="{Binding Keywords}">
-                                            <ItemsControl.ItemsPanel>
-                                                <ItemsPanelTemplate>
-                                                    <WrapPanel />
-                                                </ItemsPanelTemplate>
-                                            </ItemsControl.ItemsPanel>
-                                            <ItemsControl.ItemTemplate>
-                                                <DataTemplate x:DataType="vm:BulkKeywordViewModel">
-                                                    <Border Classes="chip" Classes.partial="{Binding !IsOnAll}" ToolTip.Tip="{Binding ToolTip}">
-                                                        <StackPanel Orientation="Horizontal" Spacing="2">
-                                                            <TextBlock Text="{Binding Keyword}" FontSize="12" VerticalAlignment="Center" />
-                                                            <TextBlock Text="{Binding CountText}" FontSize="11" Opacity="0.7" Margin="4,0,0,0"
-                                                                       VerticalAlignment="Center" IsVisible="{Binding !IsOnAll}" />
-                                                            <Button Classes="chipRemove chipAddAll" Content="+"
-                                                                    ToolTip.Tip="Add to all selected photos"
-                                                                    IsVisible="{Binding !IsOnAll}"
-                                                                    IsEnabled="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).CanEdit}"
-                                                                    Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).ApplyToAllCommand}"
-                                                                    CommandParameter="{Binding}" />
-                                                            <Button Classes="chipRemove" Content="✕"
-                                                                    ToolTip.Tip="Remove from all selected photos"
-                                                                    IsEnabled="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).CanEdit}"
-                                                                    Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).RemoveKeywordCommand}"
-                                                                    CommandParameter="{Binding}" />
-                                                        </StackPanel>
-                                                    </Border>
-                                                </DataTemplate>
-                                            </ItemsControl.ItemTemplate>
-                                        </ItemsControl>
-                                        <AutoCompleteBox x:Name="BulkTagBox" PlaceholderText="Add a tag to all of them…"
-                                                         IsEnabled="{Binding CanEdit}"
-                                                         Text="{Binding NewKeyword, Mode=TwoWay}"
-                                                         ItemsSource="{Binding KeywordSuggestions}"
-                                                         FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
-                                            <AutoCompleteBox.KeyBindings>
-                                                <KeyBinding Gesture="Enter" Command="{Binding AddKeywordCommand}" />
-                                            </AutoCompleteBox.KeyBindings>
-                                        </AutoCompleteBox>
-                                    </StackPanel>
-
-                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
-                                        <TextBlock Classes="label" Text="Favourites" />
-                                        <Button x:Name="BulkFavouriteButton" Classes="favourite" HorizontalAlignment="Left"
-                                                IsEnabled="{Binding CanEdit}" Content="{Binding FavouriteGlyph}"
-                                                ToolTip.Tip="{Binding FavouriteToolTip}"
-                                                Command="{Binding ToggleFavouriteCommand}" />
-                                        <TextBlock Text="{Binding FavouriteNote}" FontSize="11" Opacity="0.6" TextWrapping="Wrap"
-                                                   IsVisible="{Binding FavouriteNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                    </StackPanel>
-
-                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
-                                        <TextBlock Classes="label" Text="Title" />
-                                        <TextBox x:Name="BulkTitleBox" IsEnabled="{Binding CanEdit}"
-                                                 PlaceholderText="{Binding TitleField.Placeholder}" Text="{Binding TitleField.Text, Mode=TwoWay}">
-                                            <TextBox.KeyBindings>
-                                                <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
-                                            </TextBox.KeyBindings>
-                                        </TextBox>
-                                    </StackPanel>
-                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
-                                        <TextBlock Classes="label" Text="Description" />
-                                        <TextBox x:Name="BulkDescriptionBox" IsEnabled="{Binding CanEdit}"
-                                                 AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="8"
-                                                 PlaceholderText="{Binding DescriptionField.Placeholder}" Text="{Binding DescriptionField.Text, Mode=TwoWay}" />
-                                    </StackPanel>
-                                    <StackPanel Spacing="4" IsVisible="{Binding IsLoaded}">
-                                        <TextBlock Classes="label" Text="Place" />
-                                        <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="8" RowSpacing="4">
-                                            <TextBlock Grid.Row="0" Classes="label" Text="Location" VerticalAlignment="Center" />
-                                            <AutoCompleteBox Grid.Row="0" Grid.Column="1" x:Name="BulkLocationBox" IsEnabled="{Binding CanEdit}"
-                                                             PlaceholderText="{Binding LocationField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
-                                                             ItemsSource="{Binding LocationField.Suggestions}" Text="{Binding LocationField.Text, Mode=TwoWay}">
-                                                <AutoCompleteBox.KeyBindings>
-                                                    <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
-                                                </AutoCompleteBox.KeyBindings>
-                                            </AutoCompleteBox>
-                                            <TextBlock Grid.Row="1" Classes="label" Text="City" VerticalAlignment="Center" />
-                                            <AutoCompleteBox Grid.Row="1" Grid.Column="1" x:Name="BulkCityBox" IsEnabled="{Binding CanEdit}"
-                                                             PlaceholderText="{Binding CityField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
-                                                             ItemsSource="{Binding CityField.Suggestions}" Text="{Binding CityField.Text, Mode=TwoWay}">
-                                                <AutoCompleteBox.KeyBindings>
-                                                    <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
-                                                </AutoCompleteBox.KeyBindings>
-                                            </AutoCompleteBox>
-                                            <TextBlock Grid.Row="2" Classes="label" Text="State/Province" VerticalAlignment="Center" />
-                                            <AutoCompleteBox Grid.Row="2" Grid.Column="1" x:Name="BulkStateBox" IsEnabled="{Binding CanEdit}"
-                                                             PlaceholderText="{Binding StateField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
-                                                             ItemsSource="{Binding StateField.Suggestions}" Text="{Binding StateField.Text, Mode=TwoWay}">
-                                                <AutoCompleteBox.KeyBindings>
-                                                    <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
-                                                </AutoCompleteBox.KeyBindings>
-                                            </AutoCompleteBox>
-                                            <TextBlock Grid.Row="3" Classes="label" Text="Country" VerticalAlignment="Center" />
-                                            <AutoCompleteBox Grid.Row="3" Grid.Column="1" x:Name="BulkCountryBox" IsEnabled="{Binding CanEdit}"
-                                                             PlaceholderText="{Binding CountryField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
-                                                             ItemsSource="{Binding CountryField.Suggestions}" Text="{Binding CountryField.Text, Mode=TwoWay}">
-                                                <AutoCompleteBox.KeyBindings>
-                                                    <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
-                                                </AutoCompleteBox.KeyBindings>
-                                            </AutoCompleteBox>
-                                        </Grid>
-                                        <TextBlock Text="Type to give them all the same title, description or place. Nothing is saved until you apply it."
-                                                   FontSize="11" Opacity="0.6" TextWrapping="Wrap" IsVisible="{Binding !HasTextEdits}" />
-                                    </StackPanel>
-                                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowApplyText}">
-                                        <Button x:Name="BulkApplyTextButton" Classes="accent" Content="Apply to all…"
-                                                IsEnabled="{Binding CanApplyText}" Command="{Binding ReviewTextCommand}" />
-                                        <Button x:Name="BulkCancelTextButton" Content="Cancel" Command="{Binding CancelTextCommand}" />
-                                    </StackPanel>
-                                    <Border Classes="notice" IsVisible="{Binding IsConfirmingText}">
-                                        <StackPanel Spacing="8">
-                                            <TextBlock Text="{Binding TextWarning}" FontSize="12" TextWrapping="Wrap" />
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Button x:Name="BulkConfirmTextButton" Classes="accent" Content="Save to all"
-                                                        IsEnabled="{Binding CanEdit}" Command="{Binding ApplyTextCommand}" />
-                                                <Button Content="Cancel" Command="{Binding CancelTextCommand}" />
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <StackPanel Spacing="2">
+                                                <SelectableTextBlock Text="{Binding FileName}" FontWeight="SemiBold" FontSize="15" TextWrapping="Wrap" />
+                                                <SelectableTextBlock Text="{Binding Folder}" Classes="caption" TextWrapping="Wrap" />
+                                                <TextBlock Text="{Binding FilesNote}" Classes="caption" TextWrapping="Wrap" Margin="0,4,0,0"
+                                                           IsVisible="{Binding FilesNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                             </StackPanel>
+                                            <Button x:Name="FavouriteButton" Grid.Column="1" Classes="favourite" Classes.on="{Binding IsFavourite}"
+                                                    VerticalAlignment="Top" IsEnabled="{Binding CanEdit}"
+                                                    ToolTip.Tip="{Binding FavouriteToolTip}" Command="{Binding ToggleFavouriteCommand}">
+                                                <Panel>
+                                                    <PathIcon Data="{StaticResource IconHeartOutline}" IsVisible="{Binding !IsFavourite}" />
+                                                    <PathIcon Data="{StaticResource IconHeart}" IsVisible="{Binding IsFavourite}" />
+                                                </Panel>
+                                            </Button>
+                                        </Grid>
+
+                                        <TextBlock Text="{Binding Error}" Classes="error" TextWrapping="Wrap"
+                                                   IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                                        <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
+                                            <TextBlock TextWrapping="Wrap" FontSize="12"
+                                                       Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
+                                        </Border>
+
+                                        <!-- Tags: chips with a remove button, plus a box to add more (Enter, or comma-separated). -->
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Classes="label" Text="Tags" />
+                                            <ItemsControl ItemsSource="{Binding Keywords}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <Border Classes="chip">
+                                                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                                                <TextBlock Text="{Binding}" FontSize="12" VerticalAlignment="Center" />
+                                                                <Button Classes="chipRemove" ToolTip.Tip="Remove tag"
+                                                                        IsVisible="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).CanEdit}"
+                                                                        Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).RemoveKeywordCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <PathIcon Data="{StaticResource IconClose}" />
+                                                                </Button>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <AutoCompleteBox x:Name="NewTagBox" PlaceholderText="Add a tag"
+                                                             IsEnabled="{Binding CanEdit}"
+                                                             Text="{Binding NewKeyword, Mode=TwoWay}"
+                                                             ItemsSource="{Binding KeywordSuggestions}"
+                                                             FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
+                                                <AutoCompleteBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding AddKeywordCommand}" />
+                                                </AutoCompleteBox.KeyBindings>
+                                            </AutoCompleteBox>
                                         </StackPanel>
-                                    </Border>
-                                </StackPanel>
-                            </DataTemplate>
-                        </ContentControl.DataTemplates>
-                    </ContentControl>
-                </Panel>
-            </ScrollViewer>
+
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Classes="label" Text="Title" />
+                                            <TextBox x:Name="TitleBox" IsEnabled="{Binding CanEdit}"
+                                                     Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Classes="label" Text="Description" />
+                                            <TextBox x:Name="DescriptionBox" IsEnabled="{Binding CanEdit}"
+                                                     AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="8"
+                                                     Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Classes="label" Text="Place" />
+                                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                                <TextBlock Grid.ColumnSpan="2" Classes="caption" Text="Location" Margin="0,0,0,3" />
+                                                <AutoCompleteBox Grid.Row="1" Grid.ColumnSpan="2" x:Name="LocationBox" IsEnabled="{Binding CanEdit}"
+                                                                 PlaceholderText="A beach, park or venue" FilterMode="Contains" MinimumPrefixLength="1"
+                                                                 ItemsSource="{Binding LocationSuggestions}"
+                                                                 Text="{Binding Location, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                <TextBlock Grid.Row="2" Classes="caption" Text="City" Margin="0,8,0,3" />
+                                                <AutoCompleteBox Grid.Row="3" x:Name="CityBox" IsEnabled="{Binding CanEdit}"
+                                                                 PlaceholderText="Or town" FilterMode="Contains" MinimumPrefixLength="1"
+                                                                 ItemsSource="{Binding CitySuggestions}"
+                                                                 Text="{Binding City, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Classes="caption" Text="State/Province" Margin="0,8,0,3" />
+                                                <AutoCompleteBox Grid.Row="3" Grid.Column="1" x:Name="StateBox" IsEnabled="{Binding CanEdit}"
+                                                                 PlaceholderText="Or county" FilterMode="Contains" MinimumPrefixLength="1"
+                                                                 ItemsSource="{Binding StateSuggestions}"
+                                                                 Text="{Binding State, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                <TextBlock Grid.Row="4" Classes="caption" Text="Country" Margin="0,8,0,3" />
+                                                <AutoCompleteBox Grid.Row="5" x:Name="CountryBox" IsEnabled="{Binding CanEdit}"
+                                                                 FilterMode="Contains" MinimumPrefixLength="1"
+                                                                 ItemsSource="{Binding CountrySuggestions}"
+                                                                 Text="{Binding Country, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <TextBlock Text="{Binding SaveStatus}" FontSize="12" TextWrapping="Wrap"
+                                                   Classes="muted" Classes.error="{Binding SaveFailed}"
+                                                   IsVisible="{Binding SaveStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+                                        <!-- Read-only facts about the photo, as a compact list. -->
+                                        <Border BorderBrush="{DynamicResource DividerBrush}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+                                            <Grid ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="6">
+                                                <TextBlock Classes="muted" Text="Taken"
+                                                           IsVisible="{Binding DateTaken, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <TextBlock Grid.Column="1" Text="{Binding DateTaken}" FontSize="12" TextWrapping="Wrap"
+                                                           IsVisible="{Binding DateTaken, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <TextBlock Grid.Row="1" Classes="muted" Text="Camera"
+                                                           IsVisible="{Binding Camera, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <StackPanel Grid.Row="1" Grid.Column="1" Spacing="2"
+                                                            IsVisible="{Binding Camera, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                                    <TextBlock Text="{Binding Camera}" FontSize="12" TextWrapping="Wrap" />
+                                                    <TextBlock Text="{Binding Lens}" Classes="muted" TextWrapping="Wrap"
+                                                               IsVisible="{Binding Lens, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                    <TextBlock Text="{Binding Exposure}" Classes="muted" TextWrapping="Wrap"
+                                                               IsVisible="{Binding Exposure, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                </StackPanel>
+                                                <TextBlock Grid.Row="2" Classes="muted" Text="File"
+                                                           IsVisible="{Binding Dimensions, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding Dimensions}" FontSize="12"
+                                                           IsVisible="{Binding Dimensions, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <TextBlock Grid.Row="3" Classes="muted" Text="GPS"
+                                                           IsVisible="{Binding Coordinates, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <SelectableTextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Coordinates}" FontSize="12"
+                                                                     IsVisible="{Binding Coordinates, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                            </Grid>
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+
+                                <DataTemplate x:DataType="vm:BulkDetailsViewModel">
+                                    <StackPanel Margin="16" Spacing="16">
+                                        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                                            <StackPanel Spacing="2" VerticalAlignment="Center">
+                                                <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" FontSize="17" />
+                                                <TextBlock Text="{Binding FavouriteNote}" Classes="caption" TextWrapping="Wrap"
+                                                           IsVisible="{Binding FavouriteNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                            </StackPanel>
+                                            <Button x:Name="BulkFavouriteButton" Grid.Column="1" Classes="favourite" Classes.on="{Binding AllFavourites}"
+                                                    VerticalAlignment="Top" IsEnabled="{Binding CanEdit}"
+                                                    ToolTip.Tip="{Binding FavouriteToolTip}" Command="{Binding ToggleFavouriteCommand}">
+                                                <Panel>
+                                                    <PathIcon Data="{StaticResource IconHeartOutline}" IsVisible="{Binding !AllFavourites}" />
+                                                    <PathIcon Data="{StaticResource IconHeart}" IsVisible="{Binding AllFavourites}" />
+                                                </Panel>
+                                            </Button>
+                                        </Grid>
+                                        <TextBlock Text="{Binding LoadingText}" Classes="muted" TextWrapping="Wrap"
+                                                   IsVisible="{Binding LoadingText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
+                                            <TextBlock TextWrapping="Wrap" FontSize="12"
+                                                       Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
+                                        </Border>
+
+                                        <StackPanel Spacing="6" IsVisible="{Binding IsLoaded}">
+                                            <TextBlock Classes="label" Text="Tags" />
+                                            <ItemsControl ItemsSource="{Binding Keywords}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:BulkKeywordViewModel">
+                                                        <Border Classes="chip" Classes.partial="{Binding !IsOnAll}" ToolTip.Tip="{Binding ToolTip}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                                                <TextBlock Text="{Binding Keyword}" FontSize="12" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding CountText}" Classes="caption" Margin="5,0,2,0"
+                                                                           VerticalAlignment="Center" IsVisible="{Binding !IsOnAll}" />
+                                                                <Button Classes="chipRemove chipAddAll"
+                                                                        ToolTip.Tip="Add to all selected photos"
+                                                                        IsVisible="{Binding !IsOnAll}"
+                                                                        IsEnabled="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).CanEdit}"
+                                                                        Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).ApplyToAllCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <PathIcon Data="{StaticResource IconPlus}" />
+                                                                </Button>
+                                                                <Button Classes="chipRemove"
+                                                                        ToolTip.Tip="Remove from all selected photos"
+                                                                        IsEnabled="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).CanEdit}"
+                                                                        Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).RemoveKeywordCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <PathIcon Data="{StaticResource IconClose}" />
+                                                                </Button>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <AutoCompleteBox x:Name="BulkTagBox" PlaceholderText="Add a tag to all of them"
+                                                             IsEnabled="{Binding CanEdit}"
+                                                             Text="{Binding NewKeyword, Mode=TwoWay}"
+                                                             ItemsSource="{Binding KeywordSuggestions}"
+                                                             FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
+                                                <AutoCompleteBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding AddKeywordCommand}" />
+                                                </AutoCompleteBox.KeyBindings>
+                                            </AutoCompleteBox>
+                                            <TextBlock Classes="caption" TextWrapping="Wrap"
+                                                       Text="Outlined tags are on only some of them: + adds one to the rest, ✕ removes a tag from all." />
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="6" IsVisible="{Binding IsLoaded}">
+                                            <TextBlock Classes="label" Text="Title" />
+                                            <TextBox x:Name="BulkTitleBox" IsEnabled="{Binding CanEdit}"
+                                                     PlaceholderText="{Binding TitleField.Placeholder}" Text="{Binding TitleField.Text, Mode=TwoWay}">
+                                                <TextBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                                </TextBox.KeyBindings>
+                                            </TextBox>
+                                        </StackPanel>
+                                        <StackPanel Spacing="6" IsVisible="{Binding IsLoaded}">
+                                            <TextBlock Classes="label" Text="Description" />
+                                            <TextBox x:Name="BulkDescriptionBox" IsEnabled="{Binding CanEdit}"
+                                                     AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="8"
+                                                     PlaceholderText="{Binding DescriptionField.Placeholder}" Text="{Binding DescriptionField.Text, Mode=TwoWay}" />
+                                        </StackPanel>
+                                        <StackPanel Spacing="6" IsVisible="{Binding IsLoaded}">
+                                            <TextBlock Classes="label" Text="Place" />
+                                            <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="8">
+                                                <TextBlock Grid.ColumnSpan="2" Classes="caption" Text="Location" Margin="0,0,0,3" />
+                                                <AutoCompleteBox Grid.Row="1" Grid.ColumnSpan="2" x:Name="BulkLocationBox" IsEnabled="{Binding CanEdit}"
+                                                                 PlaceholderText="{Binding LocationField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
+                                                                 ItemsSource="{Binding LocationField.Suggestions}" Text="{Binding LocationField.Text, Mode=TwoWay}">
+                                                    <AutoCompleteBox.KeyBindings>
+                                                        <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                                    </AutoCompleteBox.KeyBindings>
+                                                </AutoCompleteBox>
+                                                <TextBlock Grid.Row="2" Classes="caption" Text="City" Margin="0,8,0,3" />
+                                                <AutoCompleteBox Grid.Row="3" x:Name="BulkCityBox" IsEnabled="{Binding CanEdit}"
+                                                                 PlaceholderText="{Binding CityField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
+                                                                 ItemsSource="{Binding CityField.Suggestions}" Text="{Binding CityField.Text, Mode=TwoWay}">
+                                                    <AutoCompleteBox.KeyBindings>
+                                                        <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                                    </AutoCompleteBox.KeyBindings>
+                                                </AutoCompleteBox>
+                                                <TextBlock Grid.Row="2" Grid.Column="1" Classes="caption" Text="State/Province" Margin="0,8,0,3" />
+                                                <AutoCompleteBox Grid.Row="3" Grid.Column="1" x:Name="BulkStateBox" IsEnabled="{Binding CanEdit}"
+                                                                 PlaceholderText="{Binding StateField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
+                                                                 ItemsSource="{Binding StateField.Suggestions}" Text="{Binding StateField.Text, Mode=TwoWay}">
+                                                    <AutoCompleteBox.KeyBindings>
+                                                        <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                                    </AutoCompleteBox.KeyBindings>
+                                                </AutoCompleteBox>
+                                                <TextBlock Grid.Row="4" Classes="caption" Text="Country" Margin="0,8,0,3" />
+                                                <AutoCompleteBox Grid.Row="5" x:Name="BulkCountryBox" IsEnabled="{Binding CanEdit}"
+                                                                 PlaceholderText="{Binding CountryField.Placeholder}" FilterMode="Contains" MinimumPrefixLength="1"
+                                                                 ItemsSource="{Binding CountryField.Suggestions}" Text="{Binding CountryField.Text, Mode=TwoWay}">
+                                                    <AutoCompleteBox.KeyBindings>
+                                                        <KeyBinding Gesture="Enter" Command="{Binding ReviewTextCommand}" />
+                                                    </AutoCompleteBox.KeyBindings>
+                                                </AutoCompleteBox>
+                                            </Grid>
+                                        </StackPanel>
+
+                                        <TextBlock Classes="caption" TextWrapping="Wrap" IsVisible="{Binding !HasTextEdits}"
+                                                   Text="“Mixed” means the photos differ. Type in a box to give them all the same value; nothing is saved until you apply it." />
+                                        <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding ShowApplyText}">
+                                            <Button x:Name="BulkApplyTextButton" Classes="accent" Content="Apply to all…"
+                                                    IsEnabled="{Binding CanApplyText}" Command="{Binding ReviewTextCommand}" />
+                                            <Button x:Name="BulkCancelTextButton" Content="Cancel" Command="{Binding CancelTextCommand}" />
+                                        </StackPanel>
+                                        <Border Classes="notice" IsVisible="{Binding IsConfirmingText}">
+                                            <StackPanel Spacing="10">
+                                                <TextBlock Text="{Binding TextWarning}" FontSize="12" TextWrapping="Wrap" />
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Button x:Name="BulkConfirmTextButton" Classes="accent" Content="Save to all"
+                                                            IsEnabled="{Binding CanEdit}" Command="{Binding ApplyTextCommand}" />
+                                                    <Button Content="Cancel" Command="{Binding CancelTextCommand}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Border>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ContentControl.DataTemplates>
+                        </ContentControl>
+                    </Panel>
+                </ScrollViewer>
+            </Border>
         </Grid>
     </DockPanel>
 </Window>

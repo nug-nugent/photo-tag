@@ -34,8 +34,8 @@ public sealed class BulkTextTests : UiTestBase
 
         var titleBox = Find<TextBox>(window, "BulkTitleBox");
         Assert.Equal("", titleBox.Text);
-        Assert.Equal("Different on each photo. Type to replace them all.", titleBox.PlaceholderText);
-        Assert.Equal("Add a description to all of them", Find<TextBox>(window, "BulkDescriptionBox").PlaceholderText);
+        Assert.Equal("Mixed", titleBox.PlaceholderText);
+        Assert.Null(Find<TextBox>(window, "BulkDescriptionBox").PlaceholderText); // none has one
         Assert.False(Find<Button>(window, "BulkApplyTextButton").IsEffectivelyVisible);
 
         // Typing shows Apply; Enter shows what will be replaced, and nothing is saved yet.
@@ -68,7 +68,7 @@ public sealed class BulkTextTests : UiTestBase
         Click(window, Find<Button>(window, "BulkConfirmTextButton"));
         await WaitForBulkAsync(vm);
         Assert.All([a, b, c], p => Assert.Null(PhotoMetadata.Read(p).Title));
-        Assert.Equal("Add a title to all of them", titleBox.PlaceholderText);
+        Assert.Null(titleBox.PlaceholderText);
 
         // Undo brings them back.
         Click(window, Find<Button>(window, "UndoButton"));

@@ -7,4 +7,7 @@
     <Project Path="tests/PhotoTag.App.Tests/PhotoTag.App.Tests.csproj" />
     <Project Path="tests/PhotoTag.Core.Tests/PhotoTag.Core.Tests.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Screenshots/Screenshots.csproj" />
+  </Folder>
 </Solution>

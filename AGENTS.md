@@ -12,6 +12,7 @@ Tags are written into the photos (XMP, plus IPTC for JPEGs) via ExifTool; RAW fi
 | `src/PhotoTag.App` | Avalonia UI, MVVM with CommunityToolkit.Mvvm (`[ObservableProperty]` partial properties) and compiled bindings (`x:DataType` everywhere). `MainWindow.axaml` is the only window; view models in `ViewModels/`. Also `AppUpdater` (Velopack), `SelfCheck` (`--self-check`). |
 | `tests/PhotoTag.Core.Tests` | xUnit v3. `TestImages` builds real JPEGs with hand-made EXIF/XMP; `RawSamples` downloads CC0 RAW files. |
 | `tests/PhotoTag.App.Tests` | Headless UI tests (Avalonia.Headless.XUnit) that drive the real `MainWindow` with keyboard and mouse. `UiTestBase` has the helpers. |
+| `tools/Screenshots` | Renders the main window to PNGs for design work (see "How we work"). |
 | `build/` | `BundleExifTool.cs` (release bundling), `MakeIcons.cs` (app icon), `exiftool.json` (pinned ExifTool + checksums). |
 | `.github/workflows/` | `ci.yml` (build + test on 3 OSes), `release.yml` (installers for 5 platforms). |
 
@@ -39,8 +40,11 @@ dotnet run --project src/PhotoTag.App
   alongside tag writes). Check that new tests can fail (break the code briefly and confirm they catch it).
 - **UI behaviour is tested headlessly** (`tests/PhotoTag.App.Tests`). **Don't drive the real desktop app with synthetic
   mouse/keyboard input**: the owner may be using the machine, and it has collided before. Headless mode doesn't really
-  decode bitmaps, so check image sizes and orientation in Core tests instead. Rendering screenshots headlessly from a
-  file-based script hung; ask the owner to run the app instead.
+  decode bitmaps, so check image sizes and orientation in Core tests instead.
+- **To see the UI, render it:** `dotnet run --project tools/Screenshots` draws the real window with Skia (no window
+  appears, no input) in each state (folder, one photo, several, Tags panel, settings, search, smallest size), light
+  and dark, into `artifacts/screenshots`. It builds a sample library from `tests/.samples` (run the tests once first)
+  and needs ExifTool. Look at the PNGs before and after any UI change.
 - **Releases:** push a `vX.Y.Z` tag. PRs touching packaging run `release.yml` as a trial (no publishing). Each package
   runs `PhotoTag --self-check` on a matching runner before anything is published.
 - Keep Core free of UI code, and keep the photo grid virtualized (`ItemsRepeater`); folders can hold thousands of photos.
@@ -80,5 +84,9 @@ dotnet run --project src/PhotoTag.App
   `LibraryIndex.ReadOrEmpty`.
 - **RAW files contain several EXIF sub-IFDs**: take each value from the first one that has it (`PhotoMetadata.ReadEmbedded`).
   Fujifilm RAF sizes come from the RAF header (`FujifilmRaf`).
+- **Headless rendering outside the tests:** no top-level `await` (continuations go to a dispatcher nothing pumps),
+  tick `AvaloniaHeadlessPlatform.ForceRenderTimerTick()` while waiting (layout only runs on render ticks), and always
+  dispose ExifTool: a leftover `exiftool` child keeps the output pipe open, so the run looks hung.
+- **Styles match exact types:** `TextBlock.caption` doesn't style a `SelectableTextBlock`; list both.
 - **Line endings:** `.gitattributes` normalises to LF in the repo; Windows checkouts get CRLF. Scripts that edit files
   should cope with both.
