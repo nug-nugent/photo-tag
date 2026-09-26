@@ -51,7 +51,7 @@ var renderer = new PhotoRenderer(new RawPreviewExtractor(previewTool));
 try
 {
     var library = Path.Combine(work, "Photos");
-    if (!Directory.Exists(library)) WaitFor(BuildLibraryAsync(Path.Combine(repo, "tests", ".samples"), library, renderer, writer));
+    if (!Directory.Exists(library)) WaitFor(BuildLibraryAsync(Path.Combine(repo, "tests", ".samples"), library, renderer, writer, exifTool));
 
     foreach (var theme in new[] { ThemeVariant.Light, ThemeVariant.Dark })
     {
@@ -234,7 +234,7 @@ static string FindRepoRoot()
 }
 
 // A small library that looks like a real one: RAWs, JPEGs, subfolders, tags, places, favourites.
-static async Task BuildLibraryAsync(string samples, string library, PhotoRenderer renderer, PhotoMetadataWriter writer)
+static async Task BuildLibraryAsync(string samples, string library, PhotoRenderer renderer, PhotoMetadataWriter writer, ExifTool exifTool)
 {
     var raws = Directory.GetFiles(samples).Order().ToList();
     if (raws.Count == 0) throw new InvalidOperationException($"No RAW samples in {samples}: run the tests once to download them.");
@@ -272,5 +272,9 @@ static async Task BuildLibraryAsync(string samples, string library, PhotoRendere
             Country = i % 3 != 0 ? "United Kingdom" : null,
         });
     }
+
+    // Porthcurno, so the details panel shows GPS and "Open in map".
+    await exifTool.ExecuteAsync(["-GPSLatitude=50.0421", "-GPSLatitudeRef=N", "-GPSLongitude=5.6543", "-GPSLongitudeRef=W",
+        "-overwrite_original", photos[1]]);
 }
 

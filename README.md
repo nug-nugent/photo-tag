@@ -20,7 +20,8 @@ Early days. Today it can:
 
 - Browse a folder tree (subfolders load lazily, off the UI thread)
 - Show a virtualized thumbnail grid that stays responsive with thousands of photos, with a ♥ on favourites
-- Show a details panel for the selected photo: preview, date taken, camera, exposure, size and GPS
+- Show a details panel for the selected photo: preview, date taken, camera, exposure, size, and GPS with an
+  "Open in map" link (OpenStreetMap, in your browser)
 - Edit tags, people, title, description and place (location, city, state/province, country), and mark favourites
   (♥). Changes are written straight into the photo file.
 - Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and tag them, add people, favourite them, or

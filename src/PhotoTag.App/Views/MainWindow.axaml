@@ -619,8 +619,13 @@
                                                            IsVisible="{Binding Dimensions, Converter={x:Static ObjectConverters.IsNotNull}}" />
                                                 <TextBlock Grid.Row="3" Classes="muted" Text="GPS"
                                                            IsVisible="{Binding Coordinates, Converter={x:Static ObjectConverters.IsNotNull}}" />
-                                                <SelectableTextBlock Grid.Row="3" Grid.Column="1" Text="{Binding Coordinates}" FontSize="12"
-                                                                     IsVisible="{Binding Coordinates, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                                <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Spacing="10"
+                                                            IsVisible="{Binding Coordinates, Converter={x:Static ObjectConverters.IsNotNull}}">
+                                                    <SelectableTextBlock Text="{Binding Coordinates}" FontSize="12" VerticalAlignment="Center" />
+                                                    <HyperlinkButton x:Name="OpenMapLink" Content="Open in map" NavigateUri="{Binding MapUri}"
+                                                                     Padding="0" FontSize="12" VerticalAlignment="Center"
+                                                                     ToolTip.Tip="Show this spot on OpenStreetMap, in your browser" />
+                                                </StackPanel>
                                             </Grid>
                                         </Border>
                                     </StackPanel>

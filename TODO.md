@@ -62,10 +62,8 @@ the details panel and the index when files or sidecars change.
 
 ### 3.6 People and places (in parts)
 The owner chose separate fields over tags. **Done:** place fields (Location, City, State/Province, Country; see
-`TextField`) and people (`ListField.People`). Still to do, one PR each:
+`TextField`), people (`ListField.People`) and an "Open in map" link. Still to do:
 
-- **"Open in map" link (S):** open the photo's GPS position on OpenStreetMap in the browser. The owner doesn't want a map
-  inside the app.
 - **Fill places from GPS (M):** fill City, State/Province and Country (maybe Location) from each photo's GPS. The owner
   finds this very useful. Ask them first: an online service (e.g. Nominatim: about one request a second, and it sends
   coordinates out) or a bundled offline dataset (e.g. GeoNames: several MB, less precise). It should only fill empty
