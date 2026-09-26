@@ -113,6 +113,23 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
     }
 
     [Fact]
+    public async Task People_RoundTrip_SeparateFromTags_AndClear()
+    {
+        var writer = fixture.RequireWriter();
+        var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(200, 100, xmpKeywords: ["Beach"]));
+
+        await writer.WriteAsync(path, new MetadataChanges { People = ["Mary Smith", "Zoë", "mary smith", " "] }, Ct);
+
+        var m = PhotoMetadata.Read(path);
+        Assert.Equal(["Mary Smith", "Zoë"], m.People);
+        Assert.Equal(["Beach"], m.Keywords);
+
+        await writer.WriteAsync(path, new MetadataChanges { People = [] }, Ct);
+        Assert.Empty(PhotoMetadata.Read(path).People);
+        Assert.Equal(["Beach"], PhotoMetadata.Read(path).Keywords);
+    }
+
+    [Fact]
     public async Task OnlyRequestedFieldsChange()
     {
         var writer = fixture.RequireWriter();

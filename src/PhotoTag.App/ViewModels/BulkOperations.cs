@@ -9,7 +9,8 @@ namespace PhotoTag.App.ViewModels;
 /// window rather than the details panel, so changing the selection doesn't cancel a running
 /// edit; only the Cancel button does.
 /// </summary>
-public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggestions suggestions) : ViewModelBase
+public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggestions suggestions, KeywordSuggestions people)
+    : ViewModelBase
 {
     private readonly BulkMetadataEditor? _editor = writer is null ? null : new BulkMetadataEditor(writer);
     private CancellationTokenSource? _cts;
@@ -37,18 +38,21 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     /// <summary>Raised with a one-line summary for the status bar.</summary>
     public event EventHandler<string>? Summary;
 
-    public Task AddKeywordsAsync(IReadOnlyList<PhotoItemViewModel> photos, IReadOnlyList<string> keywords)
+    private KeywordSuggestions SuggestionsFor(ListField field) => field == ListField.People ? people : suggestions;
+
+    private static string Label(ListField field, IReadOnlyList<string> values) =>
+        values.Count == 1 ? $"“{values[0]}”" : $"{values.Count} {(field == ListField.People ? "people" : "tags")}";
+
+    /// <summary>Adds tags or people to every photo.</summary>
+    public Task AddAsync(IReadOnlyList<PhotoItemViewModel> photos, ListField field, IReadOnlyList<string> values)
     {
-        suggestions.Add(keywords);
-        var label = keywords.Count == 1 ? $"“{keywords[0]}”" : $"{keywords.Count} tags";
-        return RunAsync(photos, $"Adding {label} to", (e, paths, p, ct) => e.AddKeywordsAsync(paths, keywords, p, ct));
+        SuggestionsFor(field).Add(values);
+        return RunAsync(photos, $"Adding {Label(field, values)} to", (e, paths, p, ct) => e.AddAsync(paths, field, values, p, ct));
     }
 
-    public Task RemoveKeywordsAsync(IReadOnlyList<PhotoItemViewModel> photos, IReadOnlyList<string> keywords)
-    {
-        var label = keywords.Count == 1 ? $"“{keywords[0]}”" : $"{keywords.Count} tags";
-        return RunAsync(photos, $"Removing {label} from", (e, paths, p, ct) => e.RemoveKeywordsAsync(paths, keywords, p, ct));
-    }
+    /// <summary>Removes tags or people from every photo.</summary>
+    public Task RemoveAsync(IReadOnlyList<PhotoItemViewModel> photos, ListField field, IReadOnlyList<string> values) =>
+        RunAsync(photos, $"Removing {Label(field, values)} from", (e, paths, p, ct) => e.RemoveAsync(paths, field, values, p, ct));
 
     public Task SetFavouriteAsync(IReadOnlyList<PhotoItemViewModel> photos, bool favourite) =>
         RunAsync(photos, favourite ? "Adding to favourites:" : "Removing from favourites:",
@@ -69,18 +73,18 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
             (e, paths, p, ct) => e.SetTextAsync(paths, values, p, ct));
     }
 
-    // Tag management works on photos across the library, most of them not on screen; the grid's
-    // photos are passed as "shown" so any that were changed update too.
+    // The Tags & People panel works on photos across the library, most of them not on screen; the
+    // grid's photos are passed as "shown" so any that were changed update too.
 
-    public Task RenameKeywordAsync(IReadOnlyList<PhotoFile> files, string from, string to, IReadOnlyList<PhotoItemViewModel> shown)
+    public Task RenameAsync(IReadOnlyList<PhotoFile> files, ListField field, string from, string to, IReadOnlyList<PhotoItemViewModel> shown)
     {
-        suggestions.Add([to]);
+        SuggestionsFor(field).Add([to]);
         var verb = from.Equals(to, StringComparison.OrdinalIgnoreCase) ? $"Tidying “{to}” in" : $"Renaming “{from}” to “{to}” in";
-        return RunAsync(files, shown, verb, (e, paths, p, ct) => e.RenameKeywordAsync(paths, from, to, p, ct));
+        return RunAsync(files, shown, verb, (e, paths, p, ct) => e.RenameAsync(paths, field, from, to, p, ct));
     }
 
-    public Task DeleteKeywordAsync(IReadOnlyList<PhotoFile> files, string keyword, IReadOnlyList<PhotoItemViewModel> shown) =>
-        RunAsync(files, shown, $"Removing “{keyword}” from", (e, paths, p, ct) => e.RemoveKeywordsAsync(paths, [keyword], p, ct));
+    public Task DeleteAsync(IReadOnlyList<PhotoFile> files, ListField field, string value, IReadOnlyList<PhotoItemViewModel> shown) =>
+        RunAsync(files, shown, $"Removing “{value}” from", (e, paths, p, ct) => e.RemoveAsync(paths, field, [value], p, ct));
 
     /// <summary>
     /// Puts back what the last edit changed. Photos edited again since are left alone. The grid's
@@ -90,6 +94,7 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     {
         if (_undo is not { } changes || IsBusy) return Task.CompletedTask;
         suggestions.Add(changes.SelectMany(c => c.Before.Keywords)); // e.g. a deleted tag is back
+        people.Add(changes.SelectMany(c => c.Before.People));
         var photos = changes.Select(c => c.Photo).Distinct().Select(p => PhotoFile.Single(p)).ToList();
         return RunAsync(photos, shown, "Undoing the last change to", (e, _, p, ct) => e.UndoAsync(changes, p, ct), isUndo: true);
     }

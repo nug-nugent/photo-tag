@@ -13,12 +13,14 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
 {
     private readonly BulkOperations _operations;
     private readonly KeywordSuggestions _suggestions;
+    private readonly KeywordSuggestions _peopleSuggestions;
     private readonly PlaceSuggestions _places;
     private readonly CancellationTokenSource _cts = new();
 
     public BulkDetailsViewModel(IReadOnlyList<PhotoItemViewModel> photos, BulkOperations operations, KeywordSuggestions suggestions,
-        PlaceSuggestions places)
+        KeywordSuggestions people, PlaceSuggestions places)
     {
+        _peopleSuggestions = people;
         Photos = photos;
         _operations = operations;
         _suggestions = suggestions;
@@ -39,6 +41,8 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     public bool ExifToolMissing => !_operations.IsAvailable;
     public ObservableCollection<string> KeywordSuggestions => _suggestions.Items;
     public ObservableCollection<BulkKeywordViewModel> Keywords { get; } = [];
+    public ObservableCollection<BulkKeywordViewModel> People { get; } = [];
+    public ObservableCollection<string> PeopleSuggestions => _peopleSuggestions.Items;
 
     [ObservableProperty]
     [NotifyPropertyChangedFor(nameof(CanEdit), nameof(CanApplyText))]
@@ -46,6 +50,7 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty] public partial string? LoadingText { get; private set; }
     [ObservableProperty] public partial string? NewKeyword { get; set; }
+    [ObservableProperty] public partial string? NewPerson { get; set; }
 
     /// <summary>True if every selected photo is a favourite.</summary>
     [ObservableProperty]
@@ -204,15 +209,30 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     {
         var keywords = PhotoMetadataWriter.NormalizeKeywords((NewKeyword ?? "").Split(','));
         NewKeyword = "";
-        if (keywords.Count > 0) await _operations.AddKeywordsAsync(Photos, keywords);
+        if (keywords.Count > 0) await _operations.AddAsync(Photos, ListField.Tags, keywords);
     }
 
     /// <summary>Adds a tag that only some photos have to the rest of them.</summary>
     [RelayCommand]
-    private Task ApplyToAll(BulkKeywordViewModel keyword) => _operations.AddKeywordsAsync(Photos, [keyword.Keyword]);
+    private Task ApplyToAll(BulkKeywordViewModel keyword) => _operations.AddAsync(Photos, ListField.Tags, [keyword.Keyword]);
 
     [RelayCommand]
-    private Task RemoveKeyword(BulkKeywordViewModel keyword) => _operations.RemoveKeywordsAsync(Photos, [keyword.Keyword]);
+    private Task RemoveKeyword(BulkKeywordViewModel keyword) => _operations.RemoveAsync(Photos, ListField.Tags, [keyword.Keyword]);
+
+    [RelayCommand]
+    private async Task AddPerson()
+    {
+        var names = PhotoMetadataWriter.NormalizeKeywords((NewPerson ?? "").Split(','));
+        NewPerson = "";
+        if (names.Count > 0) await _operations.AddAsync(Photos, ListField.People, names);
+    }
+
+    /// <summary>Adds a person that only some photos have to the rest of them.</summary>
+    [RelayCommand]
+    private Task ApplyPersonToAll(BulkKeywordViewModel person) => _operations.AddAsync(Photos, ListField.People, [person.Keyword]);
+
+    [RelayCommand]
+    private Task RemovePerson(BulkKeywordViewModel person) => _operations.RemoveAsync(Photos, ListField.People, [person.Keyword]);
 
     /// <summary>Unless they're all favourites already, the heart makes them all favourites.</summary>
     [RelayCommand]
@@ -222,21 +242,28 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     {
         var metadata = Photos.Select(p => p.Metadata ?? new PhotoMetadata()).ToList();
 
-        // Tags, most common first, keeping the spelling first seen.
-        var counts = new Dictionary<string, (string Spelling, int Count)>(StringComparer.OrdinalIgnoreCase);
-        foreach (var keyword in metadata.SelectMany(m => m.Keywords.Distinct(StringComparer.OrdinalIgnoreCase)))
-            counts[keyword] = counts.TryGetValue(keyword, out var c) ? (c.Spelling, c.Count + 1) : (keyword, 1);
-
-        Keywords.Clear();
-        foreach (var (spelling, count) in counts.Values.OrderByDescending(c => c.Count).ThenBy(c => c.Spelling, StringComparer.CurrentCultureIgnoreCase))
-            Keywords.Add(new BulkKeywordViewModel(spelling, count, Photos.Count));
-        _suggestions.Add(counts.Values.Select(c => c.Spelling));
+        ShowCounts(Keywords, metadata.Select(m => m.Keywords), _suggestions);
+        ShowCounts(People, metadata.Select(m => m.People), _peopleSuggestions);
 
         var favourites = metadata.Count(m => m.IsFavourite);
         AllFavourites = favourites == metadata.Count;
         FavouriteNote = favourites > 0 && !AllFavourites ? $"{favourites:N0} of {metadata.Count:N0} are favourites; the heart adds the rest." : null;
 
         ShowText(metadata);
+    }
+
+    /// <summary>Tags or people and how many of the photos have each, most common first, keeping the spelling first seen.</summary>
+    private void ShowCounts(ObservableCollection<BulkKeywordViewModel> target, IEnumerable<IReadOnlyList<string>> lists,
+        KeywordSuggestions suggestions)
+    {
+        var counts = new Dictionary<string, (string Spelling, int Count)>(StringComparer.OrdinalIgnoreCase);
+        foreach (var value in lists.SelectMany(l => l.Distinct(StringComparer.OrdinalIgnoreCase)))
+            counts[value] = counts.TryGetValue(value, out var c) ? (c.Spelling, c.Count + 1) : (value, 1);
+
+        target.Clear();
+        foreach (var (spelling, count) in counts.Values.OrderByDescending(c => c.Count).ThenBy(c => c.Spelling, StringComparer.CurrentCultureIgnoreCase))
+            target.Add(new BulkKeywordViewModel(spelling, count, Photos.Count));
+        suggestions.Add(counts.Values.Select(c => c.Spelling));
     }
 
     private void OnOperationsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

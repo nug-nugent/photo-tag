@@ -171,6 +171,18 @@ public sealed class RawTests(ExifToolFixture fixture) : IClassFixture<ExifToolFi
     }
 
     [Fact]
+    public async Task People_GoInTheSidecar()
+    {
+        var writer = fixture.RequireWriter();
+        var raw = await RawSamples.CopyAsync(RawSamples.PanasonicRw2, _dir.Path, "P1.RW2");
+
+        await writer.WriteAsync(raw, new MetadataChanges { People = ["Mary Smith"] }, Ct);
+
+        Assert.Equal(["Mary Smith"], PhotoMetadata.Read(raw).People);
+        Assert.Contains("Mary Smith", File.ReadAllText(Path.Combine(_dir.Path, "P1.xmp")));
+    }
+
+    [Fact]
     public async Task Places_GoInTheSidecar()
     {
         var writer = fixture.RequireWriter();

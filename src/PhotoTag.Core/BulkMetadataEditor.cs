@@ -63,24 +63,40 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
     private static IReadOnlyList<PhotoFile> Singles(IReadOnlyList<string> paths) => [.. paths.Select(PhotoFile.Single)];
 
     public Task<BulkResult> AddKeywordsAsync(IReadOnlyList<PhotoFile> paths, IReadOnlyList<string> keywords,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        AddAsync(paths, ListField.Tags, keywords, progress, cancellationToken);
+
+    public Task<BulkResult> RemoveKeywordsAsync(IReadOnlyList<PhotoFile> paths, IReadOnlyList<string> keywords,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        RemoveAsync(paths, ListField.Tags, keywords, progress, cancellationToken);
+
+    public Task<BulkResult> RenameKeywordAsync(IReadOnlyList<PhotoFile> paths, string from, string to,
+        IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default) =>
+        RenameAsync(paths, ListField.Tags, from, to, progress, cancellationToken);
+
+    /// <summary>Adds tags or people to every photo, keeping what they have; photos that have them all are skipped.</summary>
+    public Task<BulkResult> AddAsync(IReadOnlyList<PhotoFile> paths, ListField field, IReadOnlyList<string> values,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        var toAdd = PhotoMetadataWriter.NormalizeKeywords(keywords);
+        var toAdd = PhotoMetadataWriter.NormalizeKeywords(values);
         return ApplyAsync(paths, current =>
         {
-            var updated = PhotoMetadataWriter.NormalizeKeywords(current.Keywords.Concat(toAdd));
-            return updated.Count == current.Keywords.Count ? null : new MetadataChanges { Keywords = updated };
+            var existing = current.Get(field);
+            var updated = PhotoMetadataWriter.NormalizeKeywords(existing.Concat(toAdd));
+            return updated.Count == existing.Count ? null : new MetadataChanges().With(field, updated);
         }, progress, cancellationToken);
     }
 
-    public Task<BulkResult> RemoveKeywordsAsync(IReadOnlyList<PhotoFile> paths, IReadOnlyList<string> keywords,
+    /// <summary>Removes tags or people from every photo, ignoring case.</summary>
+    public Task<BulkResult> RemoveAsync(IReadOnlyList<PhotoFile> paths, ListField field, IReadOnlyList<string> values,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
     {
-        var toRemove = new HashSet<string>(PhotoMetadataWriter.NormalizeKeywords(keywords), StringComparer.OrdinalIgnoreCase);
+        var toRemove = new HashSet<string>(PhotoMetadataWriter.NormalizeKeywords(values), StringComparer.OrdinalIgnoreCase);
         return ApplyAsync(paths, current =>
         {
-            var updated = current.Keywords.Where(k => !toRemove.Contains(k)).ToList();
-            return updated.Count == current.Keywords.Count ? null : new MetadataChanges { Keywords = updated };
+            var existing = current.Get(field);
+            var updated = existing.Where(v => !toRemove.Contains(v)).ToList();
+            return updated.Count == existing.Count ? null : new MetadataChanges().With(field, updated);
         }, progress, cancellationToken);
     }
 
@@ -89,19 +105,21 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
     /// <paramref name="to"/>, the two merge into one. Every spelling of <paramref name="to"/> becomes
     /// that exact spelling, so renaming a tag to itself tidies up case variants ("beach" into "Beach").
     /// </summary>
-    public Task<BulkResult> RenameKeywordAsync(IReadOnlyList<PhotoFile> paths, string from, string to,
+    public Task<BulkResult> RenameAsync(IReadOnlyList<PhotoFile> paths, ListField field, string from, string to,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         from = from.Trim();
         to = to.Trim();
-        if (from.Length == 0 || to.Length == 0) throw new ArgumentException("Tags can't be empty.");
+        if (from.Length == 0 || to.Length == 0) throw new ArgumentException("Names can't be empty.");
         return ApplyAsync(paths, current =>
         {
-            var updated = PhotoMetadataWriter.NormalizeKeywords(current.Keywords.Select(k =>
-                k.Equals(from, StringComparison.OrdinalIgnoreCase) || k.Equals(to, StringComparison.OrdinalIgnoreCase) ? to : k));
-            return updated.SequenceEqual(current.Keywords, StringComparer.Ordinal)
-                ? null
-                : new MetadataChanges { Keywords = updated, Rename = new KeywordRename(from, to) };
+            var existing = current.Get(field);
+            var updated = PhotoMetadataWriter.NormalizeKeywords(existing.Select(v =>
+                v.Equals(from, StringComparison.OrdinalIgnoreCase) || v.Equals(to, StringComparison.OrdinalIgnoreCase) ? to : v));
+            if (updated.SequenceEqual(existing, StringComparer.Ordinal)) return null;
+            var changes = new MetadataChanges().With(field, updated);
+            // Nested keywords follow a renamed tag rather than dropping it.
+            return field == ListField.Tags ? changes with { Rename = new KeywordRename(from, to) } : changes;
         }, progress, cancellationToken);
     }
 
@@ -176,6 +194,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
     // What bulk edits can change: tags (and Lightroom's nested keywords), rating, and the text fields.
     private static bool SameEditableValues(PhotoMetadata a, PhotoMetadata b) =>
         a.Rating == b.Rating && a.Keywords.SequenceEqual(b.Keywords, StringComparer.Ordinal)
+        && a.People.SequenceEqual(b.People, StringComparer.Ordinal)
         && a.HierarchicalKeywords.SequenceEqual(b.HierarchicalKeywords, StringComparer.Ordinal)
         && TextFields.All.All(f => SameText(a.Get(f), b.Get(f)));
 
@@ -186,6 +205,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         var changes = new MetadataChanges
         {
             Keywords = before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal) ? null : before.Keywords,
+            People = before.People.SequenceEqual(current.People, StringComparer.Ordinal) ? null : before.People,
             // Put these back exactly, rather than working them out again from the tag changes.
             HierarchicalKeywords = before.HierarchicalKeywords.SequenceEqual(current.HierarchicalKeywords, StringComparer.Ordinal)
                                    && before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal)
@@ -250,6 +270,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
                         current = current with
                         {
                             Keywords = changes.Keywords is { } k ? PhotoMetadataWriter.NormalizeKeywords(k) : current.Keywords,
+                            People = changes.People is { } people ? PhotoMetadataWriter.NormalizeKeywords(people) : current.People,
                             Rating = changes.Favourite is { } f ? (f ? PhotoMetadataWriter.FavouriteRating : null) : changes.Rating ?? current.Rating,
                             HierarchicalKeywords = changes.HierarchicalKeywords ?? current.HierarchicalKeywords,
                         };

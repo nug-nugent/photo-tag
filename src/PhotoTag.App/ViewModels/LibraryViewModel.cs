@@ -8,7 +8,8 @@ namespace PhotoTag.App.ViewModels;
 /// the background, records PhotoTag's own edits straight away, and feeds library-wide tag
 /// suggestions. Raises <see cref="CountsChanged"/> so the folder tree can refresh its counts.
 /// </summary>
-public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions suggestions, PlaceSuggestions places) : ViewModelBase
+public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions suggestions, KeywordSuggestions people,
+    PlaceSuggestions places) : ViewModelBase
 {
     private CancellationTokenSource? _scan;
 
@@ -86,14 +87,16 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
     {
         var keywords = await Index.GetKeywordsAsync();
         suggestions.Add(keywords.Select(k => k.Keyword));
+        people.Add((await Index.GetValuesAsync(ListField.People)).Select(p => p.Keyword));
         await places.LoadAsync(Index);
     }
 
-    /// <summary>Rebuilds the suggestions from the index, dropping tags no photo has any more.</summary>
+    /// <summary>Rebuilds the suggestions from the index, dropping tags and people no photo has any more.</summary>
     public async Task ReloadSuggestionsAsync()
     {
         var keywords = await Index.GetKeywordsAsync();
         suggestions.Reset(keywords.Select(k => k.Keyword));
+        people.Reset((await Index.GetValuesAsync(ListField.People)).Select(p => p.Keyword));
     }
 
     public void Cancel()

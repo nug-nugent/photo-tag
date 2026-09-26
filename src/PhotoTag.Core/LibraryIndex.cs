@@ -11,7 +11,7 @@ public sealed record IndexScanResult(int Total, int Updated, int Unchanged, int 
 /// <summary>Photo and tagged-photo counts for a folder, including its subfolders.</summary>
 public readonly record struct FolderCounts(int Photos, int Tagged);
 
-/// <summary>A tag and how many photos have it, counting every spelling (case variants are one tag).</summary>
+/// <summary>A tag (or person) and how many photos have it, counting every spelling (case variants are one).</summary>
 public sealed record KeywordCount(string Keyword, int Count)
 {
     /// <summary>Other spellings in use, e.g. "beach" when <see cref="Keyword"/> is "Beach". Rarely any.</summary>
@@ -24,7 +24,13 @@ public sealed record PhotoQuery
     /// <summary>Whole tags only.</summary>
     public IReadOnlyList<string> Keywords { get; init; } = [];
 
-    /// <summary>Each term matches a whole tag, or appears anywhere in the title, description, place or file name.</summary>
+    /// <summary>Whole names only.</summary>
+    public IReadOnlyList<string> People { get; init; } = [];
+
+    /// <summary>
+    /// Each term matches a whole tag, or appears anywhere in a person's name, the title, description,
+    /// place or file name.
+    /// </summary>
     public IReadOnlyList<string> Terms { get; init; } = [];
 
     public bool UntaggedOnly { get; init; }
@@ -39,7 +45,7 @@ public sealed record PhotoQuery
 /// </summary>
 public sealed class LibraryIndex : IDisposable
 {
-    private const int SchemaVersion = 2;
+    private const int SchemaVersion = 3;
     private const int BatchSize = 200;
 
     // Windows and macOS file systems are case-insensitive by default.
@@ -137,16 +143,18 @@ public sealed class LibraryIndex : IDisposable
     /// <summary>Paths of matching photos under <paramref name="root"/>, sorted by folder then name.</summary>
     public Task<IReadOnlyList<string>> SearchAsync(string root, PhotoQuery query) => Task.Run<IReadOnlyList<string>>(() =>
     {
-        var keywords = PhotoMetadataWriter.NormalizeKeywords(query.Keywords);
         using var connection = Open();
         using var command = connection.CreateCommand();
 
         var conditions = new List<string> { UnderFolder("p.folder") };
-        if (keywords.Count > 0)
+        foreach (var (field, values) in new[] { (ListField.Tags, query.Keywords), (ListField.People, query.People) })
         {
-            var names = keywords.Select((k, i) => $"@k{i}").ToList();
-            conditions.Add($"(SELECT COUNT(*) FROM photo_keywords k WHERE k.photo_id = p.id AND k.keyword IN ({string.Join(",", names)})) = {keywords.Count}");
-            for (var i = 0; i < keywords.Count; i++) command.Parameters.AddWithValue(names[i], keywords[i]);
+            var wanted = PhotoMetadataWriter.NormalizeKeywords(values);
+            if (wanted.Count == 0) continue;
+            var (table, column) = ListTable(field);
+            var names = wanted.Select((_, i) => $"@{column}{i}").ToList();
+            conditions.Add($"(SELECT COUNT(*) FROM {table} l WHERE l.photo_id = p.id AND l.{column} IN ({string.Join(",", names)})) = {wanted.Count}");
+            for (var i = 0; i < wanted.Count; i++) command.Parameters.AddWithValue(names[i], wanted[i]);
         }
         var terms = PhotoMetadataWriter.NormalizeKeywords(query.Terms);
         for (var i = 0; i < terms.Count; i++)
@@ -156,7 +164,8 @@ public sealed class LibraryIndex : IDisposable
                 (EXISTS (SELECT 1 FROM photo_keywords k WHERE k.photo_id = p.id AND k.keyword = {name})
                  OR contains_text(p.title, {name}) OR contains_text(p.description, {name}) OR contains_text(p.file_name, {name})
                  OR contains_text(p.location, {name}) OR contains_text(p.city, {name}) OR contains_text(p.state, {name})
-                 OR contains_text(p.country, {name}))
+                 OR contains_text(p.country, {name})
+                 OR EXISTS (SELECT 1 FROM photo_people pp WHERE pp.photo_id = p.id AND contains_text(pp.name, {name})))
                 """);
             command.Parameters.AddWithValue(name, terms[i]);
         }
@@ -212,14 +221,18 @@ public sealed class LibraryIndex : IDisposable
     });
 
     /// <summary>Every tag in the index (or under <paramref name="root"/>) with how many photos have it.</summary>
-    public Task<IReadOnlyList<KeywordCount>> GetKeywordsAsync(string? root = null) => Task.Run<IReadOnlyList<KeywordCount>>(() =>
+    public Task<IReadOnlyList<KeywordCount>> GetKeywordsAsync(string? root = null) => GetValuesAsync(ListField.Tags, root);
+
+    /// <summary>Every tag or person in the index (or under <paramref name="root"/>) with how many photos have it.</summary>
+    public Task<IReadOnlyList<KeywordCount>> GetValuesAsync(ListField field, string? root = null) => Task.Run<IReadOnlyList<KeywordCount>>(() =>
     {
         using var connection = Open();
         using var command = connection.CreateCommand();
+        var (table, column) = ListTable(field);
         var where = root is null ? "" : $"WHERE {UnderFolder("p.folder")}";
         // Count each exact spelling, then merge case variants in code, keeping the most used spelling.
         command.CommandText = $"""
-            SELECT k.keyword COLLATE BINARY AS spelling, COUNT(*) FROM photo_keywords k JOIN photos p ON p.id = k.photo_id
+            SELECT l.{column} COLLATE BINARY AS spelling, COUNT(*) FROM {table} l JOIN photos p ON p.id = l.photo_id
             {where} GROUP BY spelling
             """;
         if (root is not null) AddFolderParameters(command, NormalizeFolder(root));
@@ -256,6 +269,13 @@ public sealed class LibraryIndex : IDisposable
         return connection;
     }
 
+    private static (string Table, string Column) ListTable(ListField field) => field switch
+    {
+        ListField.Tags => ("photo_keywords", "keyword"),
+        ListField.People => ("photo_people", "name"),
+        _ => throw new ArgumentOutOfRangeException(nameof(field)),
+    };
+
     private void CreateSchema()
     {
         using var connection = Open();
@@ -266,15 +286,23 @@ public sealed class LibraryIndex : IDisposable
         if (version > SchemaVersion)
             throw new InvalidOperationException($"The photo index was created by a newer version of PhotoTag ({version}).");
 
-        if (version == 1)
+        if (version > 0)
         {
-            // Version 2 adds the place fields. Marking every photo as changed makes the next scan
-            // read them, while counts and search keep working until then.
+            // Upgrades, one version at a time. Marking every photo as changed makes the next scan
+            // read the new fields, while counts and search keep working until then.
+            var steps = new List<string>();
+            if (version < 2)
+            {
+                steps.Add("""
+                    ALTER TABLE photos ADD COLUMN location TEXT;
+                    ALTER TABLE photos ADD COLUMN city TEXT;
+                    ALTER TABLE photos ADD COLUMN state TEXT;
+                    ALTER TABLE photos ADD COLUMN country TEXT;
+                    """);
+            }
+            if (version < 3) steps.Add(PeopleTable);
             command.CommandText = $"""
-                ALTER TABLE photos ADD COLUMN location TEXT;
-                ALTER TABLE photos ADD COLUMN city TEXT;
-                ALTER TABLE photos ADD COLUMN state TEXT;
-                ALTER TABLE photos ADD COLUMN country TEXT;
+                {string.Join("\n", steps)}
                 UPDATE photos SET modified_ticks = -1;
                 PRAGMA user_version = {SchemaVersion};
                 """;
@@ -309,10 +337,20 @@ public sealed class LibraryIndex : IDisposable
                 PRIMARY KEY (photo_id, keyword)
             ) WITHOUT ROWID;
             CREATE INDEX photo_keywords_keyword ON photo_keywords (keyword);
+            {PeopleTable}
             PRAGMA user_version = {SchemaVersion};
             """;
         command.ExecuteNonQuery();
     }
+
+    private const string PeopleTable = """
+        CREATE TABLE IF NOT EXISTS photo_people (
+            photo_id INTEGER NOT NULL REFERENCES photos (id) ON DELETE CASCADE,
+            name TEXT NOT NULL COLLATE NOCASE,
+            PRIMARY KEY (photo_id, name)
+        ) WITHOUT ROWID;
+        CREATE INDEX IF NOT EXISTS photo_people_name ON photo_people (name);
+        """;
 
     private Dictionary<string, (long Size, long Ticks)> LoadFileStamps(string root)
     {
@@ -362,6 +400,10 @@ public sealed class LibraryIndex : IDisposable
                 clearKeywords.CommandText = "DELETE FROM photo_keywords WHERE photo_id = @id";
                 using var addKeyword = connection.CreateCommand();
                 addKeyword.CommandText = "INSERT OR IGNORE INTO photo_keywords (photo_id, keyword) VALUES (@id, @keyword)";
+                using var clearPeople = connection.CreateCommand();
+                clearPeople.CommandText = "DELETE FROM photo_people WHERE photo_id = @id";
+                using var addPerson = connection.CreateCommand();
+                addPerson.CommandText = "INSERT OR IGNORE INTO photo_people (photo_id, name) VALUES (@id, @name)";
 
                 foreach (var (path, m, size, ticks) in rows)
                 {
@@ -391,6 +433,17 @@ public sealed class LibraryIndex : IDisposable
                         addKeyword.Parameters.AddWithValue("@id", id);
                         addKeyword.Parameters.AddWithValue("@keyword", keyword);
                         addKeyword.ExecuteNonQuery();
+                    }
+
+                    clearPeople.Parameters.Clear();
+                    clearPeople.Parameters.AddWithValue("@id", id);
+                    clearPeople.ExecuteNonQuery();
+                    foreach (var person in m.People)
+                    {
+                        addPerson.Parameters.Clear();
+                        addPerson.Parameters.AddWithValue("@id", id);
+                        addPerson.Parameters.AddWithValue("@name", person);
+                        addPerson.ExecuteNonQuery();
                     }
                 }
                 transaction.Commit();

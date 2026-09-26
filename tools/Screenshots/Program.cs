@@ -98,6 +98,10 @@ try
         ShowFlyout(window, "TagsButton");
         WaitFor(vm.TagManager.Loading);
         Capture(window, $"{name}-4-tags-panel");
+        vm.TagManager.Field = ListField.People;
+        WaitFor(vm.TagManager.Loading);
+        Capture(window, $"{name}-4-people-panel");
+        vm.TagManager.Field = ListField.Tags;
         HideFlyouts(window);
 
         ShowFlyout(window, "SettingsButton");
@@ -258,6 +262,7 @@ static async Task BuildLibraryAsync(string samples, string library, PhotoRendere
         await writer.WriteAsync(photos[i], new MetadataChanges
         {
             Keywords = tags[i % tags.Length],
+            People = i % 3 == 1 ? ["Mary Smith", "Dad"] : i % 3 == 2 ? ["Mary Smith"] : null,
             Favourite = i % 4 == 1 ? true : null,
             Title = i == 1 ? "Evening light over Porthcurno" : null,
             Description = i == 1 ? "The tide was just going out, and the last of the sun caught the cliffs." : null,

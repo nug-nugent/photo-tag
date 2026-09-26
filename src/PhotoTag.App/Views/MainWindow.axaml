@@ -124,6 +124,13 @@
             <Setter Property="Height" Value="10" />
         </Style>
 
+        <!-- The Tags | People switch in the panel: tab text at the panel's scale. -->
+        <Style Selector="TabStripItem">
+            <Setter Property="FontSize" Value="15" />
+            <Setter Property="MinHeight" Value="36" />
+            <Setter Property="Padding" Value="8,0" />
+        </Style>
+
         <!-- Panes and notices -->
         <Style Selector="Border.notice">
             <Setter Property="Background" Value="{DynamicResource ChipBrush}" />
@@ -169,8 +176,8 @@
                            TextTrimming="PrefixCharacterEllipsis" ToolTip.Tip="{Binding RootPath}" />
 
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="6">
-                    <AutoCompleteBox x:Name="SearchBox" Width="280" PlaceholderText="Search tags, titles, places…"
-                                     ToolTip.Tip="Finds photos with a tag, or with the words in their title, description, place or file name. Separate several with commas to match them all."
+                    <AutoCompleteBox x:Name="SearchBox" Width="280" PlaceholderText="Search tags, people, places…"
+                                     ToolTip.Tip="Finds photos with a tag, or with the words in a person's name, the title, description, place or file name. Separate several with commas to match them all."
                                      IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}"
                                      Text="{Binding SearchText, Mode=TwoWay}"
                                      ItemsSource="{Binding KeywordSuggestions}"
@@ -204,26 +211,29 @@
                         </StackPanel>
                     </ToggleButton>
                     <Rectangle Width="1" Margin="6,6" Fill="{DynamicResource DividerBrush}" />
-                    <Button x:Name="TagsButton" Classes="icon" ToolTip.Tip="Tags: rename, merge or delete them across the library"
+                    <Button x:Name="TagsButton" Classes="icon" ToolTip.Tip="Tags and people: rename, merge or delete them across the library"
                             IsEnabled="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <StackPanel Orientation="Horizontal" Spacing="6">
                             <PathIcon Data="{StaticResource IconTag}" />
-                            <TextBlock Text="Tags" />
+                            <TextBlock Text="Tags &amp; people" />
                         </StackPanel>
                         <Button.Flyout>
                             <Flyout Placement="BottomEdgeAlignedRight" Opened="TagsFlyout_Opened" Closed="TagsFlyout_Closed">
                                 <StackPanel x:Name="TagManagerPanel" Width="380" Spacing="10" DataContext="{Binding TagManager}"
                                             x:DataType="vm:TagManagerViewModel">
+                                    <TabStrip x:Name="TagManagerSwitch" SelectedIndex="{Binding FieldIndex, Mode=TwoWay}" Margin="-8,-4,0,0">
+                                        <TabStripItem Content="Tags" />
+                                        <TabStripItem Content="People" />
+                                    </TabStrip>
                                     <StackPanel Spacing="2">
                                         <TextBlock Text="{Binding Heading}" FontWeight="SemiBold" FontSize="15" />
-                                        <TextBlock Classes="caption" TextWrapping="Wrap"
-                                                   Text="Renaming a tag to one that already exists merges the two. Changes are saved into every photo that has the tag." />
+                                        <TextBlock Classes="caption" TextWrapping="Wrap" Text="{Binding HelpText}" />
                                     </StackPanel>
                                     <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
                                         <TextBlock TextWrapping="Wrap" FontSize="12"
                                                    Text="Editing tags needs ExifTool (exiftool.org). Install it, then restart PhotoTag." />
                                     </Border>
-                                    <TextBox x:Name="TagFilterBox" PlaceholderText="Filter tags" Text="{Binding Filter, Mode=TwoWay}">
+                                    <TextBox x:Name="TagFilterBox" PlaceholderText="{Binding FilterPlaceholder}" Text="{Binding Filter, Mode=TwoWay}">
                                         <TextBox.InnerLeftContent>
                                             <PathIcon Classes="inline" Data="{StaticResource IconSearch}" Margin="10,0,0,0"
                                                       Foreground="{DynamicResource MutedTextBrush}" />
@@ -508,6 +518,42 @@
                                             </AutoCompleteBox>
                                         </StackPanel>
 
+                                        <!-- People: names, edited like tags. -->
+                                        <StackPanel Spacing="6">
+                                            <TextBlock Classes="label" Text="People" />
+                                            <ItemsControl ItemsSource="{Binding People}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="x:String">
+                                                        <Border Classes="chip person">
+                                                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                                                <TextBlock Text="{Binding}" FontSize="12" VerticalAlignment="Center" />
+                                                                <Button Classes="chipRemove personRemove" ToolTip.Tip="Remove person"
+                                                                        IsVisible="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).CanEdit}"
+                                                                        Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).RemovePersonCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <PathIcon Data="{StaticResource IconClose}" />
+                                                                </Button>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <AutoCompleteBox x:Name="NewPersonBox" PlaceholderText="Add a person"
+                                                             IsEnabled="{Binding CanEdit}"
+                                                             Text="{Binding NewPerson, Mode=TwoWay}"
+                                                             ItemsSource="{Binding PeopleSuggestions}"
+                                                             FilterMode="Contains" MinimumPrefixLength="1">
+                                                <AutoCompleteBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding AddPersonCommand}" />
+                                                </AutoCompleteBox.KeyBindings>
+                                            </AutoCompleteBox>
+                                        </StackPanel>
+
                                         <StackPanel Spacing="6">
                                             <TextBlock Classes="label" Text="Title" />
                                             <TextBox x:Name="TitleBox" IsEnabled="{Binding CanEdit}"
@@ -648,8 +694,54 @@
                                                     <KeyBinding Gesture="Enter" Command="{Binding AddKeywordCommand}" />
                                                 </AutoCompleteBox.KeyBindings>
                                             </AutoCompleteBox>
+                                        </StackPanel>
+
+                                        <StackPanel Spacing="6" IsVisible="{Binding IsLoaded}">
+                                            <TextBlock Classes="label" Text="People" />
+                                            <ItemsControl ItemsSource="{Binding People}">
+                                                <ItemsControl.ItemsPanel>
+                                                    <ItemsPanelTemplate>
+                                                        <WrapPanel />
+                                                    </ItemsPanelTemplate>
+                                                </ItemsControl.ItemsPanel>
+                                                <ItemsControl.ItemTemplate>
+                                                    <DataTemplate x:DataType="vm:BulkKeywordViewModel">
+                                                        <Border Classes="chip person" Classes.partial="{Binding !IsOnAll}" ToolTip.Tip="{Binding ToolTip}">
+                                                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                                                <TextBlock Text="{Binding Keyword}" FontSize="12" VerticalAlignment="Center" />
+                                                                <TextBlock Text="{Binding CountText}" Classes="caption" Margin="5,0,2,0"
+                                                                           VerticalAlignment="Center" IsVisible="{Binding !IsOnAll}" />
+                                                                <Button Classes="chipRemove personAddAll"
+                                                                        ToolTip.Tip="Add to all selected photos"
+                                                                        IsVisible="{Binding !IsOnAll}"
+                                                                        IsEnabled="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).CanEdit}"
+                                                                        Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).ApplyPersonToAllCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <PathIcon Data="{StaticResource IconPlus}" />
+                                                                </Button>
+                                                                <Button Classes="chipRemove personRemove"
+                                                                        ToolTip.Tip="Remove from all selected photos"
+                                                                        IsEnabled="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).CanEdit}"
+                                                                        Command="{Binding $parent[ItemsControl].((vm:BulkDetailsViewModel)DataContext).RemovePersonCommand}"
+                                                                        CommandParameter="{Binding}">
+                                                                    <PathIcon Data="{StaticResource IconClose}" />
+                                                                </Button>
+                                                            </StackPanel>
+                                                        </Border>
+                                                    </DataTemplate>
+                                                </ItemsControl.ItemTemplate>
+                                            </ItemsControl>
+                                            <AutoCompleteBox x:Name="BulkPersonBox" PlaceholderText="Add a person to all of them"
+                                                             IsEnabled="{Binding CanEdit}"
+                                                             Text="{Binding NewPerson, Mode=TwoWay}"
+                                                             ItemsSource="{Binding PeopleSuggestions}"
+                                                             FilterMode="Contains" MinimumPrefixLength="1">
+                                                <AutoCompleteBox.KeyBindings>
+                                                    <KeyBinding Gesture="Enter" Command="{Binding AddPersonCommand}" />
+                                                </AutoCompleteBox.KeyBindings>
+                                            </AutoCompleteBox>
                                             <TextBlock Classes="caption" TextWrapping="Wrap"
-                                                       Text="Outlined tags are on only some of them: + adds one to the rest, ✕ removes a tag from all." />
+                                                       Text="Outlined tags and people are on only some of them: + adds one to the rest, ✕ removes it from all." />
                                         </StackPanel>
 
                                         <StackPanel Spacing="6" IsVisible="{Binding IsLoaded}">

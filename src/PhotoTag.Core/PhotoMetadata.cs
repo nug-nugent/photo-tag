@@ -45,6 +45,9 @@ public sealed record PhotoMetadata
     /// <summary>Keywords/tags, merged from IPTC Keywords and XMP dc:subject.</summary>
     public IReadOnlyList<string> Keywords { get; init; } = [];
 
+    /// <summary>Names of the people shown, from XMP Iptc4xmpExt:PersonInImage.</summary>
+    public IReadOnlyList<string> People { get; init; } = [];
+
     /// <summary>Lightroom's nested keywords ("Places|UK|Cornwall"), kept in step by <see cref="KeywordHierarchy"/>.</summary>
     internal IReadOnlyList<string> HierarchicalKeywords { get; init; } = [];
 
@@ -91,6 +94,7 @@ public sealed record PhotoMetadata
                 Country = Clean(Xmp(xmp, "photoshop:Country")),
                 Rating = int.TryParse(Xmp(xmp, "xmp:Rating"), out var rating) && rating > 0 ? rating : null,
                 HierarchicalKeywords = XmpList(xmp, "lr:hierarchicalSubject"),
+                People = XmpNames(xmp, "Iptc4xmpExt:PersonInImage"),
             };
         }
         return metadata;
@@ -146,6 +150,7 @@ public sealed record PhotoMetadata
             Longitude = location is { IsZero: false } ? location.Value.Longitude : null,
             Keywords = ReadKeywords(iptc, xmp),
             HierarchicalKeywords = XmpList(xmp, "lr:hierarchicalSubject"),
+            People = XmpNames(xmp, "Iptc4xmpExt:PersonInImage"),
         };
     }
 
@@ -195,6 +200,10 @@ public sealed record PhotoMetadata
 
     private static IReadOnlyList<string> XmpList(IDictionary<string, string> xmp, string property) =>
         [.. XmpItems(xmp, property).Select(Clean).OfType<string>()];
+
+    /// <summary>A list of names, without blanks or case-insensitive duplicates.</summary>
+    private static IReadOnlyList<string> XmpNames(IDictionary<string, string> xmp, string property) =>
+        [.. XmpList(xmp, property).Distinct(StringComparer.OrdinalIgnoreCase)];
 
     private static IReadOnlyList<string> ReadKeywords(IptcDirectory? iptc, IDictionary<string, string> xmp)
     {
