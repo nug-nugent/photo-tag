@@ -8,9 +8,11 @@ namespace PhotoTag.App;
 public enum PhotoSort
 {
     FileName,
+
+    /// <summary>By date taken, the most recent first; photos with no date go last.</summary>
     DateTaken,
 
-    /// <summary>By date taken, with a heading for each day.</summary>
+    /// <summary>By date taken, the most recent first, with a heading for each day.</summary>
     Days,
 }
 

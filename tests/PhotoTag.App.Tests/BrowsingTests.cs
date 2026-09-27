@@ -100,13 +100,13 @@ public sealed class BrowsingTests : UiTestBase
         var sort = Find<ComboBox>(window, "SortBox");
         sort.SelectedIndex = 1;
         Assert.Equal(PhotoSort.DateTaken, vm.Sort);
-        Assert.Equal(["b.jpg", "c.jpg", "a.jpg", "d.jpg"], Names(vm));
+        Assert.Equal(["a.jpg", "c.jpg", "b.jpg", "d.jpg"], Names(vm)); // most recent first
         Assert.Empty(vm.Days);
 
         sort.SelectedIndex = 2;
-        Assert.Equal(["b.jpg", "c.jpg", "a.jpg", "d.jpg"], Names(vm));
+        Assert.Equal(["a.jpg", "c.jpg", "b.jpg", "d.jpg"], Names(vm));
         Assert.Equal(3, vm.Days.Count);
-        Assert.Equal(["b.jpg", "c.jpg"], vm.Days[0].Photos.Select(p => p.FileName));
+        Assert.Equal(["c.jpg", "b.jpg"], vm.Days[1].Photos.Select(p => p.FileName));
         Assert.Equal("No date", vm.Days[2].Label);
         Assert.Equal(PhotoSort.Days, AppSettings.Load(SettingsPath).Sort); // remembered
         await WaitForAsync(() => FindAll<TextBlock>(window).Any(t => t.Classes.Contains("dayLabel") && t.Text == vm.Days[0].Label));
@@ -116,7 +116,7 @@ public sealed class BrowsingTests : UiTestBase
         var c = vm.Photos.Single(p => p.FileName == "c.jpg");
         c.IsFavourite = true;
         Assert.True(c.IsFeatured);
-        Assert.Equal("2 photos · 1 favourite", vm.Days[0].Summary);
+        Assert.Equal("2 photos · 1 favourite", vm.Days[1].Summary);
         await WaitForAsync(() => TileOf(window, c)?.Bounds.Width > 1.8 * TileOf(window, b)!.Bounds.Width);
 
         // Unless favourites aren't highlighted.
@@ -143,12 +143,12 @@ public sealed class BrowsingTests : UiTestBase
         var culture = System.Globalization.CultureInfo.CurrentCulture;
         Assert.Equal(["2020", "2019", "No date"], vm.DateTree.Select(n => n.Label)); // most recent year first
         var y2019 = vm.DateTree[1];
-        Assert.Equal([culture.DateTimeFormat.GetMonthName(8), culture.DateTimeFormat.GetMonthName(9)], y2019.Children.Select(m => m.Label));
-        Assert.Equal(2, y2019.Children[0].Children.Count);
+        Assert.Equal([culture.DateTimeFormat.GetMonthName(9), culture.DateTimeFormat.GetMonthName(8)], y2019.Children.Select(m => m.Label));
+        Assert.Equal([13, 12], y2019.Children[1].Children.Select(d => d.Day!.Day!.Value.Day));
         Assert.False(y2019.IsExpanded); // two years: both start folded
         Assert.True(vm.DateTree[0].Children.Single().IsExpanded); // 2020's only month is open inside it
-        Assert.Same(vm.Days[3], vm.DateTree[0].Children.Single().Children.Single().Day);
-        Assert.Equal(vm.Days[0].GridIndex, y2019.GridIndex);
+        Assert.Same(vm.Days[0], vm.DateTree[0].Children.Single().Children.Single().Day);
+        Assert.Equal(vm.Days[1].GridIndex, y2019.GridIndex);
 
         // Clicking a year opens it (and jumps to its first day).
         var row = await WaitForControlAsync(() => FindAll<Button>(window)
@@ -161,8 +161,8 @@ public sealed class BrowsingTests : UiTestBase
         // Favourites add up the tree.
         vm.Photos.Single(p => p.FileName == "b.jpg").IsFavourite = true;
         Assert.Equal(1, y2019.FavouriteCount);
-        Assert.Equal(1, y2019.Children[0].FavouriteCount);
-        Assert.Equal(0, y2019.Children[1].FavouriteCount);
+        Assert.Equal(0, y2019.Children[0].FavouriteCount);
+        Assert.Equal(1, y2019.Children[1].FavouriteCount);
         window.Close();
     }
 

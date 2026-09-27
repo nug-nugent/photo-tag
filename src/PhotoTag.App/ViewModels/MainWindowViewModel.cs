@@ -247,7 +247,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         IReadOnlyList<PhotoItemViewModel> ordered = Sort == PhotoSort.FileName
             ? _loaded
-            : [.. _loaded.OrderBy(p => p.DateTaken is null).ThenBy(p => p.DateTaken)]; // stable: ties keep file order
+            : [.. _loaded.OrderBy(p => p.DateTaken is null).ThenByDescending(p => p.DateTaken)]; // newest first; stable: ties keep file order
 
         var items = new List<object>(ordered.Count);
         var days = new List<DayHeaderViewModel>();

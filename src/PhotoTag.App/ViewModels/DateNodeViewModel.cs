@@ -39,7 +39,7 @@ public partial class DateNodeViewModel : ViewModelBase
     }
 
     /// <summary>
-    /// Years, the most recent first, then months, then days, oldest first as in the grid. A year opens if it's the
+    /// Years, then months, then days, the most recent first as in the grid. A year opens if it's the
     /// only one, and a month if it's its year's only one, so a single holiday shows its days straight away.
     /// </summary>
     public static IReadOnlyList<DateNodeViewModel> Build(IReadOnlyList<DayHeaderViewModel> days)
