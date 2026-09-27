@@ -137,8 +137,9 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
             LoadFailedText = e.Message;
             LoadFailed = true;
         }
-        catch (Exception)
+        catch (Exception e)
         {
+            Log.Warn($"Couldn't make a thumbnail of {Path}", e);
             LoadFailedText = "Can't read this file";
             LoadFailed = true;
         }

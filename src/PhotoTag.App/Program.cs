@@ -1,4 +1,5 @@
 using Avalonia;
+using PhotoTag.Core;
 using Velopack;
 
 namespace PhotoTag.App;
@@ -15,7 +16,23 @@ internal sealed class Program
 
         if (args is ["--self-check", var report]) return SelfCheck.RunAsync(report).GetAwaiter().GetResult();
 
-        return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        var log = new LogFile(LogFile.DefaultPath);
+        Log.Start(log);
+        AppDomain.CurrentDomain.UnhandledException += (_, e) =>
+        {
+            Log.Error("PhotoTag crashed", e.ExceptionObject as Exception);
+            log.FlushAsync().Wait(TimeSpan.FromSeconds(2));
+        };
+        TaskScheduler.UnobservedTaskException += (_, e) => Log.Error("A background task failed", e.Exception);
+        try
+        {
+            return BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        }
+        finally
+        {
+            Log.Info("Closed");
+            log.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(2));
+        }
     }
 
     // Also used by the visual designer.

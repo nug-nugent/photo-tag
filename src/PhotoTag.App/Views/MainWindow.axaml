@@ -602,6 +602,13 @@
                                               IsChecked="{Binding Updates.CheckAutomatically, Mode=TwoWay}"
                                               Content="Check for new versions when PhotoTag starts" />
                                     <TextBlock Text="{Binding Updates.VersionText}" Classes="caption" />
+                                    <Separator Margin="0,6" />
+                                    <TextBlock Text="Problems" FontWeight="ExtraBold" />
+                                    <TextBlock Classes="caption" TextWrapping="Wrap"
+                                               Text="PhotoTag keeps a log of what it does and what goes wrong. If you report a problem, it helps to include it." />
+                                    <HyperlinkButton x:Name="ShowLogLink" Content="Show log" NavigateUri="{Binding LogUri}" Padding="0,2"
+                                                     IsVisible="{Binding LogUri, Converter={x:Static ObjectConverters.IsNotNull}}"
+                                                     ToolTip.Tip="{Binding LogPath}" />
                                 </StackPanel>
                             </Flyout>
                         </Button.Flyout>

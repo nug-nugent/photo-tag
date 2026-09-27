@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
@@ -29,7 +30,11 @@ public partial class App : Application
             var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, new GitHubReleasesUpdater(), placeLookup)
             {
                 ExifToolMissingText = MainWindowViewModel.ExifToolMissingMessage(exifToolSetup.Status),
+                LogPath = Log.File?.FilePath,
             };
+            Log.Info($"Started {viewModel.Updates.VersionText} on {RuntimeInformation.OSDescription} " +
+                     $"({RuntimeInformation.OSArchitecture}), .NET {Environment.Version}");
+            if (exifTool is null) Log.Warn($"Tags can't be edited: ExifTool {exifToolSetup.Status}");
 
             // Optional: a folder passed on the command line wins over the last-used one.
             var startFolder = desktop.Args is [var arg, ..] ? arg : settings.LastFolder;

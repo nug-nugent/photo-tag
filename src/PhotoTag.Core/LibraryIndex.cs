@@ -75,6 +75,9 @@ public sealed class LibraryIndex : IDisposable
     private const int SchemaVersion = 3;
     private const int BatchSize = 200;
 
+    /// <summary>How many photos that couldn't be read a scan logs by name.</summary>
+    private const int LoggedFailures = 10;
+
     // Windows and macOS file systems are case-insensitive by default.
     private static readonly bool IgnoreCase = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS();
     private static readonly StringComparer PathComparer = IgnoreCase ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
@@ -158,9 +161,11 @@ public sealed class LibraryIndex : IDisposable
                         if (pending.Count >= BatchSize) await FlushAsync(pending, ct).ConfigureAwait(false);
                     }
                 }
-                catch (IOException)
+                catch (IOException e)
                 {
-                    Interlocked.Increment(ref failed); // vanished or locked mid-scan; next scan retries
+                    // Vanished or locked mid-scan; next scan retries. Only the first few: a share that drops
+                    // out mid-scan would fail every photo left, and push everything else out of the log.
+                    if (Interlocked.Increment(ref failed) <= LoggedFailures) Log.Warn($"Couldn't index {path}", e);
                 }
                 progress?.Report(new IndexProgress(Interlocked.Increment(ref done), files.Count));
             }).ConfigureAwait(false);
@@ -722,12 +727,14 @@ public sealed class LibraryIndex : IDisposable
         catch (Exception e) when (e is MetadataExtractor.ImageProcessingException or MetadataExtractor.MetadataException
                                       or InvalidDataException)
         {
+            Log.Warn($"Couldn't read {path}; indexed as untagged", e);
             return new PhotoMetadata(); // damaged: indexed as untagged so it still counts
         }
         // MetadataExtractor reports truncated data as a plain IOException, the same type as a
         // locked or vanished file. If we can still open the file, the contents are the problem.
-        catch (IOException) when (CanOpen(path))
+        catch (IOException e) when (CanOpen(path))
         {
+            Log.Warn($"Couldn't read {path}; indexed as untagged", e);
             return new PhotoMetadata();
         }
     }

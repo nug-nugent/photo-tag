@@ -91,6 +91,7 @@ public sealed class ExifTool : IAsyncDisposable
         }
         catch (Exception e) when (e is IOException or InvalidOperationException)
         {
+            Log.Warn("ExifTool stopped unexpectedly", e);
             KillProcess();
             throw new ExifToolException($"ExifTool stopped unexpectedly: {e.Message}");
         }
@@ -120,6 +121,7 @@ public sealed class ExifTool : IAsyncDisposable
         foreach (var argument in new[] { "-stay_open", "True", "-@", "-" }) startInfo.ArgumentList.Add(argument);
 
         _process = Process.Start(startInfo) ?? throw new ExifToolException($"Couldn't start {ExecutablePath}");
+        Log.Info($"Started ExifTool: {ExecutablePath}" + (PerlPath is null ? "" : $" (with {PerlPath})"));
         return _process;
     }
 

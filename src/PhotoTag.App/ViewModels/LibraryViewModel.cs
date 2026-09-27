@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -114,7 +115,11 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         {
             await LoadSuggestionsAsync(); // what's already indexed, before the scan finishes
             await OfferMoveAsync(root, cts.Token);
-            await Index.ScanAsync(root, progress, cts.Token);
+            Log.Info($"Indexing {root}");
+            var started = Stopwatch.StartNew();
+            var result = await Index.ScanAsync(root, progress, cts.Token);
+            Log.Info($"Indexed {root} in {started.Elapsed.TotalSeconds:0.0} s: {result.Total:N0} photos, {result.Updated:N0} read, " +
+                     $"{result.Unchanged:N0} unchanged, {result.Removed:N0} removed, {result.Failed:N0} couldn't be read");
             await LoadSuggestionsAsync();
             CountsChanged?.Invoke(this, EventArgs.Empty);
         }
@@ -124,6 +129,7 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             problem = $"Couldn't index: {e.Message}"; // a share gone to sleep, say; the next scan tries again
+            Log.Warn($"Couldn't index {root}", e);
         }
         finally
         {
@@ -146,9 +152,11 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
+            Log.Warn($"Couldn't check whether {root} was indexed somewhere else", e);
             return;
         }
         if (moved is null) return;
+        Log.Info($"{root} looks like {moved.Folder}, moved");
 
         var answer = _moveAnswer = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
         using var registration = cancellationToken.Register(() => answer.TrySetCanceled(cancellationToken));
@@ -164,6 +172,7 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         }
 
         StatusText = "Moving the index…";
+        Log.Info($"Moving the index of {moved.Folder} to {root}");
         await Index.MoveFolderAsync(moved.Folder, root);
         await LoadSuggestionsAsync();
         CountsChanged?.Invoke(this, EventArgs.Empty);
@@ -193,6 +202,8 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         // Notifications from network shares can go missing, and some file systems have none.
         if (!watcher.IsWatching || onNetwork)
         {
+            Log.Info($"Looking for changes in the folder on screen every {PollInterval.TotalSeconds:0} s" +
+                     (onNetwork ? $" ({root} is on a network drive)" : ""));
             _pollTimer = new DispatcherTimer { Interval = PollInterval };
             _pollTimer.Tick += (_, _) => RefreshFolders(FoldersToPoll());
             _pollTimer.Start();
@@ -248,6 +259,7 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 {
+                    Log.Warn($"Couldn't look for changes under {root}", e);
                     continue; // a folder went away mid-refresh; the watcher reports that too
                 }
                 if (_root != root) continue;
@@ -290,6 +302,7 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
             }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
+                Log.Warn($"Couldn't look for changes in {folder}", e);
                 continue; // unreachable for now; the others may still be fine
             }
             changed.UnionWith(result.Changed);
@@ -390,6 +403,7 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         catch (Exception e) when (e is IOException or MetadataExtractor.ImageProcessingException)
         {
             // The next scan will pick it up.
+            Log.Warn($"Couldn't re-read {path} after saving", e);
         }
         finally
         {

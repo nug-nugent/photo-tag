@@ -50,13 +50,18 @@ public sealed class FolderWatcher : IDisposable
                 Add(e.OldFullPath);
                 Add(e.FullPath);
             };
-            _watcher.Error += (_, _) => AddIncomplete();
+            _watcher.Error += (_, e) =>
+            {
+                Log.Warn($"Lost track of changes under {root}", e.GetException());
+                AddIncomplete();
+            };
             _watcher.EnableRaisingEvents = true;
             IsWatching = true;
         }
         catch (Exception e) when (e is IOException or ArgumentException or PlatformNotSupportedException or UnauthorizedAccessException)
         {
             // No notifications here (or too many watchers already on Linux): the caller polls.
+            Log.Info($"No change notifications for {root} ({e.Message}); polling instead");
             _watcher?.Dispose();
             _watcher = null;
         }

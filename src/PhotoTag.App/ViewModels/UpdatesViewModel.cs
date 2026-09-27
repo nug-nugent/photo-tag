@@ -1,6 +1,7 @@
 using System.Reflection;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using PhotoTag.Core;
 
 namespace PhotoTag.App.ViewModels;
 
@@ -44,22 +45,34 @@ public partial class UpdatesViewModel(IAppUpdater updater, AppSettings settings)
     private async Task CheckAsync()
     {
         if (!updater.IsInstalled || IsUpdateReady) return;
+        Log.Info($"Checking for updates (running {updater.CurrentVersion})");
         try
         {
             if (await updater.DownloadNewVersionAsync(CancellationToken.None) is { } version)
             {
+                Log.Info($"Downloaded PhotoTag {version}, ready to install");
                 ReadyVersion = version;
                 OnPropertyChanged(nameof(ReadyText));
+            }
+            else
+            {
+                Log.Info("Up to date");
             }
         }
         catch (Exception e) when (e is HttpRequestException or IOException or TaskCanceledException or InvalidOperationException)
         {
             // Offline, rate-limited or similar: try again next launch.
+            Log.Warn("Couldn't check for updates", e);
         }
     }
 
     [RelayCommand]
-    private void RestartToUpdate() => updater.RestartToUpdate();
+    private void RestartToUpdate()
+    {
+        Log.Info($"Restarting to install PhotoTag {ReadyVersion}");
+        Log.File?.FlushAsync().Wait(TimeSpan.FromSeconds(2)); // PhotoTag exits straight away
+        updater.RestartToUpdate();
+    }
 
     private static string DevelopmentVersion =>
         typeof(UpdatesViewModel).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
