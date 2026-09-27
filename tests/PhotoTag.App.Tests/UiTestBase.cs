@@ -58,7 +58,8 @@ public abstract class UiTestBase : IAsyncDisposable
     }
 
     protected async Task<(MainWindow Window, MainWindowViewModel Vm)> OpenAsync(PhotoMetadataWriter? writer, PhotoRenderer? renderer = null,
-        IAppUpdater? updater = null, IExactPlaceLookup? placeLookup = null, ExifToolStatus exifToolStatus = ExifToolStatus.NotFound)
+        IAppUpdater? updater = null, IExactPlaceLookup? placeLookup = null, ExifToolStatus exifToolStatus = ExifToolStatus.NotFound,
+        string? root = null)
     {
         var settings = AppSettings.Load(SettingsPath);
         var thumbnails = new ThumbnailCache(Path.Combine(_appData.Path, $"thumbnails{_opened.Count}"), renderer);
@@ -71,7 +72,7 @@ public abstract class UiTestBase : IAsyncDisposable
         // Tall enough that the whole details panel and all test tiles are on screen.
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 2400 };
         window.Show();
-        vm.OpenRoot(DirPath);
+        await vm.OpenRootAsync(root ?? DirPath);
         await WaitForAsync(() => vm.Photos.Count > 0);
         await WaitForAsync(() => Tiles(window).Count >= Math.Min(vm.Photos.Count, 12));
         return (window, vm);

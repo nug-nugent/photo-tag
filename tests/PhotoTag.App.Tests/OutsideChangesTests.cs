@@ -91,6 +91,7 @@ public sealed class OutsideChangesTests : UiTestBase
     public async Task NewFoldersAppearInTheTree_AndADeletedFolderOnScreen_GoesBackUp()
     {
         Photo(Path.Combine("2020", "a.jpg"));
+        Photo(Path.Combine("2020", "Summer", "c.jpg"), "Sun");
         Photo("b.jpg");
         var (window, vm) = await OpenAsync(writer: null);
         await vm.Library.ScanCompletion;
@@ -110,6 +111,7 @@ public sealed class OutsideChangesTests : UiTestBase
         await vm.PhotosLoading;
         Assert.Equal(["b.jpg"], vm.Photos.Select(p => p.FileName));
         Assert.Equal(["2021"], root.Children.Select(c => c.Name));
+        await WaitForAsync(() => root.CountText == "0 / 1"); // the subfolder's photos went too
         window.Close();
     }
 

@@ -34,7 +34,8 @@ public sealed class ThumbnailCache : IDisposable
     /// <summary>Returns the path of a cached thumbnail file for <paramref name="photoPath"/>, creating it if needed.</summary>
     public async Task<string> GetAsync(string photoPath, CancellationToken cancellationToken = default)
     {
-        var cachePath = GetCachePath(photoPath);
+        // Off the caller's (UI) thread: the key needs the photo's size and time, a round trip on a network share.
+        var cachePath = await Task.Run(() => GetCachePath(photoPath), cancellationToken).ConfigureAwait(false);
         if (File.Exists(cachePath)) return cachePath;
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);

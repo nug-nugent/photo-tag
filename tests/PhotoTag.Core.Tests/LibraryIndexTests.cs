@@ -469,6 +469,30 @@ public sealed class LibraryIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task AFolderThatCantBeReached_KeepsItsPhotos()
+    {
+        // A library on a "share" that then drops off the network: the folder and everything above it vanish.
+        var share = Path.Combine(_dir.Path, "Share");
+        var library = Path.Combine(share, "Photos");
+        foreach (var name in new[] { "a.jpg", Path.Combine("2020", "b.jpg") })
+        {
+            var path = Path.Combine(library, name);
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            File.WriteAllBytes(path, TestImages.Jpeg(32, 32, xmpKeywords: ["Kept"]));
+        }
+        await _index.ScanAsync(library, cancellationToken: Ct);
+        Directory.Move(share, share + " (offline)");
+
+        await Assert.ThrowsAsync<DirectoryNotFoundException>(() => _index.ScanAsync(library, cancellationToken: Ct));
+        await Assert.ThrowsAsync<DirectoryNotFoundException>(() => _index.RefreshAsync(Path.Combine(library, "2020"), includeSubfolders: true, Ct));
+        Assert.True((await _index.RefreshAsync(library, includeSubfolders: false, Ct)).IsEmpty);
+
+        Directory.Move(share + " (offline)", share);
+        Assert.Equal(new FolderCounts(2, 2), await _index.GetFolderCountsAsync(library));
+        Assert.Equal(2, (await _index.ScanAsync(library, cancellationToken: Ct)).Unchanged);
+    }
+
+    [Fact]
     public async Task Cancelling_AScan_Throws_AndLeavesTheIndexUsable()
     {
         for (var i = 0; i < 20; i++) Photo($"p{i}.jpg", "T");

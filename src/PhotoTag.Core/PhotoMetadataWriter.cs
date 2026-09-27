@@ -61,7 +61,12 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         foreach (var path in photo.AllPaths) await WriteAsync(path, changes, cancellationToken).ConfigureAwait(false);
     }
 
-    public async Task WriteAsync(string path, MetadataChanges changes, CancellationToken cancellationToken = default)
+    public Task WriteAsync(string path, MetadataChanges changes, CancellationToken cancellationToken = default) =>
+        // On the thread pool from the start: working out the write reads the file, which is slow on a network share
+        // and mustn't hold up the UI thread that saves from the details panel.
+        Task.Run(() => WriteCoreAsync(path, changes, cancellationToken), CancellationToken.None);
+
+    private async Task WriteCoreAsync(string path, MetadataChanges changes, CancellationToken cancellationToken)
     {
         if (changes.IsEmpty) return;
         if (!File.Exists(path)) throw new FileNotFoundException("Photo not found.", path);

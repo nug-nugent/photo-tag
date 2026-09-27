@@ -33,7 +33,7 @@ public partial class App : Application
 
             // Optional: a folder passed on the command line wins over the last-used one.
             var startFolder = desktop.Args is [var arg, ..] ? arg : settings.LastFolder;
-            if (startFolder is not null && Directory.Exists(startFolder)) viewModel.OpenRoot(startFolder);
+            if (startFolder is not null) _ = viewModel.OpenRootAsync(startFolder); // says so if it can't be reached
 
             desktop.MainWindow = new MainWindow { DataContext = viewModel };
             desktop.MainWindow.Opened += (_, _) => _ = viewModel.Updates.CheckOnStartupAsync();
