@@ -209,6 +209,37 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     /// <summary>Completes when every save started so far has finished (saves run in order).</summary>
     public Task SaveCompletion => _lastSave;
 
+    /// <summary>True while an edit is being written to the file.</summary>
+    public bool IsSaving => _pendingSaves > 0;
+
+    /// <summary>The file changed outside PhotoTag: show what's in it now, unless PhotoTag is writing to it.</summary>
+    public async Task FileChangedAsync()
+    {
+        if (!IsLoaded || IsSaving) return;
+        Photo.Metadata = null;
+        await ReloadAsync();
+
+        var token = _cts.Token;
+        try
+        {
+            var path = Photo.Path;
+            var preview = await Task.Run(async () => new Bitmap(new MemoryStream(await _renderer.RenderAsync(path, PreviewSize, token))), token);
+            if (token.IsCancellationRequested)
+            {
+                preview.Dispose();
+                return;
+            }
+            var old = Preview;
+            Preview = preview;
+            old?.Dispose();
+        }
+        catch (OperationCanceledException) { }
+        catch (Exception e) when (e is IOException or InvalidDataException or PreviewUnavailableException)
+        {
+            // Mid-write, perhaps; the next change notification will try again.
+        }
+    }
+
     public async Task LoadAsync()
     {
         var token = _cts.Token;

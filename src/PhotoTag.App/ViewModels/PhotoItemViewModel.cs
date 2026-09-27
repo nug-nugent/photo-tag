@@ -92,19 +92,42 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
     }
 
     /// <summary>Called on the UI thread when a tile showing this photo becomes visible.</summary>
-    public async void Realize()
+    public void Realize()
     {
         _uses++;
         if (Thumbnail is not null || _loading is not null || LoadFailed) return;
+        LoadThumbnail();
+    }
 
+    /// <summary>The file changed outside PhotoTag: forget what was read from it, and redraw the tile if it's on screen.</summary>
+    public void FileChanged()
+    {
+        Metadata = null;
+        LoadFailed = false;
+        LoadFailedText = null;
+        if (_uses == 0) return;
+        _loading?.Cancel();
+        LoadThumbnail(); // the old thumbnail stays until the new one is ready
+    }
+
+    private async void LoadThumbnail()
+    {
         var cts = _loading = new CancellationTokenSource();
         try
         {
             var file = await thumbnails.GetAsync(Path, cts.Token);
             var bitmap = await Task.Run(() => new Bitmap(file), cts.Token);
 
-            if (cts.IsCancellationRequested) bitmap.Dispose();
-            else Thumbnail = bitmap;
+            if (cts.IsCancellationRequested)
+            {
+                bitmap.Dispose();
+            }
+            else
+            {
+                var old = Thumbnail;
+                Thumbnail = bitmap;
+                old?.Dispose();
+            }
         }
         catch (OperationCanceledException)
         {

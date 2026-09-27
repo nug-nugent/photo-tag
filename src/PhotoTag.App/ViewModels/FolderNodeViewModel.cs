@@ -77,22 +77,50 @@ public partial class FolderNodeViewModel : ViewModelBase
     {
         _childrenLoaded = true;
 
-        List<(string Path, bool HasChildren)> folders;
-        try
-        {
-            folders = await Task.Run(() => PhotoFiles.EnumerateSubfolders(Path)
-                .Select(p => (p, PhotoFiles.HasSubfolders(p)))
-                .ToList());
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
-            folders = [];
-        }
-
+        var folders = await ListSubfoldersAsync();
         Children.Clear();
         foreach (var (path, hasChildren) in folders)
             Children.Add(new FolderNodeViewModel(path, System.IO.Path.GetFileName(path), hasChildren, isPlaceholder: false, _index));
 
         foreach (var child in Children.ToList()) await child.RefreshCountsAsync();
+    }
+
+    /// <summary>
+    /// After changes outside PhotoTag: brings the loaded subfolders of <paramref name="changedFolders"/>
+    /// (of every folder, if null) up to date with the disk, keeping the nodes that are still there,
+    /// so what's expanded and selected stays as it was.
+    /// </summary>
+    public async Task RefreshChildrenAsync(IReadOnlySet<string>? changedFolders)
+    {
+        if (IsPlaceholder || !_childrenLoaded) return;
+        if (changedFolders is null || changedFolders.Contains(Path))
+        {
+            var folders = await ListSubfoldersAsync();
+            var wanted = folders.Select(f => f.Path).ToHashSet();
+            foreach (var gone in Children.Where(c => c.IsPlaceholder || !wanted.Contains(c.Path)).ToList()) Children.Remove(gone);
+            for (var i = 0; i < folders.Count; i++)
+            {
+                var (path, hasChildren) = folders[i];
+                if (i < Children.Count && Children[i].Path == path) continue;
+                var added = new FolderNodeViewModel(path, System.IO.Path.GetFileName(path), hasChildren, isPlaceholder: false, _index);
+                Children.Insert(i, added);
+                await added.RefreshCountsAsync();
+            }
+        }
+        foreach (var child in Children.ToList()) await child.RefreshChildrenAsync(changedFolders);
+    }
+
+    private async Task<List<(string Path, bool HasChildren)>> ListSubfoldersAsync()
+    {
+        try
+        {
+            return await Task.Run(() => PhotoFiles.EnumerateSubfolders(Path)
+                .Select(p => (p, PhotoFiles.HasSubfolders(p)))
+                .ToList());
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return [];
+        }
     }
 }

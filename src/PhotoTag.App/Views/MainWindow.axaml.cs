@@ -22,6 +22,7 @@ public partial class MainWindow : Window
         // Tunnelling, so shortcuts work wherever focus is (the viewer has no single focused control).
         AddHandler(KeyDownEvent, Window_KeyDown, RoutingStrategies.Tunnel);
         SearchShortcutText.Text = CommandModifier == KeyModifiers.Meta ? "⌘ K" : "Ctrl K";
+        Activated += OnWindowActivated;
     }
 
     private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
@@ -49,6 +50,9 @@ public partial class MainWindow : Window
     }
 
     private void OnGridLayoutChanged(object? sender, EventArgs e) => GridLayout?.Invalidate();
+
+    /// <summary>Back from another app, which may have changed the photos on screen.</summary>
+    private void OnWindowActivated(object? sender, EventArgs e) => ViewModel?.CheckShownFolder();
 
     private void OnViewModelChanged(object? sender, PropertyChangedEventArgs e)
     {

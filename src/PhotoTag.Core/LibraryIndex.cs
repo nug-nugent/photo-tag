@@ -8,6 +8,17 @@ public readonly record struct IndexProgress(int Done, int Total);
 
 public sealed record IndexScanResult(int Total, int Updated, int Unchanged, int Removed, int Failed);
 
+/// <summary>
+/// What a <see cref="LibraryIndex.RefreshAsync"/> found: photos it knew that have changed since (a different size or
+/// modified time), photos it hadn't indexed before, and photos that have gone.
+/// </summary>
+public sealed record IndexChanges(IReadOnlyList<string> Changed, IReadOnlyList<string> Added, IReadOnlyList<string> Removed)
+{
+    public static readonly IndexChanges None = new([], [], []);
+
+    public bool IsEmpty => Changed.Count == 0 && Added.Count == 0 && Removed.Count == 0;
+}
+
 /// <summary>Photo and tagged-photo counts for a folder, including its subfolders.</summary>
 public readonly record struct FolderCounts(int Photos, int Tagged);
 
@@ -83,16 +94,30 @@ public sealed class LibraryIndex : IDisposable
     /// photos are read, unchanged ones skipped, and photos that no longer exist removed.
     /// </summary>
     public async Task<IndexScanResult> ScanAsync(string root, IProgress<IndexProgress>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default) =>
+        (await ScanCoreAsync(root, includeSubfolders: true, progress, cancellationToken).ConfigureAwait(false)).Result;
+
+    /// <summary>
+    /// Like <see cref="ScanAsync"/> for one folder (and, if asked, everything under it), saying which
+    /// photos changed. For changes made outside PhotoTag; a folder that no longer exists loses its photos.
+    /// </summary>
+    public async Task<IndexChanges> RefreshAsync(string folder, bool includeSubfolders, CancellationToken cancellationToken = default) =>
+        (await ScanCoreAsync(folder, includeSubfolders, null, cancellationToken).ConfigureAwait(false)).Changes;
+
+    private async Task<(IndexScanResult Result, IndexChanges Changes)> ScanCoreAsync(string root, bool includeSubfolders,
+        IProgress<IndexProgress>? progress, CancellationToken cancellationToken)
     {
         root = NormalizeFolder(root);
         // One entry per photo: a RAW+JPEG pair is indexed once, under its JPEG.
-        var files = await Task.Run(() => PhotoFiles.EnumeratePhotosRecursive(root).Select(p => p.Path).ToList(), cancellationToken)
+        var files = await Task.Run(() => (includeSubfolders ? PhotoFiles.EnumeratePhotosRecursive(root) : PhotoFiles.EnumeratePhotos(root))
+                .Select(p => p.Path).ToList(), cancellationToken)
             .ConfigureAwait(false);
-        var known = await Task.Run(() => LoadFileStamps(root), cancellationToken).ConfigureAwait(false);
+        var known = await Task.Run(() => LoadFileStamps(root, includeSubfolders), cancellationToken).ConfigureAwait(false);
 
         var seen = new HashSet<string>(files, PathComparer);
         var pending = new ConcurrentQueue<(string Path, PhotoMetadata Metadata, long Size, long Modified)>();
+        var changed = new ConcurrentBag<string>();
+        var added = new ConcurrentBag<string>();
         int done = 0, updated = 0, unchanged = 0, failed = 0;
 
         await Parallel.ForEachAsync(files, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
@@ -101,13 +126,15 @@ public sealed class LibraryIndex : IDisposable
                 try
                 {
                     var stamp = PhotoFiles.GetStamp(path); // includes a RAW's sidecar
-                    if (known.TryGetValue(path, out var existing) && existing == stamp)
+                    var isKnown = known.TryGetValue(path, out var existing);
+                    if (isKnown && existing == stamp)
                     {
                         Interlocked.Increment(ref unchanged);
                     }
                     else
                     {
                         pending.Enqueue((path, ReadOrEmpty(path), stamp.Size, stamp.Ticks));
+                        (isKnown ? changed : added).Add(path);
                         Interlocked.Increment(ref updated);
                         if (pending.Count >= BatchSize) await FlushAsync(pending, ct).ConfigureAwait(false);
                     }
@@ -120,8 +147,9 @@ public sealed class LibraryIndex : IDisposable
             }).ConfigureAwait(false);
 
         await FlushAsync(pending, cancellationToken).ConfigureAwait(false);
-        var removed = await RemoveMissingAsync(root, known.Keys.Where(p => !seen.Contains(p)).ToList()).ConfigureAwait(false);
-        return new IndexScanResult(files.Count, updated, unchanged, removed, failed);
+        var missing = known.Keys.Where(p => !seen.Contains(p)).ToList();
+        var removed = await RemoveMissingAsync(missing).ConfigureAwait(false);
+        return (new IndexScanResult(files.Count, updated, unchanged, removed, failed), new IndexChanges([.. changed], [.. added], missing));
     }
 
     /// <summary>Records metadata PhotoTag has just written, without waiting for the next scan.</summary>
@@ -413,11 +441,11 @@ public sealed class LibraryIndex : IDisposable
         CREATE INDEX IF NOT EXISTS photo_people_name ON photo_people (name);
         """;
 
-    private Dictionary<string, (long Size, long Ticks)> LoadFileStamps(string root)
+    private Dictionary<string, (long Size, long Ticks)> LoadFileStamps(string root, bool includeSubfolders)
     {
         using var connection = Open();
         using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT path, size, modified_ticks FROM photos WHERE {UnderFolder("folder")}";
+        command.CommandText = $"SELECT path, size, modified_ticks FROM photos WHERE {(includeSubfolders ? UnderFolder("folder") : "folder = @root")}";
         AddFolderParameters(command, root);
 
         var stamps = new Dictionary<string, (long, long)>(PathComparer);
@@ -516,7 +544,7 @@ public sealed class LibraryIndex : IDisposable
         }
     }
 
-    private async Task<int> RemoveMissingAsync(string root, IReadOnlyList<string> missing)
+    private async Task<int> RemoveMissingAsync(IReadOnlyList<string> missing)
     {
         if (missing.Count == 0) return 0;
         await _writeGate.WaitAsync().ConfigureAwait(false);
