@@ -743,7 +743,7 @@ public sealed class LibraryIndex : IDisposable
     {
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = PhotoFiles.OpenRead(path);
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)

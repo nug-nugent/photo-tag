@@ -31,6 +31,23 @@ public static class PhotoFiles
     public static readonly FrozenSet<string> Extensions =
         RasterExtensions.Concat(RawExtensions).ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// Opens a photo or sidecar for reading without getting in anyone's way: on Windows, a file open without
+    /// <see cref="FileShare.Delete"/> can't be deleted or renamed (in Explorer, by another app) until it's closed.
+    /// Use this, not <see cref="File.OpenRead"/>, for every file in the library.
+    /// </summary>
+    public static FileStream OpenRead(string path) =>
+        new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+
+    /// <summary>Like <see cref="File.ReadAllBytes"/>, via <see cref="OpenRead"/>.</summary>
+    public static byte[] ReadAllBytes(string path)
+    {
+        using var stream = OpenRead(path);
+        var bytes = new byte[stream.Length];
+        stream.ReadExactly(bytes);
+        return bytes;
+    }
+
     private static readonly FrozenSet<string> JpegExtensions =
         new[] { ".jpg", ".jpeg" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
