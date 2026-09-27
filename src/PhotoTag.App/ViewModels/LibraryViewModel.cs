@@ -94,14 +94,17 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         _scan?.Cancel();
         _scan?.Dispose();
         var cts = _scan = new CancellationTokenSource();
-        ScanCompletion = ScanAsync(root, cts);
-        Watch(root);
+        var watching = WatchAsync(root);
+        ScanCompletion = ScanAsync(root, cts, watching);
     }
 
-    private async Task ScanAsync(string root, CancellationTokenSource cts)
+    /// <param name="watching">Watching starts first, so changes made while the scan runs aren't missed.</param>
+    private async Task ScanAsync(string root, CancellationTokenSource cts, Task watching)
     {
+        await watching;
         IsScanning = true;
         StatusText = "Indexing…";
+        string? problem = null;
         var progress = new Progress<IndexProgress>(p =>
         {
             if (!cts.IsCancellationRequested && p.Total > 0) StatusText = $"Indexing {100 * p.Done / p.Total}%";
@@ -118,12 +121,16 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         catch (OperationCanceledException)
         {
         }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            problem = $"Couldn't index: {e.Message}"; // a share gone to sleep, say; the next scan tries again
+        }
         finally
         {
             if (_scan == cts)
             {
                 IsScanning = false;
-                StatusText = null;
+                StatusText = problem;
                 MovedFrom = null;
             }
         }
@@ -165,18 +172,26 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
 
     // --- Changes made outside PhotoTag -------------------------------------------------------
 
-    private void Watch(string root)
+    private async Task WatchAsync(string root)
     {
         StopWatching();
         _root = root;
-        var watcher = _watcher = new FolderWatcher(root);
+
+        // Starting a watcher touches the folder: off the UI thread, in case it's on a share that's slow to wake.
+        var (watcher, onNetwork) = await Task.Run(() => (new FolderWatcher(root), PhotoFiles.IsOnNetworkDrive(root)));
+        if (_root != root || _watcher is not null)
+        {
+            watcher.Dispose(); // another folder was opened meanwhile
+            return;
+        }
+        _watcher = watcher;
         watcher.Changed += (_, changes) => Dispatcher.UIThread.Post(() =>
         {
             if (_watcher == watcher) Queue(changes.Paths, [], changes.Incomplete);
         });
 
         // Notifications from network shares can go missing, and some file systems have none.
-        if (!watcher.IsWatching || PhotoFiles.IsOnNetworkDrive(root))
+        if (!watcher.IsWatching || onNetwork)
         {
             _pollTimer = new DispatcherTimer { Interval = PollInterval };
             _pollTimer.Tick += (_, _) => RefreshFolders(FoldersToPoll());
@@ -268,7 +283,15 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         var removed = new HashSet<string>(PathComparer);
         foreach (var (folder, includeSubfolders) in deep.Select(f => (f, true)).Concat(shallow.Select(f => (f, false))))
         {
-            var result = await Index.RefreshAsync(folder, includeSubfolders);
+            IndexChanges result;
+            try
+            {
+                result = await Index.RefreshAsync(folder, includeSubfolders);
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                continue; // unreachable for now; the others may still be fine
+            }
             changed.UnionWith(result.Changed);
             added.UnionWith(result.Added);
             removed.UnionWith(result.Removed);
@@ -304,6 +327,8 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
             }
             if (Path.GetDirectoryName(path) is { } parent && !IsHidden(root, parent)) shallow.Add(parent);
         }
+        // Only the outermost of nested folders: a deleted folder's subfolders went with it.
+        deep.RemoveWhere(f => deep.Any(d => !IsSame(d, f) && IsInside(d, f)));
         shallow.RemoveWhere(f => deep.Any(d => IsInside(d, f)));
         return (shallow, deep);
     }

@@ -27,12 +27,13 @@ up the accounts.
 The owner is planning to keep photos on a NAS (PhotoTag opens the network share; the NAS does snapshots and off-site
 backup; PhotoTag should **not** implement backup itself).
 
-### 2.1 Behave well on network shares (M)
-**Why:** everything has only been tested on local disks.
-**What:** test against an SMB share (a Windows shared folder is a fine stand-in): opening folders, thumbnails, indexing,
-tag writes. Handle the share being asleep/offline without hanging the UI (timeouts, clear status messages), and
-measure first-scan and thumbnail speed.
-**Where:** `PhotoFiles`, `LibraryIndex.ScanAsync`, `ThumbnailCache`, `MainWindowViewModel.ShowPhotosAsync`.
+### 2.1 Try it on the real NAS (S, needs the NAS)
+**Why:** network shares are tested over Windows' loopback share (`\\localhost\C$`, see `NetworkShareTests`), which has
+SMB but no network: no latency, no NAS that sleeps.
+**What:** open the NAS share (by drive letter and by `\\nas\...`) and check first scan, thumbnails and tag writes feel
+fine; that a sleeping NAS shows "Waiting for …" rather than freezing; that pulling the network cable gives a
+clear message and loses nothing from the index; and that other apps' changes on the share show up (notifications,
+or the 30-second poll). Tune the scan's parallelism for network drives (`LibraryIndex`, now 8) if needed.
 
 ## 4. Browsing
 

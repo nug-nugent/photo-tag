@@ -42,6 +42,9 @@ Early days. Today it can:
   every subfolder by tag, person, title, description, place or file name, see every photo in the library, list the
   untagged photos or your favourites (on their own or with a search), and suggestions cover your whole library.
   Under a photo's tags, the library's most used tags are one click away.
+- Work with photos on a NAS or another computer's shared folder: nothing waits on the network on the UI thread,
+  a share that's asleep or unplugged gets a clear message (and its photos stay in the index for when it's back),
+  and the first scan reads more photos at once over the network
 - Keep up with changes made outside PhotoTag: photos copied in, deleted or retagged by another app, and folders
   added, renamed or deleted, show up by themselves without losing your place or selection
 - Notice when photos it already knows turn up at another path (copied to a NAS, or the same share opened as `Z:\`

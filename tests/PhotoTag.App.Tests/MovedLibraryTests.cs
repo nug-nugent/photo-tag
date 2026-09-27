@@ -31,7 +31,7 @@ public sealed class MovedLibraryTests : UiTestBase
         var (window, vm) = await OpenAsync(writer: null);
         await vm.Library.ScanCompletion;
 
-        vm.OpenRoot(CopyToNas());
+        await vm.OpenRootAsync(CopyToNas());
         var notice = Find<Border>(window, "MovedNotice");
         await WaitForAsync(() => notice.IsEffectivelyVisible);
         return (window, vm, notice);
@@ -73,7 +73,7 @@ public sealed class MovedLibraryTests : UiTestBase
     {
         var (window, vm, notice) = await OpenCopyAsync();
 
-        vm.OpenRoot(DirPath);
+        await vm.OpenRootAsync(DirPath);
         await vm.Library.ScanCompletion;
 
         Assert.False(notice.IsEffectivelyVisible);

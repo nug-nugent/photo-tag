@@ -71,7 +71,7 @@ try
         var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
         step = "show window"; window.Show();
 
-        step = "open root"; vm.OpenRoot(library);
+        step = "open root"; WaitFor(vm.OpenRootAsync(library));
         step = "scan"; WaitFor(vm.Library.ScanCompletion);
         var root = vm.RootFolders.Single();
         WaitFor(root.ChildrenLoading);
@@ -163,7 +163,7 @@ try
         // Photos PhotoTag knows at another path (copied to a NAS): it asks whether they moved.
         window.Width = 1280;
         window.Height = 800;
-        step = "moved"; vm.OpenRoot(CopyFolder(cornwall.Path, Path.Combine(work, "NAS-" + name, "Cornwall")));
+        step = "moved"; WaitFor(vm.OpenRootAsync(CopyFolder(cornwall.Path, Path.Combine(work, "NAS-" + name, "Cornwall"))));
         WaitUntil(() => vm.Library.MovedFrom is not null);
         WaitFor(vm.PhotosLoading);
         WaitForThumbnails(vm);

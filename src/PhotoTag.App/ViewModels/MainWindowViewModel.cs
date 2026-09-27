@@ -139,12 +139,28 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     /// <summary>Completes when the tiles have their tags, dates and favourites from the index. For tests.</summary>
     public Task SummariesLoading { get; private set; } = Task.CompletedTask;
 
-    public void OpenRoot(string path)
+    /// <summary>How long a folder can take to answer before the status bar says PhotoTag is waiting for it.</summary>
+    private static readonly TimeSpan SlowFolder = TimeSpan.FromSeconds(1);
+
+    private int _openVersion;
+
+    /// <summary>
+    /// Opens a folder tree. Checking it's there happens off the UI thread: a NAS that's asleep can take
+    /// many seconds to answer, and the window shouldn't freeze meanwhile.
+    /// </summary>
+    public async Task OpenRootAsync(string path)
     {
         path = Path.GetFullPath(path);
-        if (!Directory.Exists(path))
+        var version = ++_openVersion;
+        var check = Task.Run(() => (Exists: Directory.Exists(path), OnNetwork: PhotoFiles.IsOnNetworkDrive(path)));
+        if (await Task.WhenAny(check, Task.Delay(SlowFolder)) != check) StatusText = $"Waiting for {path}…";
+        var (exists, onNetwork) = await check;
+        if (version != _openVersion) return; // another folder was opened meanwhile
+        if (!exists)
         {
-            StatusText = $"Folder not found: {path}";
+            StatusText = onNetwork
+                ? $"Can't reach {path}. If it's on a NAS or another computer, check it's switched on and connected."
+                : $"Folder not found: {path}";
             return;
         }
 
@@ -819,20 +835,26 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         // A folder still loading would be merged into as if empty, then replaced: let it finish.
         await PhotosLoading;
         if (RootPath is not { } root) return;
-        if (!Directory.Exists(root))
+        var shown = ShownFolder;
+        // Off the UI thread: these ask the disk, which on a sleeping share can take a while.
+        var (rootExists, nearest) = await Task.Run(() =>
         {
-            StatusText = $"{root} isn't there any more.";
+            var folder = shown;
+            while (folder is not null && !Directory.Exists(folder)) folder = Path.GetDirectoryName(folder);
+            return (Directory.Exists(root), folder);
+        });
+        if (RootPath != root) return;
+        if (!rootExists)
+        {
+            StatusText = $"Can't reach {root} any more. If it's on a NAS or another computer, check it's switched on and connected.";
             return;
         }
 
         // The folder on screen was deleted or renamed: show the nearest one that's still there. Before
         // the tree drops its node, which would leave nothing selected.
-        var shown = ShownFolder;
-        if (shown is not null && !Directory.Exists(shown))
+        if (shown is not null && nearest != shown)
         {
-            var parent = Path.GetDirectoryName(shown);
-            while (parent is not null && !Directory.Exists(parent)) parent = Path.GetDirectoryName(parent);
-            SelectedFolder = (parent is null ? null : FindFolder(parent)) ?? RootFolders.FirstOrDefault();
+            SelectedFolder = (nearest is null ? null : FindFolder(nearest)) ?? RootFolders.FirstOrDefault();
             shown = null; // selecting it loads its photos
         }
 

@@ -114,6 +114,13 @@ dotnet run --project src/PhotoTag.App
   grid is merged (`ReconcileAsync`), never reloaded, and only after any folder load in progress. Removing the
   selected folder's node from the tree clears the TreeView's selection, so move the selection first. Windows can
   deliver a late "changed" notice for a write made just before the watcher started.
+- **No file access on the UI thread**, not even `Directory.Exists` or `new FileInfo(...).Length`: on a network share
+  that's asleep each can take many seconds. Core async methods do theirs off the caller's thread (`ThumbnailCache`,
+  `LibraryIndex.UpdateAsync`, `PhotoMetadataWriter.WriteAsync`), and opening a folder is `OpenRootAsync`.
+- **Missing isn't always deleted.** A scan or refresh of a folder whose parent is missing too throws
+  `DirectoryNotFoundException` (the share is probably unreachable) rather than dropping its photos from the index.
+- **Network shares are tested over `\\localhost\C$`** (`NetworkShareTests`, `NetworkShareUiTests`), which needs an
+  administrator account on Windows; the tests skip elsewhere.
 - **Styles match exact types:** `TextBlock.caption` doesn't style a `SelectableTextBlock`; list both.
 - **Line endings:** `.gitattributes` normalises to LF in the repo; Windows checkouts get CRLF. Scripts that edit files
   should cope with both.

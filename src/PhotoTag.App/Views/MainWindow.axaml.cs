@@ -116,7 +116,7 @@ public partial class MainWindow : Window
         });
 
         if (folders is [var folder, ..] && folder.TryGetLocalPath() is { } path)
-            ViewModel?.OpenRoot(path);
+            if (ViewModel is { } vm) await vm.OpenRootAsync(path);
     }
 
     // --- Keyboard --------------------------------------------------------------------------
