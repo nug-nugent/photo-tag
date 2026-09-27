@@ -117,6 +117,9 @@ dotnet run --project src/PhotoTag.App
 - **No file access on the UI thread**, not even `Directory.Exists` or `new FileInfo(...).Length`: on a network share
   that's asleep each can take many seconds. Core async methods do theirs off the caller's thread (`ThumbnailCache`,
   `LibraryIndex.UpdateAsync`, `PhotoMetadataWriter.WriteAsync`), and opening a folder is `OpenRootAsync`.
+- **Open library files with `PhotoFiles.OpenRead`**, not `File.OpenRead`: on Windows a file open without
+  `FileShare.Delete` can't be deleted or renamed by anyone else until it's closed, so deleting a photo in Explorer
+  while PhotoTag read it failed (and so did `OutsideChangesTests` on a Windows runner).
 - **Missing isn't always deleted.** A scan or refresh of a folder whose parent is missing too throws
   `DirectoryNotFoundException` (the share is probably unreachable) rather than dropping its photos from the index.
 - **Network shares are tested over `\\localhost\C$`** (`NetworkShareTests`, `NetworkShareUiTests`), which needs an

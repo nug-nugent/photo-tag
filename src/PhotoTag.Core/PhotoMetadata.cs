@@ -82,7 +82,7 @@ public sealed record PhotoMetadata
         var metadata = ReadEmbedded(path);
         if (PhotoFiles.IsRaw(path) && PhotoFiles.FindSidecar(path) is { } sidecar)
         {
-            var xmp = new XmpReader().Extract(File.ReadAllBytes(sidecar)).GetXmpProperties();
+            var xmp = new XmpReader().Extract(PhotoFiles.ReadAllBytes(sidecar)).GetXmpProperties();
             metadata = metadata with
             {
                 Keywords = ReadKeywords(null, xmp),
@@ -103,7 +103,8 @@ public sealed record PhotoMetadata
     /// <summary>Metadata stored inside the file itself, ignoring any sidecar.</summary>
     public static PhotoMetadata ReadEmbedded(string path)
     {
-        var directories = ImageMetadataReader.ReadMetadata(path);
+        IReadOnlyList<MetadataExtractor.Directory> directories;
+        using (var stream = PhotoFiles.OpenRead(path)) directories = ImageMetadataReader.ReadMetadata(stream);
 
         var ifd0 = directories.OfType<ExifIfd0Directory>().FirstOrDefault();
         // RAW files have several sub-IFDs (the raw data, previews, the real EXIF block and so on);
@@ -236,7 +237,7 @@ internal static class FujifilmRaf
         if (!path.EndsWith(".raf", StringComparison.OrdinalIgnoreCase)) return null;
         try
         {
-            using var file = File.OpenRead(path);
+            using var file = PhotoFiles.OpenRead(path);
             using var reader = new BinaryReader(file);
             if (!"FUJIFILMCCD-RAW"u8.SequenceEqual(reader.ReadBytes(15))) return null;
 

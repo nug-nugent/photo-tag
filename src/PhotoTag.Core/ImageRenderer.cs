@@ -17,7 +17,7 @@ public static class ImageRenderer
     /// </summary>
     public static byte[] Render(string path, int maxSize, int jpegQuality = 85)
     {
-        using var stream = File.OpenRead(path);
+        using var stream = PhotoFiles.OpenRead(path);
         return Render(stream, maxSize, jpegQuality, fallbackOrigin: null, description: path);
     }
 

@@ -5,6 +5,23 @@ public sealed class PhotoFilesTests : IDisposable
     private readonly TempDir _dir = new();
 
     [Fact]
+    public void APhotoBeingRead_CanStillBeRenamedAndDeleted()
+    {
+        // On Windows, PhotoTag reading a photo mustn't stop Explorer or another app moving or deleting it.
+        var photo = TestImages.Write(_dir.Path, "a.jpg", TestImages.Jpeg(32, 32));
+        var renamed = System.IO.Path.Combine(_dir.Path, "b.jpg");
+
+        using (var reading = PhotoFiles.OpenRead(photo))
+        {
+            File.Move(photo, renamed);
+            File.Delete(renamed);
+            Assert.Equal(0xFF, reading.ReadByte()); // and the read carries on
+        }
+        Assert.False(File.Exists(photo));
+        Assert.False(File.Exists(renamed));
+    }
+
+    [Fact]
     public void EnumeratePhotos_ReturnsOnlySupportedFiles_SortedByName()
     {
         foreach (var name in new[] { "b.JPG", "a.jpeg", "c.png", "notes.txt", "e.cr2", "clip.mov", "d.webp", "e.xmp" })
