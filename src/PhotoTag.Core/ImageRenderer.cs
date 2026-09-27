@@ -18,7 +18,15 @@ public static class ImageRenderer
     public static byte[] Render(string path, int maxSize, int jpegQuality = 85)
     {
         using var stream = PhotoFiles.OpenRead(path);
+        if (PhotoFiles.IsTiff(path)) return RenderTiff(stream, maxSize, jpegQuality, description: path);
         return Render(stream, maxSize, jpegQuality, fallbackOrigin: null, description: path);
+    }
+
+    private static byte[] RenderTiff(Stream stream, int maxSize, int jpegQuality, string description)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThan(maxSize, 1);
+        var (bitmap, origin, hasAlpha) = TiffDecoder.Decode(stream, maxSize, description);
+        using (bitmap) return Finish(bitmap, maxSize, origin, hasAlpha, jpegQuality);
     }
 
     /// <summary>
@@ -44,10 +52,15 @@ public static class ImageRenderer
             : codec.EncodedOrigin;
 
         using var decoded = Decode(codec, maxSize);
+        return Finish(decoded, maxSize, origin, codec.Info.AlphaType != SKAlphaType.Opaque, jpegQuality);
+    }
+
+    /// <summary>Scales a decoded image the rest of the way down, turns it upright and encodes it.</summary>
+    private static byte[] Finish(SKBitmap decoded, int maxSize, SKEncodedOrigin origin, bool hasAlpha, int jpegQuality)
+    {
         using var resized = FitWithin(decoded, maxSize);
         using var oriented = ApplyOrientation(resized, origin);
 
-        var hasAlpha = codec.Info.AlphaType != SKAlphaType.Opaque;
         using var data = oriented.Encode(
             hasAlpha ? SKEncodedImageFormat.Png : SKEncodedImageFormat.Jpeg,
             jpegQuality);

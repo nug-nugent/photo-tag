@@ -1,4 +1,5 @@
 using System.Text.Json;
+using BitMiracle.LibTiff.Classic;
 using Microsoft.Data.Sqlite;
 using PhotoTag.Core;
 using SkiaSharp;
@@ -61,6 +62,33 @@ internal static class SelfCheck
             var rendered = ImageRenderer.Render(data.ToArray(), 32);
             using var decoded = SKBitmap.Decode(rendered);
             return Task.FromResult($"decoded {decoded.Width}x{decoded.Height} with SkiaSharp");
+        });
+
+        await Check("tiff", () =>
+        {
+            // Written and read back with LibTiff.NET, LZW-compressed: the codecs are what trimming could lose.
+            var path = Path.Combine(Path.GetTempPath(), $"phototag-self-check-{Guid.NewGuid():N}.tif");
+            try
+            {
+                using (var tif = Tiff.Open(path, "w"))
+                {
+                    tif.SetField(TiffTag.IMAGEWIDTH, 64);
+                    tif.SetField(TiffTag.IMAGELENGTH, 48);
+                    tif.SetField(TiffTag.BITSPERSAMPLE, 8);
+                    tif.SetField(TiffTag.SAMPLESPERPIXEL, 3);
+                    tif.SetField(TiffTag.PHOTOMETRIC, Photometric.RGB);
+                    tif.SetField(TiffTag.PLANARCONFIG, PlanarConfig.CONTIG);
+                    tif.SetField(TiffTag.COMPRESSION, Compression.LZW);
+                    tif.SetField(TiffTag.ROWSPERSTRIP, 16);
+                    for (var row = 0; row < 48; row++) tif.WriteScanline(new byte[64 * 3], row);
+                }
+                using var decoded = SKBitmap.Decode(ImageRenderer.Render(path, 32));
+                return Task.FromResult($"decoded {decoded.Width}x{decoded.Height} with LibTiff.NET");
+            }
+            finally
+            {
+                File.Delete(path);
+            }
         });
 
         results["runtime"] = $"{System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier} / .NET {Environment.Version}";

@@ -1,14 +1,14 @@
 # PhotoTag: notes for coding agents
 
 A cross-platform desktop app for browsing and tagging photo folders. Avalonia 12 on .NET 10; Windows, macOS and Linux.
-Tags are written into the photos (XMP, plus IPTC for JPEGs) via ExifTool; RAW files get `.xmp` sidecars. The
-[README](README.md) describes features and design; [TODO.md](TODO.md) lists work ready to pick up.
+Tags are written into the photos (XMP, plus IPTC for JPEGs and TIFFs) via ExifTool; RAW files get `.xmp` sidecars.
+The [README](README.md) describes features and design; [TODO.md](TODO.md) lists work ready to pick up.
 
 ## Layout
 
 | Path | What |
 |---|---|
-| `src/PhotoTag.Core` | No UI code. `PhotoFiles` (discovery, RAW+JPEG pairing, sidecars), `PhotoMetadata` (read), `PhotoMetadataWriter` + `ExifTool` (write, via a long-running `-stay_open` process), `BulkMetadataEditor`, `ImageRenderer`/`PhotoRenderer`/`RawPreviewExtractor` (thumbnails, previews), `ThumbnailCache`, `LibraryIndex` (SQLite), `FolderWatcher` (changes made outside PhotoTag), `Log` (the rolling log file). |
+| `src/PhotoTag.Core` | No UI code. `PhotoFiles` (discovery, RAW+JPEG pairing, sidecars), `PhotoMetadata` (read), `PhotoMetadataWriter` + `ExifTool` (write, via a long-running `-stay_open` process), `BulkMetadataEditor`, `ImageRenderer`/`PhotoRenderer`/`RawPreviewExtractor`/`TiffDecoder` (thumbnails, previews), `ThumbnailCache`, `LibraryIndex` (SQLite), `FolderWatcher` (changes made outside PhotoTag), `Log` (the rolling log file). |
 | `src/PhotoTag.App` | Avalonia UI, MVVM with CommunityToolkit.Mvvm (`[ObservableProperty]` partial properties) and compiled bindings (`x:DataType` everywhere). `MainWindow.axaml` is the main window and `SettingsWindow.axaml` the only other; styles shared by both are in `Views/Styles.axaml`; view models in `ViewModels/`. Also `AppUpdater` (Velopack), `SelfCheck` (`--self-check`). |
 | `tests/PhotoTag.Core.Tests` | xUnit v3. `TestImages` builds real JPEGs with hand-made EXIF/XMP; `RawSamples` downloads CC0 RAW files. |
 | `tests/PhotoTag.App.Tests` | Headless UI tests (Avalonia.Headless.XUnit) that drive the real `MainWindow` with keyboard and mouse. `UiTestBase` has the helpers. |
@@ -53,8 +53,8 @@ dotnet run --project src/PhotoTag.App
 
 ## Decisions already made (don't re-litigate without the owner)
 
-- **Tags live in the files**, not a database: XMP for everything, plus IPTC for JPEGs, via **bundled ExifTool** (chosen
-  over writing XMP ourselves or sidecars for everything). The SQLite index is a rebuildable cache.
+- **Tags live in the files**, not a database: XMP for everything, plus IPTC for JPEGs and TIFFs, via **bundled ExifTool**
+  (chosen over writing XMP ourselves or sidecars for everything). The SQLite index is a rebuildable cache.
 - **RAW files are never modified**: tags go in `IMG_0001.xmp` sidecars (Lightroom naming; darktable's `IMG_0001.CR2.xmp`
   is read too). A new sidecar is seeded with tags already embedded in the RAW. RAW previews are the camera's embedded JPEG.
 - **RAW+JPEG pairs are one photo** (shown and indexed as the JPEG; edits go to both).
@@ -129,6 +129,9 @@ dotnet run --project src/PhotoTag.App
   the caller's thread, and does nothing until `Program.Main` starts it, so tests and tools don't write one. Don't log
   in a loop over every photo without a cap (see `LibraryIndex.LoggedFailures`): a share dropping out mid-scan would
   flood the 1 MB log.
+- **TIFFs are decoded with LibTiff.NET** (`TiffDecoder`), since Skia has no TIFF codec. Its RGBA reads return each
+  strip upside down, flip some orientations themselves, and carry on past damaged strips; the decoder undoes the
+  flips and notices errors through the (global) error handler. `TiffTests` covers every orientation and layout.
 - **Styles match exact types:** `TextBlock.caption` doesn't style a `SelectableTextBlock`; list both.
 - **Line endings:** `.gitattributes` normalises to LF in the repo; Windows checkouts get CRLF. Scripts that edit files
   should cope with both.

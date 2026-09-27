@@ -18,6 +18,8 @@
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.12" />
     <PackageVersion Include="SkiaSharp" Version="3.119.4" />
     <PackageVersion Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
+    <!-- TIFF decoding: Skia has no TIFF codec. Managed, BSD licence. -->
+    <PackageVersion Include="BitMiracle.LibTiff.NET" Version="2.4.660" />
 
     <!-- Tests -->
     <!-- Held at 3.x: Avalonia.Headless.XUnit 12 is built against xunit.v3 3.2.2 and fails with 4.x. -->

@@ -38,7 +38,7 @@ public sealed record MetadataChanges
 
 /// <summary>
 /// Writes tags and captions via ExifTool. Values are written to XMP (read by Lightroom, digiKam,
-/// Windows, macOS…), and for JPEGs also to IPTC for older software, so the two never disagree.
+/// Windows, macOS…), and for JPEGs and TIFFs also to IPTC for older software, so the two never disagree.
 /// Pixel data is never touched. Camera RAW files are never modified at all: their tags go in an
 /// .xmp sidecar beside them (IMG_0001.CR2 → IMG_0001.xmp), as Lightroom does.
 /// </summary>
@@ -179,7 +179,9 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
 
     internal static List<string> BuildArguments(string path, MetadataChanges changes, bool preserveModifiedTime = false)
     {
-        var isJpeg = Path.GetExtension(path).ToLowerInvariant() is ".jpg" or ".jpeg";
+        // JPEGs and TIFFs also get the older IPTC and EXIF fields. Other apps write them there and PhotoTag reads
+        // them, so if they were left alone a tag removed from XMP would come back from IPTC.
+        var hasLegacyFields = PhotoFiles.IsJpeg(path) || PhotoFiles.IsTiff(path);
 
         List<string> args =
         [
@@ -194,7 +196,7 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         {
             var normalized = NormalizeKeywords(keywords);
             SetList(args, "XMP-dc:Subject", normalized);
-            if (isJpeg) SetList(args, "IPTC:Keywords", normalized);
+            if (hasLegacyFields) SetList(args, "IPTC:Keywords", normalized);
         }
 
         // IPTC's older fields have no equivalent, so people go in XMP only.
@@ -207,31 +209,31 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         if (changes.Title is { } title)
         {
             Set(args, "XMP-dc:Title", title);
-            if (isJpeg) Set(args, "IPTC:ObjectName", title);
+            if (hasLegacyFields) Set(args, "IPTC:ObjectName", title);
         }
 
         if (changes.Description is { } description)
         {
             Set(args, "XMP-dc:Description", description);
-            if (isJpeg)
+            if (hasLegacyFields)
             {
                 Set(args, "IPTC:Caption-Abstract", description);
                 Set(args, "EXIF:ImageDescription", description);
             }
         }
 
-        // XMP names as Lightroom and the IPTC Core standard use them, and the older IPTC fields for JPEGs.
-        SetText(args, changes.Location, "XMP-iptcCore:Location", isJpeg ? "IPTC:Sub-location" : null);
-        SetText(args, changes.City, "XMP-photoshop:City", isJpeg ? "IPTC:City" : null);
-        SetText(args, changes.State, "XMP-photoshop:State", isJpeg ? "IPTC:Province-State" : null);
-        SetText(args, changes.Country, "XMP-photoshop:Country", isJpeg ? "IPTC:Country-PrimaryLocationName" : null);
+        // XMP names as Lightroom and the IPTC Core standard use them, and the older IPTC fields for JPEGs and TIFFs.
+        SetText(args, changes.Location, "XMP-iptcCore:Location", hasLegacyFields ? "IPTC:Sub-location" : null);
+        SetText(args, changes.City, "XMP-photoshop:City", hasLegacyFields ? "IPTC:City" : null);
+        SetText(args, changes.State, "XMP-photoshop:State", hasLegacyFields ? "IPTC:Province-State" : null);
+        SetText(args, changes.Country, "XMP-photoshop:Country", hasLegacyFields ? "IPTC:Country-PrimaryLocationName" : null);
 
         if (changes.Favourite is { } favourite)
             Set(args, "XMP-xmp:Rating", favourite ? FavouriteRating.ToString(System.Globalization.CultureInfo.InvariantCulture) : "");
         else if (changes.Rating is { } rating)
             Set(args, "XMP-xmp:Rating", rating.ToString(System.Globalization.CultureInfo.InvariantCulture));
 
-        if (isJpeg && (changes.Keywords is not null || TextFields.All.Any(f => changes.Get(f) is not null)))
+        if (hasLegacyFields && (changes.Keywords is not null || TextFields.All.Any(f => changes.Get(f) is not null)))
             args.Add("-IPTC:CodedCharacterSet=UTF8");
 
         args.Add(path);

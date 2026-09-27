@@ -21,7 +21,7 @@ public sealed record PhotoFile(string Path, IReadOnlyList<string> Companions)
 public static class PhotoFiles
 {
     public static readonly FrozenSet<string> RasterExtensions =
-        new[] { ".jpg", ".jpeg", ".png", ".webp" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+        new[] { ".jpg", ".jpeg", ".png", ".webp", ".tif", ".tiff" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Camera RAW formats. Previews come from the JPEG the camera embeds; tags go in an .xmp sidecar.</summary>
     public static readonly FrozenSet<string> RawExtensions =
@@ -50,6 +50,11 @@ public static class PhotoFiles
 
     private static readonly FrozenSet<string> JpegExtensions =
         new[] { ".jpg", ".jpeg" }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    public static bool IsJpeg(string path) => JpegExtensions.Contains(Path.GetExtension(path));
+
+    /// <summary>TIFFs, which Skia can't decode (see <see cref="TiffDecoder"/>). DNG is TIFF inside, but a RAW.</summary>
+    public static bool IsTiff(string path) => Path.GetExtension(path).ToLowerInvariant() is ".tif" or ".tiff";
 
     private static readonly EnumerationOptions Options = new()
     {

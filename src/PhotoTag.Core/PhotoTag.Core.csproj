@@ -4,6 +4,7 @@
     <IsTrimmable>true</IsTrimmable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="BitMiracle.LibTiff.NET" />
     <PackageReference Include="MetadataExtractor" />
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="SkiaSharp" />

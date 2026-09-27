@@ -181,6 +181,9 @@ public sealed record PhotoMetadata
         if (directories.OfType<WebPDirectory>().FirstOrDefault() is { } webp
             && webp.TryGetInt32(WebPDirectory.TagImageWidth, out var ww) && webp.TryGetInt32(WebPDirectory.TagImageHeight, out var wh))
             return (ww, wh);
+        if (directories.OfType<ExifIfd0Directory>().FirstOrDefault() is { } tiff // a TIFF's first image
+            && tiff.TryGetInt32(ExifDirectoryBase.TagImageWidth, out var tw) && tiff.TryGetInt32(ExifDirectoryBase.TagImageHeight, out var th))
+            return (tw, th);
         foreach (var d in subIfds)
             if (d.TryGetInt32(ExifDirectoryBase.TagExifImageWidth, out var ew) && d.TryGetInt32(ExifDirectoryBase.TagExifImageHeight, out var eh))
                 return (ew, eh);

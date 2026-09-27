@@ -37,7 +37,7 @@ Early days. Today it can:
   give them a title, description or place, all at once, with progress and Cancel in the status bar, and Undo (or
   Ctrl/⌘+Z) afterwards
 - Show and tag camera RAW files (Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2,
-  Pentax PEF, DNG…). RAW+JPEG pairs appear as one photo.
+  Pentax PEF, DNG…). RAW+JPEG pairs appear as one photo. Also JPEG, PNG, WebP and TIFF.
 - Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search across
   every subfolder by tag, person, title, description, place or file name, see every photo in the library, list the
   untagged photos or your favourites (on their own or with a search), and suggestions cover your whole library.
@@ -53,7 +53,7 @@ Early days. Today it can:
 - Manage tags and people across the library (**Manage tags**): see each with its count, rename or merge them
   (including tidying "beach" and "Beach" into one), or delete one from every photo. These can be undone too.
 
-Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs, also as IPTC for older
+Tags are written as XMP (read by Lightroom, digiKam, Windows and macOS) and, for JPEGs and TIFFs, also as IPTC for older
 software. Pixels are never re-encoded. A favourite is saved as a 5★ rating (`xmp:Rating`), so Lightroom, Windows
 Explorer and other apps show favourites as 5 stars, and photos rated 5★ elsewhere appear as favourites. A lower rating
 set in another app is kept until you favourite that photo. Lightroom's nested keywords ("Places|UK|Cornwall") aren't
@@ -128,7 +128,8 @@ workflow as a trial, without publishing. The icon is drawn by `dotnet run build/
 - **Only on-screen tiles exist.** `ItemsRepeater` with `UniformGridLayout` virtualizes the grid. Thumbnails load
   when a tile appears (`ElementPrepared`) and are freed when it scrolls away (`ElementClearing`).
 - **Photos are never fully decoded for a thumbnail.** JPEGs are decoded at 1/8–1/2 scale via libjpeg's DCT
-  scaling (SkiaSharp), then resized and rotated per EXIF orientation.
+  scaling (SkiaSharp), then resized and rotated per EXIF orientation. TIFFs, which Skia can't read, are decoded
+  with LibTiff.NET a strip at a time and shrunk as they're read, so a large scan is never held in memory whole.
 - **Thumbnails are cached on disk** under the local app-data folder (`PhotoTag/thumbnails`). The cache is keyed on
   path, size and modified time, so an edited photo gets a fresh thumbnail automatically. Once the cache passes its
   limit (2 GB, about 100,000 thumbnails, unless changed in ⚙ Settings), PhotoTag deletes the ones used least recently.

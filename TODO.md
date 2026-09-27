@@ -36,12 +36,6 @@ clear message and loses nothing from the index; and that other apps' changes on 
 or the 30-second poll). Tune the scan's parallelism for network drives (`LibraryIndex`, now 8) if needed. The log
 (⚙ Settings → Show log) records how long each folder took to answer and each scan took, and what failed.
 
-## 4. Browsing
-
-### 4.1 More formats (S each)
-TIFF (probably via SkiaSharp or ExifTool previews). **Not HEIC:** the owner explicitly decided against it (it would need
-Magick.NET, ~30 MB per platform).
-
 ## 5. Housekeeping
 
 ### 5.1 Unpin xunit.v3 (S, blocked)
