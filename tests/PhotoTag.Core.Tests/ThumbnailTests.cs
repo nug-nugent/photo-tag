@@ -109,6 +109,102 @@ public sealed class ThumbnailTests : IDisposable
             () => cache.GetAsync(photo, TestContext.Current.CancellationToken));
     }
 
+    [Fact]
+    public async Task Cache_NotesWhenAThumbnailIsUsed_AtMostDaily()
+    {
+        var photo = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(200, 200));
+        using var cache = new ThumbnailCache(Path.Combine(_dir.Path, "cache"));
+        var thumbnail = await cache.GetAsync(photo, TestContext.Current.CancellationToken);
+
+        var hourAgo = DateTime.UtcNow.AddHours(-1);
+        File.SetLastWriteTimeUtc(thumbnail, hourAgo);
+        await cache.GetAsync(photo, TestContext.Current.CancellationToken);
+        Assert.Equal(hourAgo, File.GetLastWriteTimeUtc(thumbnail)); // not written again so soon
+
+        File.SetLastWriteTimeUtc(thumbnail, DateTime.UtcNow.AddDays(-3));
+        await cache.GetAsync(photo, TestContext.Current.CancellationToken);
+        Assert.InRange(File.GetLastWriteTimeUtc(thumbnail), DateTime.UtcNow.AddMinutes(-1), DateTime.UtcNow.AddMinutes(1));
+    }
+
+    [Fact]
+    public async Task CleanUp_DeletesLeastRecentlyUsed_DownToThreeQuartersOfTheLimit()
+    {
+        var dir = Path.Combine(_dir.Path, "cache");
+        using var cache = new ThumbnailCache(dir);
+        var files = Enumerable.Range(0, 10).Select(i => FakeThumbnail(dir, $"{i}.thumb", 1000, DateTime.UtcNow.AddDays(-2 - i))).ToList();
+
+        var result = await cache.CleanUpAsync(maxBytes: 5000, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new CacheCleanUp(Deleted: 7, Freed: 7000, Size: 3000), result);
+        Assert.Equal(files[..3], files.Where(File.Exists)); // the three used most recently
+    }
+
+    [Fact]
+    public async Task CleanUp_LeavesACacheUnderTheLimitAlone()
+    {
+        var dir = Path.Combine(_dir.Path, "cache");
+        using var cache = new ThumbnailCache(dir);
+        for (var i = 0; i < 5; i++) FakeThumbnail(dir, $"{i}.thumb", 1000, DateTime.UtcNow.AddDays(-100));
+
+        var result = await cache.CleanUpAsync(maxBytes: 5000, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new CacheCleanUp(0, 0, 5000), result);
+    }
+
+    [Fact]
+    public async Task CleanUp_KeepsThumbnailsUsedToday_EvenOverTheLimit()
+    {
+        var dir = Path.Combine(_dir.Path, "cache");
+        using var cache = new ThumbnailCache(dir);
+        var old = FakeThumbnail(dir, "old.thumb", 1000, DateTime.UtcNow.AddDays(-5));
+        for (var i = 0; i < 5; i++) FakeThumbnail(dir, $"{i}.thumb", 1000, DateTime.UtcNow.AddHours(-i));
+
+        var result = await cache.CleanUpAsync(maxBytes: 2000, TestContext.Current.CancellationToken);
+
+        Assert.Equal(new CacheCleanUp(1, 1000, 5000), result);
+        Assert.False(File.Exists(old));
+    }
+
+    [Fact]
+    public async Task CleanUp_RemovesHalfWrittenFilesFromACrash()
+    {
+        var dir = Path.Combine(_dir.Path, "cache");
+        using var cache = new ThumbnailCache(dir);
+        var leftOver = FakeThumbnail(dir, "a.thumb.123.tmp", 500, DateTime.UtcNow.AddDays(-2));
+        var beingWritten = FakeThumbnail(dir, "b.thumb.456.tmp", 500, DateTime.UtcNow);
+
+        var result = await cache.CleanUpAsync(cancellationToken: TestContext.Current.CancellationToken);
+
+        Assert.Equal(new CacheCleanUp(1, 500, 0), result);
+        Assert.False(File.Exists(leftOver));
+        Assert.True(File.Exists(beingWritten));
+    }
+
+    [Fact]
+    public async Task CleanUp_KeepsThumbnailsUsedSince_OverOnesMadeLongAgo()
+    {
+        var photos = Enumerable.Range(0, 3)
+            .Select(i => TestImages.Write(_dir.Path, $"photo{i}.jpg", TestImages.Jpeg(200, 200))).ToList();
+        using var cache = new ThumbnailCache(Path.Combine(_dir.Path, "cache"));
+        var thumbnails = new List<string>();
+        foreach (var photo in photos) thumbnails.Add(await cache.GetAsync(photo, TestContext.Current.CancellationToken));
+        foreach (var thumbnail in thumbnails) File.SetLastWriteTimeUtc(thumbnail, DateTime.UtcNow.AddDays(-10));
+
+        await cache.GetAsync(photos[1], TestContext.Current.CancellationToken); // looked at again
+        await cache.CleanUpAsync(maxBytes: 1, TestContext.Current.CancellationToken);
+
+        Assert.Equal([thumbnails[1]], thumbnails.Where(File.Exists));
+    }
+
+    private static string FakeThumbnail(string cacheDirectory, string name, int size, DateTime lastUsed)
+    {
+        var path = Path.Combine(cacheDirectory, name[..1], name);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllBytes(path, new byte[size]);
+        File.SetLastWriteTimeUtc(path, lastUsed);
+        return path;
+    }
+
     private static bool IsRed(SKColor c) => c.Red > 200 && c.Blue < 80;
 
     public void Dispose() => _dir.Dispose();

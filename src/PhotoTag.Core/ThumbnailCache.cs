@@ -10,6 +10,9 @@ namespace PhotoTag.Core;
 ///
 /// At most <c>maxConcurrency</c> thumbnails are generated at once; waiting requests can
 /// be cancelled (e.g. when the tile scrolls out of view) before they cost anything.
+///
+/// Nothing is deleted as it goes stale (an edited photo's old thumbnail, a folder since deleted):
+/// <see cref="CleanUpAsync"/> removes the least recently used thumbnails once the cache is too big.
 /// </summary>
 public sealed class ThumbnailCache : IDisposable
 {
@@ -31,12 +34,25 @@ public sealed class ThumbnailCache : IDisposable
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
         "PhotoTag", "thumbnails");
 
+    /// <summary>About 100,000 thumbnails at 320 px (they average 15–25 KB).</summary>
+    public const long DefaultMaxBytes = 2L * 1024 * 1024 * 1024;
+
+    /// <summary>
+    /// A thumbnail's modified time says when it was last used (access times are often switched off). Refreshing
+    /// it at most this often means scrolling through a folder doesn't write to every thumbnail it shows.
+    /// </summary>
+    internal static readonly TimeSpan UsedResolution = TimeSpan.FromDays(1);
+
     /// <summary>Returns the path of a cached thumbnail file for <paramref name="photoPath"/>, creating it if needed.</summary>
     public async Task<string> GetAsync(string photoPath, CancellationToken cancellationToken = default)
     {
         // Off the caller's (UI) thread: the key needs the photo's size and time, a round trip on a network share.
-        var cachePath = await Task.Run(() => GetCachePath(photoPath), cancellationToken).ConfigureAwait(false);
-        if (File.Exists(cachePath)) return cachePath;
+        var (cachePath, cached) = await Task.Run(() =>
+        {
+            var path = GetCachePath(photoPath);
+            return (path, MarkUsed(path));
+        }, cancellationToken).ConfigureAwait(false);
+        if (cached) return cachePath;
 
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
@@ -60,6 +76,85 @@ public sealed class ThumbnailCache : IDisposable
         }
     }
 
+    /// <summary>Whether the thumbnail exists; if so, notes that it was used.</summary>
+    private static bool MarkUsed(string cachePath)
+    {
+        var file = new FileInfo(cachePath);
+        if (!file.Exists) return false;
+        var now = DateTime.UtcNow;
+        if (now - file.LastWriteTimeUtc > UsedResolution)
+        {
+            try
+            {
+                file.LastWriteTimeUtc = now;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Being read or cleaned up at this moment; it's still there, or will be made again.
+            }
+        }
+        return true;
+    }
+
+    /// <summary>
+    /// If the cache is bigger than <paramref name="maxBytes"/>, deletes the least recently used thumbnails
+    /// until it's back to three quarters of that, so it isn't trimmed again at every start. Thumbnails used
+    /// in the last day are kept whatever the size, as a tile may be about to show one. Also removes
+    /// half-written files left by a crash.
+    /// </summary>
+    public Task<CacheCleanUp> CleanUpAsync(long maxBytes = DefaultMaxBytes, CancellationToken cancellationToken = default) =>
+        Task.Run(() =>
+        {
+            var cutoff = DateTime.UtcNow - UsedResolution;
+            // Sizes and times as listed: a FileInfo forgets them once its file is deleted.
+            var thumbnails = new List<(FileInfo File, long Size, DateTime LastUsed)>();
+            long total = 0, freed = 0;
+            var deleted = 0;
+            foreach (var file in new DirectoryInfo(_cacheDirectory).EnumerateFiles("*", SearchOption.AllDirectories))
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                var (size, lastUsed) = (file.Length, file.LastWriteTimeUtc);
+                if (file.Extension == ".thumb")
+                {
+                    thumbnails.Add((file, size, lastUsed));
+                    total += size;
+                }
+                else if (file.Extension == ".tmp" && lastUsed < cutoff && TryDelete(file))
+                {
+                    deleted++;
+                    freed += size;
+                }
+            }
+
+            var target = maxBytes / 4 * 3;
+            if (total > maxBytes)
+            {
+                foreach (var (file, size, lastUsed) in thumbnails.OrderBy(t => t.LastUsed))
+                {
+                    if (total <= target || lastUsed >= cutoff) break;
+                    cancellationToken.ThrowIfCancellationRequested();
+                    if (!TryDelete(file)) continue;
+                    deleted++;
+                    freed += size;
+                    total -= size;
+                }
+            }
+            return new CacheCleanUp(deleted, freed, total);
+        }, cancellationToken);
+
+    private static bool TryDelete(FileInfo file)
+    {
+        try
+        {
+            file.Delete();
+            return true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return false; // open for a tile right now, say
+        }
+    }
+
     internal string GetCachePath(string photoPath)
     {
         var file = new FileInfo(photoPath);
@@ -71,3 +166,6 @@ public sealed class ThumbnailCache : IDisposable
 
     public void Dispose() => _gate.Dispose();
 }
+
+/// <summary>What <see cref="ThumbnailCache.CleanUpAsync"/> did: files deleted, bytes freed, and the thumbnails' size now.</summary>
+public sealed record CacheCleanUp(int Deleted, long Freed, long Size);

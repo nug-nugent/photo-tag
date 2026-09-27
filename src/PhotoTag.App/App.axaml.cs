@@ -25,6 +25,7 @@ public partial class App : Application
             var previewTool = exifToolSetup.Create();
             var renderer = new PhotoRenderer(previewTool is null ? null : new RawPreviewExtractor(previewTool));
             var thumbnails = new ThumbnailCache(ThumbnailCache.DefaultDirectory, renderer);
+            _ = CleanUpThumbnailsAsync(thumbnails);
             var index = new LibraryIndex(LibraryIndex.DefaultPath);
             var placeLookup = new NominatimLookup();
             var viewModel = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, new GitHubReleasesUpdater(), placeLookup)
@@ -55,5 +56,21 @@ public partial class App : Application
         }
 
         base.OnFrameworkInitializationCompleted();
+    }
+
+    /// <summary>Keeps the thumbnail cache from growing forever, in the background.</summary>
+    private static async Task CleanUpThumbnailsAsync(ThumbnailCache thumbnails)
+    {
+        try
+        {
+            var result = await thumbnails.CleanUpAsync();
+            if (result.Deleted > 0)
+                Log.Info($"Cleaned up the thumbnail cache: deleted {result.Deleted:N0} files ({result.Freed / 1048576.0:N0} MB); " +
+                         $"{result.Size / 1048576.0:N0} MB left");
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Log.Warn("Couldn't clean up the thumbnail cache", e);
+        }
     }
 }
