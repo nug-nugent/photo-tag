@@ -8,12 +8,15 @@ public readonly record struct IndexProgress(int Done, int Total);
 
 public sealed record IndexScanResult(int Total, int Updated, int Unchanged, int Removed, int Failed);
 
-/// <summary>Which photos a <see cref="LibraryIndex.RefreshAsync"/> found new or changed, and which had gone.</summary>
-public sealed record IndexChanges(IReadOnlyList<string> Changed, IReadOnlyList<string> Removed)
+/// <summary>
+/// What a <see cref="LibraryIndex.RefreshAsync"/> found: photos it knew that have changed since (a different size or
+/// modified time), photos it hadn't indexed before, and photos that have gone.
+/// </summary>
+public sealed record IndexChanges(IReadOnlyList<string> Changed, IReadOnlyList<string> Added, IReadOnlyList<string> Removed)
 {
-    public static readonly IndexChanges None = new([], []);
+    public static readonly IndexChanges None = new([], [], []);
 
-    public bool IsEmpty => Changed.Count == 0 && Removed.Count == 0;
+    public bool IsEmpty => Changed.Count == 0 && Added.Count == 0 && Removed.Count == 0;
 }
 
 /// <summary>Photo and tagged-photo counts for a folder, including its subfolders.</summary>
@@ -114,6 +117,7 @@ public sealed class LibraryIndex : IDisposable
         var seen = new HashSet<string>(files, PathComparer);
         var pending = new ConcurrentQueue<(string Path, PhotoMetadata Metadata, long Size, long Modified)>();
         var changed = new ConcurrentBag<string>();
+        var added = new ConcurrentBag<string>();
         int done = 0, updated = 0, unchanged = 0, failed = 0;
 
         await Parallel.ForEachAsync(files, new ParallelOptions { MaxDegreeOfParallelism = 4, CancellationToken = cancellationToken },
@@ -122,14 +126,15 @@ public sealed class LibraryIndex : IDisposable
                 try
                 {
                     var stamp = PhotoFiles.GetStamp(path); // includes a RAW's sidecar
-                    if (known.TryGetValue(path, out var existing) && existing == stamp)
+                    var isKnown = known.TryGetValue(path, out var existing);
+                    if (isKnown && existing == stamp)
                     {
                         Interlocked.Increment(ref unchanged);
                     }
                     else
                     {
                         pending.Enqueue((path, ReadOrEmpty(path), stamp.Size, stamp.Ticks));
-                        changed.Add(path);
+                        (isKnown ? changed : added).Add(path);
                         Interlocked.Increment(ref updated);
                         if (pending.Count >= BatchSize) await FlushAsync(pending, ct).ConfigureAwait(false);
                     }
@@ -144,7 +149,7 @@ public sealed class LibraryIndex : IDisposable
         await FlushAsync(pending, cancellationToken).ConfigureAwait(false);
         var missing = known.Keys.Where(p => !seen.Contains(p)).ToList();
         var removed = await RemoveMissingAsync(missing).ConfigureAwait(false);
-        return (new IndexScanResult(files.Count, updated, unchanged, removed, failed), new IndexChanges([.. changed], missing));
+        return (new IndexScanResult(files.Count, updated, unchanged, removed, failed), new IndexChanges([.. changed], [.. added], missing));
     }
 
     /// <summary>Records metadata PhotoTag has just written, without waiting for the next scan.</summary>

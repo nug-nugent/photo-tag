@@ -5,11 +5,12 @@ using PhotoTag.Core;
 namespace PhotoTag.App.ViewModels;
 
 /// <summary>
-/// What changed outside PhotoTag: photos new or changed on disk, photos gone, and folders whose contents
-/// changed (for the folder tree and the grid). <see cref="Everything"/>: anything may have changed.
+/// What changed outside PhotoTag: photos changed on disk since they were indexed, photos new to the index,
+/// photos gone, and folders whose contents changed (for the folder tree and the grid). <see cref="Everything"/>:
+/// anything may have changed.
 /// </summary>
-public sealed record LibraryChanges(IReadOnlySet<string> Changed, IReadOnlySet<string> Removed, IReadOnlySet<string> Folders,
-    bool Everything);
+public sealed record LibraryChanges(IReadOnlySet<string> Changed, IReadOnlySet<string> Added, IReadOnlySet<string> Removed,
+    IReadOnlySet<string> Folders, bool Everything);
 
 /// <summary>
 /// Keeps the <see cref="LibraryIndex"/> in step with the files: scans the open folder tree in
@@ -178,7 +179,7 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
                 if (_root != root) continue;
 
                 FilesChanged?.Invoke(this, changes);
-                if (changes.Changed.Count > 0 || changes.Removed.Count > 0)
+                if (changes.Changed.Count > 0 || changes.Added.Count > 0 || changes.Removed.Count > 0)
                 {
                     await LoadSuggestionsAsync();
                     CountsChanged?.Invoke(this, EventArgs.Empty);
@@ -198,20 +199,22 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
         if (everything)
         {
             var all = await Index.RefreshAsync(root, includeSubfolders: true);
-            return new LibraryChanges(all.Changed.ToHashSet(PathComparer), all.Removed.ToHashSet(PathComparer),
-                new HashSet<string>(PathComparer), Everything: true);
+            return new LibraryChanges(all.Changed.ToHashSet(PathComparer), all.Added.ToHashSet(PathComparer),
+                all.Removed.ToHashSet(PathComparer), new HashSet<string>(PathComparer), Everything: true);
         }
 
         var (shallow, deep) = await Task.Run(() => AffectedFolders(root, paths, folders));
         var changed = new HashSet<string>(PathComparer);
+        var added = new HashSet<string>(PathComparer);
         var removed = new HashSet<string>(PathComparer);
         foreach (var (folder, includeSubfolders) in deep.Select(f => (f, true)).Concat(shallow.Select(f => (f, false))))
         {
             var result = await Index.RefreshAsync(folder, includeSubfolders);
             changed.UnionWith(result.Changed);
+            added.UnionWith(result.Added);
             removed.UnionWith(result.Removed);
         }
-        return new LibraryChanges(changed, removed, shallow.Concat(deep).ToHashSet(PathComparer), Everything: false);
+        return new LibraryChanges(changed, added, removed, shallow.Concat(deep).ToHashSet(PathComparer), Everything: false);
     }
 
     /// <summary>

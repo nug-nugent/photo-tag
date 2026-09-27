@@ -356,7 +356,8 @@ public sealed class LibraryIndexTests : IDisposable
 
         var changes = await _index.RefreshAsync(_library, includeSubfolders: false, Ct);
 
-        Assert.Equal([change, added], changes.Changed.Order());
+        Assert.Equal([change], changes.Changed);
+        Assert.Equal([added], changes.Added);
         Assert.Equal([delete], changes.Removed);
         Assert.Equal([change], await _index.SearchAsync(_library, new PhotoQuery { Keywords = ["After"] }));
         Assert.Equal(new FolderCounts(1, 1), await _index.GetFolderCountsAsync(Path.Combine(_library, "2020")));
