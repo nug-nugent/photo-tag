@@ -307,6 +307,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
             catch (Exception e) when (e is ExifToolException or IOException or UnauthorizedAccessException
                                           or MetadataExtractor.ImageProcessingException)
             {
+                Log.Warn($"Couldn't save {photo.Path}", e);
                 failures.Add(new BulkFailure(photo.Path, e.Message));
             }
 

@@ -45,6 +45,23 @@ public sealed class SettingsTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task ShowLog_LinksToTheLogFile()
+    {
+        Photo("photo.jpg");
+        var logPath = Path.Combine(Path.GetTempPath(), "PhotoTag", "log.txt");
+        var (window, _) = await OpenAsync(writer: null, logPath: logPath);
+
+        var settingsButton = Find<Button>(window, "SettingsButton");
+        Click(window, settingsButton);
+        var link = ((Control)((Flyout)settingsButton.Flyout!).Content!).GetVisualDescendants().OfType<HyperlinkButton>()
+            .Single(l => l.Name == "ShowLogLink");
+        Assert.True(link.IsEffectivelyVisible);
+        Assert.Equal(new Uri(logPath), link.NavigateUri);
+        Assert.Equal("file", link.NavigateUri!.Scheme);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task SavedSetting_IsAppliedAtStartup()
     {
         await using var exifTool = RequireExifTool();

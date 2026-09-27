@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Diagnostics;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using PhotoTag.Core;
@@ -90,6 +91,11 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     };
     public ObservableCollection<string> KeywordSuggestions => _keywordSuggestions.Items;
 
+    /// <summary>PhotoTag's log file, for "Show log" in settings; null when there isn't one (tests, tools).</summary>
+    public string? LogPath { get; init; }
+
+    public Uri? LogUri => LogPath is null ? null : new Uri(LogPath);
+
     [ObservableProperty] public partial string? RootPath { get; private set; }
     [ObservableProperty] public partial FolderNodeViewModel? SelectedFolder { get; set; }
 
@@ -152,12 +158,16 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         path = Path.GetFullPath(path);
         var version = ++_openVersion;
+        var started = Stopwatch.StartNew();
         var check = Task.Run(() => (Exists: Directory.Exists(path), OnNetwork: PhotoFiles.IsOnNetworkDrive(path)));
         if (await Task.WhenAny(check, Task.Delay(SlowFolder)) != check) StatusText = $"Waiting for {path}…";
         var (exists, onNetwork) = await check;
+        Log.Info($"Opening {path}" + (onNetwork ? " (network drive)" : "") +
+                 (started.Elapsed >= SlowFolder ? $", which took {started.Elapsed.TotalSeconds:0.0} s to answer" : ""));
         if (version != _openVersion) return; // another folder was opened meanwhile
         if (!exists)
         {
+            Log.Warn($"Can't reach {path}");
             StatusText = onNetwork
                 ? $"Can't reach {path}. If it's on a NAS or another computer, check it's switched on and connected."
                 : $"Folder not found: {path}";

@@ -67,7 +67,10 @@ try
         using var thumbnails = new ThumbnailCache(Path.Combine(appData, "thumbnails"), renderer);
         using var index = new LibraryIndex(Path.Combine(appData, "library.db"));
         var settings = AppSettings.Load(Path.Combine(appData, "settings.json"));
-        var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, placeLookup: new CannedPlaceLookup());
+        var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, placeLookup: new CannedPlaceLookup())
+        {
+            LogPath = Path.Combine(appData, "log.txt"),
+        };
         var window = new MainWindow { DataContext = vm, Width = 1280, Height = 800 };
         step = "show window"; window.Show();
 

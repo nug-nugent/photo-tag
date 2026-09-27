@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using PhotoTag.Core;
 
 namespace PhotoTag.App;
 
@@ -50,6 +51,7 @@ public sealed class AppSettings
         catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException)
         {
             // A corrupt or unreadable settings file shouldn't stop the app starting.
+            Log.Warn($"Couldn't read settings from {filePath}; using the defaults", e);
         }
         settings.FilePath = filePath;
         return settings;
@@ -65,6 +67,7 @@ public sealed class AppSettings
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             // Losing "last folder" isn't worth interrupting the user over.
+            Log.Warn($"Couldn't save settings to {FilePath}", e);
         }
     }
 }

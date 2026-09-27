@@ -116,9 +116,10 @@ public partial class ViewerViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException)
         {
         }
-        catch (Exception)
+        catch (Exception e)
         {
             // The thumbnail (or its "can't read" message) stays.
+            Log.Warn($"Couldn't show {photo.Path}", e);
         }
     }
 

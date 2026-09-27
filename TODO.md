@@ -33,7 +33,8 @@ SMB but no network: no latency, no NAS that sleeps.
 **What:** open the NAS share (by drive letter and by `\\nas\...`) and check first scan, thumbnails and tag writes feel
 fine; that a sleeping NAS shows "Waiting for …" rather than freezing; that pulling the network cable gives a
 clear message and loses nothing from the index; and that other apps' changes on the share show up (notifications,
-or the 30-second poll). Tune the scan's parallelism for network drives (`LibraryIndex`, now 8) if needed.
+or the 30-second poll). Tune the scan's parallelism for network drives (`LibraryIndex`, now 8) if needed. The log
+(⚙ Settings → Show log) records how long each folder took to answer and each scan took, and what failed.
 
 ## 4. Browsing
 
@@ -47,14 +48,10 @@ Magick.NET, ~30 MB per platform).
 `ThumbnailCache` never deletes anything. Stale entries accumulate (keys include size and modified time, so every edited
 photo leaves an old thumbnail). Add size-based eviction (oldest-accessed first) or a periodic sweep.
 
-### 5.2 A log file (S)
-There's no logging, which will make user bug reports hard to diagnose. Add a small rolling log in the app-data folder
-(ExifTool errors, scan failures, update checks) and a "Show log" link in ⚙ Settings.
-
-### 5.3 A proper settings window (S)
-The ⚙ flyout is getting crowded (date-modified, updates, version). Move to a small settings window when the next setting
+### 5.2 A proper settings window (S)
+The ⚙ flyout is getting crowded (date-modified, updates, version, log). Move to a small settings window when the next setting
 arrives.
 
-### 5.4 Unpin xunit.v3 (S, blocked)
+### 5.3 Unpin xunit.v3 (S, blocked)
 `Directory.Packages.props` pins `xunit.v3` to 3.2.2 because `Avalonia.Headless.XUnit` 12 fails with 4.x. Upgrade when
 Avalonia ships a compatible version.

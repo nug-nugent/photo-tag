@@ -71,6 +71,10 @@ another of the same length) leave the file size unchanged, so without the date c
 If you'd rather keep the original dates, turn on *Keep each photo's "date modified"* under ⚙ Settings, but check
 first that your backup tool compares file contents or checksums, not just dates and sizes.
 
+**If something goes wrong**, *Show log* under ⚙ Settings opens PhotoTag's log: folders opened, how long indexing
+took, and anything that failed (a photo that couldn't be saved, a share that couldn't be reached). It lives in the
+local app-data folder (`PhotoTag/log.txt`, plus `log.old.txt` once it passes 1 MB), and it's worth attaching to a bug report.
+
 ## Building from source
 
 Requires the [.NET 10 SDK](https://dotnet.microsoft.com/download) and, for tag editing,

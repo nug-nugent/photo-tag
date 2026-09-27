@@ -8,7 +8,7 @@ Tags are written into the photos (XMP, plus IPTC for JPEGs) via ExifTool; RAW fi
 
 | Path | What |
 |---|---|
-| `src/PhotoTag.Core` | No UI code. `PhotoFiles` (discovery, RAW+JPEG pairing, sidecars), `PhotoMetadata` (read), `PhotoMetadataWriter` + `ExifTool` (write, via a long-running `-stay_open` process), `BulkMetadataEditor`, `ImageRenderer`/`PhotoRenderer`/`RawPreviewExtractor` (thumbnails, previews), `ThumbnailCache`, `LibraryIndex` (SQLite), `FolderWatcher` (changes made outside PhotoTag). |
+| `src/PhotoTag.Core` | No UI code. `PhotoFiles` (discovery, RAW+JPEG pairing, sidecars), `PhotoMetadata` (read), `PhotoMetadataWriter` + `ExifTool` (write, via a long-running `-stay_open` process), `BulkMetadataEditor`, `ImageRenderer`/`PhotoRenderer`/`RawPreviewExtractor` (thumbnails, previews), `ThumbnailCache`, `LibraryIndex` (SQLite), `FolderWatcher` (changes made outside PhotoTag), `Log` (the rolling log file). |
 | `src/PhotoTag.App` | Avalonia UI, MVVM with CommunityToolkit.Mvvm (`[ObservableProperty]` partial properties) and compiled bindings (`x:DataType` everywhere). `MainWindow.axaml` is the only window; view models in `ViewModels/`. Also `AppUpdater` (Velopack), `SelfCheck` (`--self-check`). |
 | `tests/PhotoTag.Core.Tests` | xUnit v3. `TestImages` builds real JPEGs with hand-made EXIF/XMP; `RawSamples` downloads CC0 RAW files. |
 | `tests/PhotoTag.App.Tests` | Headless UI tests (Avalonia.Headless.XUnit) that drive the real `MainWindow` with keyboard and mouse. `UiTestBase` has the helpers. |
@@ -121,6 +121,11 @@ dotnet run --project src/PhotoTag.App
   `DirectoryNotFoundException` (the share is probably unreachable) rather than dropping its photos from the index.
 - **Network shares are tested over `\\localhost\C$`** (`NetworkShareTests`, `NetworkShareUiTests`), which needs an
   administrator account on Windows; the tests skip elsewhere.
+- **Log what you catch.** A failure PhotoTag copes with (a locked file, an unreachable share) gets `Log.Warn`; one
+  that shouldn't happen gets `Log.Error`, which records the stack trace. Logging never throws or touches the disk on
+  the caller's thread, and does nothing until `Program.Main` starts it, so tests and tools don't write one. Don't log
+  in a loop over every photo without a cap (see `LibraryIndex.LoggedFailures`): a share dropping out mid-scan would
+  flood the 1 MB log.
 - **Styles match exact types:** `TextBlock.caption` doesn't style a `SelectableTextBlock`; list both.
 - **Line endings:** `.gitattributes` normalises to LF in the repo; Windows checkouts get CRLF. Scripts that edit files
   should cope with both.

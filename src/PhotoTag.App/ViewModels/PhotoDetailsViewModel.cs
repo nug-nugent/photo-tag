@@ -128,6 +128,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         }
         catch (PlaceLookupException e)
         {
+            Log.Warn("OpenStreetMap lookup failed", e);
             LookupText = e.Message;
         }
         finally
@@ -262,10 +263,12 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException) { }
         catch (Exception e) when (e is ImageProcessingException or IOException or InvalidDataException)
         {
+            Log.Warn($"Couldn't read {path}", e);
             Error = "This file looks damaged, or isn't an image PhotoTag can read.";
         }
         catch (Exception e)
         {
+            Log.Error($"Couldn't read the metadata of {path}", e);
             Error = $"Couldn't read metadata: {e.Message}";
         }
 
@@ -278,6 +281,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         catch (OperationCanceledException) { }
         catch (Exception e)
         {
+            Log.Warn($"Couldn't show {path}", e);
             Error ??= $"Couldn't open image: {e.Message}";
         }
     }
@@ -453,6 +457,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         }
         catch (Exception e) when (e is ExifToolException or IOException or UnauthorizedAccessException)
         {
+            Log.Warn($"Couldn't save {Photo.Path}", e);
             SaveFailed = true;
             SaveStatus = $"Couldn't save: {e.Message}";
             await ReloadAsync(); // show what's actually in the file
