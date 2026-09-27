@@ -59,6 +59,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _settings = settings;
         _writer = writer;
         if (writer is not null) writer.PreserveModifiedTime = settings.PreserveModifiedTime;
+        Settings = new SettingsViewModel(settings, writer, thumbnails, Updates);
         Library = new LibraryViewModel(index, _keywordSuggestions, _peopleSuggestions, _placeSuggestions);
         Library.CountsChanged += (_, _) => _ = RefreshFolderCountsAsync();
         Library.CountsChanged += (_, _) => _ = RefreshSummariesAsync();
@@ -78,6 +79,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public TagManagerViewModel TagManager { get; }
     public UpdatesViewModel Updates { get; }
 
+    /// <summary>For the settings window.</summary>
+    public SettingsViewModel Settings { get; }
+
     /// <summary>Why tags can't be edited, shown in each panel when there's no writer.</summary>
     public string ExifToolMissingText { get; init; } = ExifToolMissingMessage(ExifToolStatus.NotFound);
 
@@ -92,9 +96,11 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public ObservableCollection<string> KeywordSuggestions => _keywordSuggestions.Items;
 
     /// <summary>PhotoTag's log file, for "Show log" in settings; null when there isn't one (tests, tools).</summary>
-    public string? LogPath { get; init; }
-
-    public Uri? LogUri => LogPath is null ? null : new Uri(LogPath);
+    public string? LogPath
+    {
+        get => Settings.LogPath;
+        init => Settings.LogPath = value;
+    }
 
     [ObservableProperty] public partial string? RootPath { get; private set; }
     [ObservableProperty] public partial FolderNodeViewModel? SelectedFolder { get; set; }
@@ -185,24 +191,6 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _settings.LastFolder = path;
         _settings.Save();
     }
-
-    // --- Settings ------------------------------------------------------------------------
-
-    /// <summary>Whether saving tags keeps each photo's "date modified". Saved in settings.json.</summary>
-    public bool PreserveModifiedTime
-    {
-        get => _settings.PreserveModifiedTime;
-        set
-        {
-            if (value == _settings.PreserveModifiedTime) return;
-            _settings.PreserveModifiedTime = value;
-            if (_writer is not null) _writer.PreserveModifiedTime = value;
-            _settings.Save();
-            OnPropertyChanged();
-        }
-    }
-
-    public bool CanEditTags => _writer is not null;
 
     /// <summary>The status bar's Undo button, or Ctrl/⌘+Z in the grid: undoes the last bulk edit.</summary>
     [RelayCommand]
@@ -440,8 +428,18 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         if (RootPath is not { } root) return;
         var version = ++_summariesVersion;
-        var summaries = await Library.Index.GetSummariesAsync(root);
-        if (version != _summariesVersion || root != RootPath) return;
+        IReadOnlyDictionary<string, PhotoSummary> summaries;
+        while (true)
+        {
+            // PhotoTag's own edits show on the tiles straight away (a ♥), before the index has them. An answer from
+            // the index while one is being written or recorded could put back what was there before, so wait for
+            // them, and ask again if one started meanwhile. (One that finished meanwhile started a newer refresh.)
+            while (Library.IsWriting() || Library.IsRecording) await Task.Delay(100);
+            if (version != _summariesVersion || root != RootPath) return;
+            summaries = await Library.Index.GetSummariesAsync(root);
+            if (version != _summariesVersion || root != RootPath) return;
+            if (!Library.IsWriting() && !Library.IsRecording) break;
+        }
 
         var hadDates = _loaded.Select(p => p.DateTaken).ToList();
         foreach (var photo in _loaded) photo.Apply(summaries.GetValueOrDefault(photo.Path));

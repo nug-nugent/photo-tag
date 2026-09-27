@@ -1,0 +1,56 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:PhotoTag.App.ViewModels"
+        x:Class="PhotoTag.App.Views.SettingsWindow"
+        x:DataType="vm:SettingsViewModel"
+        Title="PhotoTag settings" Icon="/Assets/icon-256.png" Width="480" SizeToContent="Height" CanResize="False"
+        ShowInTaskbar="False" WindowStartupLocation="CenterOwner" Background="{DynamicResource AppBackgroundBrush}"
+        Foreground="{DynamicResource InkBrush}">
+
+    <DockPanel>
+        <Border DockPanel.Dock="Bottom" Padding="24,14" BorderBrush="{DynamicResource RuleBrush}" BorderThickness="0,2,0,0">
+            <Button x:Name="CloseButton" Classes="accent" Content="Done" HorizontalAlignment="Right" IsDefault="True"
+                    Click="CloseButton_Click" />
+        </Border>
+
+        <StackPanel Margin="24,20,24,22" Spacing="8">
+            <TextBlock Text="Settings" FontSize="24" FontWeight="ExtraBold" Margin="0,0,0,6" />
+
+            <TextBlock Text="Saving tags" FontWeight="ExtraBold" />
+            <CheckBox x:Name="PreserveModifiedTimeBox" IsEnabled="{Binding CanEditTags}"
+                      IsChecked="{Binding PreserveModifiedTime, Mode=TwoWay}">
+                <TextBlock TextWrapping="Wrap" Text="Keep each photo's “date modified” when saving tags" />
+            </CheckBox>
+            <TextBlock Classes="caption" TextWrapping="Wrap"
+                       Text="Leave this off if you back up your photos. Many backup and sync tools only copy files whose date modified has changed, so with it on, some edits (a new favourite, say) would never be backed up." />
+
+            <Separator Margin="0,6" />
+            <TextBlock Text="Thumbnails" FontWeight="ExtraBold" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <TextBlock Text="Keep up to" VerticalAlignment="Center" />
+                <ComboBox x:Name="ThumbnailLimitBox" ItemsSource="{x:Static vm:SettingsViewModel.ThumbnailLimitLabels}"
+                          SelectedIndex="{Binding ThumbnailLimitIndex, Mode=TwoWay}" MinWidth="100" />
+                <TextBlock Text="of thumbnails" VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Classes="caption" TextWrapping="Wrap"
+                       Text="Beyond that, thumbnails of the photos you've looked at least recently are deleted, and made again if you go back to them. Each takes about 20 KB, so 2 GB is about 100,000 photos. If your photos are on a NAS, keep enough for all of them: making thumbnails again over the network is slow." />
+            <TextBlock x:Name="ThumbnailSizeText" Classes="caption" Text="{Binding ThumbnailSizeText}"
+                       IsVisible="{Binding ThumbnailSizeText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+            <Separator Margin="0,6" />
+            <TextBlock Text="Updates" FontWeight="ExtraBold" />
+            <CheckBox x:Name="CheckForUpdatesBox" IsEnabled="{Binding Updates.CanUpdate}"
+                      IsChecked="{Binding Updates.CheckAutomatically, Mode=TwoWay}"
+                      Content="Check for new versions when PhotoTag starts" />
+            <TextBlock Text="{Binding Updates.VersionText}" Classes="caption" />
+
+            <Separator Margin="0,6" />
+            <TextBlock Text="Problems" FontWeight="ExtraBold" />
+            <TextBlock Classes="caption" TextWrapping="Wrap"
+                       Text="PhotoTag keeps a log of what it does and what goes wrong. If you report a problem, it helps to include it." />
+            <HyperlinkButton x:Name="ShowLogLink" Content="Show log" NavigateUri="{Binding LogUri}" Padding="0,2"
+                             IsVisible="{Binding LogUri, Converter={x:Static ObjectConverters.IsNotNull}}"
+                             ToolTip.Tip="{Binding LogPath}" />
+        </StackPanel>
+    </DockPanel>
+</Window>

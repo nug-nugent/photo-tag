@@ -24,6 +24,9 @@ public abstract class UiTestBase : IAsyncDisposable
 
     protected string SettingsPath => Path.Combine(_appData.Path, "settings.json");
 
+    /// <summary>The thumbnail cache of the <paramref name="n"/>th window opened.</summary>
+    protected string ThumbnailsPath(int n) => Path.Combine(_appData.Path, $"thumbnails{n}");
+
     /// <summary>Ctrl, or ⌘ where the platform uses it, as a raw input modifier.</summary>
     protected static RawInputModifiers CommandKey =>
         Application.Current?.PlatformSettings?.HotkeyConfiguration.CommandModifiers == KeyModifiers.Meta
@@ -62,7 +65,7 @@ public abstract class UiTestBase : IAsyncDisposable
         string? root = null, string? logPath = null)
     {
         var settings = AppSettings.Load(SettingsPath);
-        var thumbnails = new ThumbnailCache(Path.Combine(_appData.Path, $"thumbnails{_opened.Count}"), renderer);
+        var thumbnails = new ThumbnailCache(ThumbnailsPath(_opened.Count), renderer);
         var index = new LibraryIndex(Path.Combine(_appData.Path, $"library{_opened.Count}.db"));
         var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, updater, placeLookup)
         {

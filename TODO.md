@@ -44,10 +44,6 @@ Magick.NET, ~30 MB per platform).
 
 ## 5. Housekeeping
 
-### 5.1 A proper settings window (S)
-The ⚙ flyout is getting crowded (date-modified, updates, version, log). Move to a small settings window when the next setting
-arrives.
-
-### 5.2 Unpin xunit.v3 (S, blocked)
+### 5.1 Unpin xunit.v3 (S, blocked)
 `Directory.Packages.props` pins `xunit.v3` to 3.2.2 because `Avalonia.Headless.XUnit` 12 fails with 4.x. Upgrade when
 Avalonia ships a compatible version.

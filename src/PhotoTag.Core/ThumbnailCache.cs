@@ -142,6 +142,11 @@ public sealed class ThumbnailCache : IDisposable
             return new CacheCleanUp(deleted, freed, total);
         }, cancellationToken);
 
+    /// <summary>How much space the thumbnails take.</summary>
+    public Task<long> MeasureAsync(CancellationToken cancellationToken = default) =>
+        Task.Run(() => new DirectoryInfo(_cacheDirectory).EnumerateFiles("*.thumb", SearchOption.AllDirectories).Sum(f => f.Length),
+            cancellationToken);
+
     private static bool TryDelete(FileInfo file)
     {
         try

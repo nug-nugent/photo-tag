@@ -1,6 +1,10 @@
 using Avalonia.Controls;
+using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
-using Avalonia.VisualTree;
+using Avalonia.Input;
+using Avalonia.Threading;
+using PhotoTag.App.ViewModels;
+using PhotoTag.App.Views;
 using PhotoTag.Core;
 
 namespace PhotoTag.App.Tests;
@@ -23,17 +27,13 @@ public sealed class SettingsTests : UiTestBase
         await details.SaveCompletion;
         Assert.True(File.GetLastWriteTimeUtc(photo) > LongAgo.AddYears(1));
 
-        // Tick "keep date modified" in the settings flyout.
-        var settingsButton = Find<Button>(window, "SettingsButton");
-        var flyout = (Flyout)settingsButton.Flyout!;
-        Click(window, settingsButton);
-        Assert.True(flyout.IsOpen);
-        var checkBox = ((Control)flyout.Content!).GetVisualDescendants().OfType<CheckBox>()
-            .Single(c => c.Name == "PreserveModifiedTimeBox");
-        Click(window, checkBox);
-        Assert.True(vm.PreserveModifiedTime);
+        // Tick "keep date modified" in the settings window.
+        var settings = OpenSettings(window);
+        Click(settings, Find<CheckBox>(settings, "PreserveModifiedTimeBox"));
+        Assert.True(vm.Settings.PreserveModifiedTime);
         Assert.True(AppSettings.Load(SettingsPath).PreserveModifiedTime);
-        flyout.Hide(); // as a click elsewhere would; that first click only closes the flyout
+        Click(settings, Find<Button>(settings, "CloseButton"));
+        Assert.Null(window.OpenSettings);
 
         // Now the date is kept.
         File.SetLastWriteTimeUtc(photo, LongAgo);
@@ -51,14 +51,66 @@ public sealed class SettingsTests : UiTestBase
         var logPath = Path.Combine(Path.GetTempPath(), "PhotoTag", "log.txt");
         var (window, _) = await OpenAsync(writer: null, logPath: logPath);
 
-        var settingsButton = Find<Button>(window, "SettingsButton");
-        Click(window, settingsButton);
-        var link = ((Control)((Flyout)settingsButton.Flyout!).Content!).GetVisualDescendants().OfType<HyperlinkButton>()
-            .Single(l => l.Name == "ShowLogLink");
+        var settings = OpenSettings(window);
+        var link = Find<HyperlinkButton>(settings, "ShowLogLink");
         Assert.True(link.IsEffectivelyVisible);
         Assert.Equal(new Uri(logPath), link.NavigateUri);
         Assert.Equal("file", link.NavigateUri!.Scheme);
         window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task ThumbnailLimit_DefaultsTo2GB_AndLoweringItCleansUpStraightAway()
+    {
+        Photo("photo.jpg");
+        var (window, vm) = await OpenAsync(writer: null);
+        await WaitForAsync(() => Tiles(window)[0].DataContext is PhotoItemViewModel { Thumbnail: not null });
+
+        // An old thumbnail of 600 MB (sparse, so it takes no real space), and the one just made.
+        var cache = ThumbnailsPath(0);
+        var big = Path.Combine(cache, "00", "big.thumb");
+        Directory.CreateDirectory(Path.GetDirectoryName(big)!);
+        using (var stream = File.Create(big)) stream.SetLength(600L * 1024 * 1024);
+        File.SetLastWriteTimeUtc(big, DateTime.UtcNow.AddDays(-30));
+
+        var settings = OpenSettings(window);
+        var box = Find<ComboBox>(settings, "ThumbnailLimitBox");
+        Assert.Equal("2 GB", box.SelectedItem);
+        await WaitForAsync(() => vm.Settings.ThumbnailSizeText is not null);
+        Assert.Equal("Thumbnails take 600 MB at the moment.", vm.Settings.ThumbnailSizeText);
+        Assert.True(Find<TextBlock>(settings, "ThumbnailSizeText").IsEffectivelyVisible);
+
+        box.SelectedIndex = 0;
+        Assert.Equal(500L * 1024 * 1024, AppSettings.Load(SettingsPath).ThumbnailCacheLimit);
+        await WaitForAsync(() => !File.Exists(big));
+        await WaitForAsync(() => vm.Settings.ThumbnailSizeText == "Thumbnails take less than 1 MB at the moment.");
+        Assert.Single(Directory.GetFiles(cache, "*.thumb", SearchOption.AllDirectories)); // the one in use stays
+
+        // Esc closes the window (on key down, so there's nothing to release the key on).
+        settings.KeyPressQwerty(PhysicalKey.Escape, RawInputModifiers.None);
+        Dispatcher.UIThread.RunJobs();
+        Assert.Null(window.OpenSettings);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task ThumbnailLimit_ShowsTheNearestChoice_ForAnyOtherValue()
+    {
+        var saved = AppSettings.Load(SettingsPath);
+        saved.ThumbnailCacheLimit = 3L * 1024 * 1024 * 1024 - 1;
+        saved.Save();
+        Photo("photo.jpg");
+        var (window, _) = await OpenAsync(writer: null);
+
+        Assert.Equal("2 GB", Find<ComboBox>(OpenSettings(window), "ThumbnailLimitBox").SelectedItem);
+        window.Close();
+    }
+
+    private static SettingsWindow OpenSettings(MainWindow window)
+    {
+        Click(window, Find<Button>(window, "SettingsButton"));
+        Settle();
+        return window.OpenSettings ?? throw new InvalidOperationException("The settings window didn't open.");
     }
 
     [AvaloniaFact]
@@ -73,7 +125,7 @@ public sealed class SettingsTests : UiTestBase
         var writer = new PhotoMetadataWriter(exifTool);
         var (window, vm) = await OpenAsync(writer);
 
-        Assert.True(vm.PreserveModifiedTime);
+        Assert.True(vm.Settings.PreserveModifiedTime);
         Assert.True(writer.PreserveModifiedTime);
         window.Close();
     }

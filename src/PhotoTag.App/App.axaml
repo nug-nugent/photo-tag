@@ -11,6 +11,7 @@
                 <ColorPaletteResources x:Key="Dark" Accent="#FF4A2B" BaseHigh="#F1EFEE" AltHigh="#121110" />
             </FluentTheme.Palettes>
         </FluentTheme>
+        <StyleInclude Source="avares://PhotoTag/Views/Styles.axaml" />
     </Application.Styles>
 
     <Application.Resources>

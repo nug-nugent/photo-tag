@@ -226,6 +226,25 @@ public partial class MainWindow : Window
 
     private Control? FindNamed(string name) => this.GetVisualDescendants().OfType<Control>().FirstOrDefault(c => c.Name == name && c.IsEffectivelyVisible);
 
+    // --- Settings --------------------------------------------------------------------------
+
+    /// <summary>The settings window, while it's open. For tests.</summary>
+    internal SettingsWindow? OpenSettings { get; private set; }
+
+    private async void SettingsButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (ViewModel is not { } vm || OpenSettings is not null) return;
+        var window = OpenSettings = new SettingsWindow { DataContext = vm.Settings };
+        try
+        {
+            await window.ShowDialog(this);
+        }
+        finally
+        {
+            OpenSettings = null;
+        }
+    }
+
     // --- Tags panel ------------------------------------------------------------------------
 
     private void TagsFlyout_Opened(object? sender, EventArgs e) => ViewModel?.TagManager.Open();

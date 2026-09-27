@@ -130,8 +130,8 @@ workflow as a trial, without publishing. The icon is drawn by `dotnet run build/
 - **Photos are never fully decoded for a thumbnail.** JPEGs are decoded at 1/8–1/2 scale via libjpeg's DCT
   scaling (SkiaSharp), then resized and rotated per EXIF orientation.
 - **Thumbnails are cached on disk** under the local app-data folder (`PhotoTag/thumbnails`). The cache is keyed on
-  path, size and modified time, so an edited photo gets a fresh thumbnail automatically. Once the cache passes 2 GB
-  (about 100,000 thumbnails), PhotoTag deletes the ones used least recently at startup.
+  path, size and modified time, so an edited photo gets a fresh thumbnail automatically. Once the cache passes its
+  limit (2 GB, about 100,000 thumbnails, unless changed in ⚙ Settings), PhotoTag deletes the ones used least recently.
 - **The library index is incremental.** Opening a folder scans its whole tree in the background, but files whose
   size and modified time are unchanged are skipped (a rescan of 1,600 photos takes about 25 ms). PhotoTag's own edits
   go straight into the index, and it lives in the local app-data folder (`PhotoTag/library.db`).

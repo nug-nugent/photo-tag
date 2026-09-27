@@ -115,9 +115,11 @@ try
         vm.TagManager.Field = ListField.Tags;
         HideFlyouts(window);
 
-        ShowFlyout(window, "SettingsButton");
-        Capture(window, $"{name}-5-settings");
-        HideFlyouts(window);
+        var settingsWindow = new SettingsWindow { DataContext = vm.Settings };
+        settingsWindow.Show(window);
+        WaitUntil(() => vm.Settings.ThumbnailSizeText is not null);
+        Capture(settingsWindow, $"{name}-5-settings");
+        settingsWindow.Close();
 
         vm.SearchText = "beach";
         vm.SearchCommand.Execute(null);
