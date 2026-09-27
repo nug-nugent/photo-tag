@@ -168,7 +168,7 @@ public abstract class UiTestBase : IAsyncDisposable
         window.FocusManager?.GetFocusedElement() is Visual focused
         && (focused == control || focused.GetVisualAncestors().Contains(control));
 
-    public async ValueTask DisposeAsync()
+    public virtual async ValueTask DisposeAsync()
     {
         foreach (var (vm, index) in _opened)
         {

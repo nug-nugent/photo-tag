@@ -379,6 +379,95 @@ public sealed class LibraryIndexTests : IDisposable
         Assert.Equal(new FolderCounts(1, 0), await _index.GetFolderCountsAsync(_library));
     }
 
+    /// <summary>Copies the library elsewhere as a NAS copy would: same files, same modified times.</summary>
+    private string CopyLibrary(string to, bool keepTimes = true)
+    {
+        foreach (var file in Directory.EnumerateFiles(_library, "*", SearchOption.AllDirectories))
+        {
+            var target = Path.Combine(to, Path.GetRelativePath(_library, file));
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            File.Copy(file, target);
+            File.SetLastWriteTimeUtc(target, keepTimes ? File.GetLastWriteTimeUtc(file) : DateTime.UtcNow.AddMinutes(5));
+        }
+        return to;
+    }
+
+    [Fact]
+    public async Task MovingAFolder_KeepsTagsAndFavourites_SoTheNextScanReadsNothing()
+    {
+        Photo("a.jpg", "Beach");
+        Photo(Path.Combine("2020", "b.jpg"), "Dog");
+        Photo(Path.Combine("2020", "c.jpg"));
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+        var nas = CopyLibrary(Path.Combine(_dir.Path, "NAS", "photos"));
+
+        Assert.Equal(3, await _index.MoveFolderAsync(_library, nas));
+
+        Assert.Equal(new FolderCounts(0, 0), await _index.GetFolderCountsAsync(_library));
+        Assert.Equal(new FolderCounts(3, 2), await _index.GetFolderCountsAsync(nas));
+        Assert.Equal(new FolderCounts(2, 1), await _index.GetFolderCountsAsync(Path.Combine(nas, "2020")));
+        Assert.Equal([Path.Combine(nas, "2020", "b.jpg")], await _index.SearchAsync(nas, new PhotoQuery { Keywords = ["dog"] }));
+        Assert.Equal(new IndexScanResult(Total: 3, Updated: 0, Unchanged: 3, Removed: 0, Failed: 0),
+            await _index.ScanAsync(nas, cancellationToken: Ct));
+    }
+
+    [Fact]
+    public async Task MovingAFolder_IntoItself_IsRefused()
+    {
+        await Assert.ThrowsAsync<ArgumentException>(() => _index.MoveFolderAsync(_library, Path.Combine(_library, "Old")));
+        await Assert.ThrowsAsync<ArgumentException>(() => _index.MoveFolderAsync(Path.Combine(_library, "2020"), _library));
+    }
+
+    [Fact]
+    public async Task PreviousLocation_IsFound_ForTheSameFilesElsewhere()
+    {
+        Photo("a.jpg", "Beach");
+        Photo(Path.Combine("2020", "b.jpg"), "Dog");
+        Photo(Path.Combine("2020", "Summer", "c.jpg"));
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+
+        // A copy on the NAS (the original is still there), and one folder of it opened on its own.
+        var nas = CopyLibrary(Path.Combine(_dir.Path, "NAS", "photos"));
+        Assert.Equal(new PreviousLocation(_library, 3), await _index.FindPreviousLocationAsync(nas, cancellationToken: Ct));
+        Assert.Equal(new PreviousLocation(Path.Combine(_library, "2020"), 2),
+            await _index.FindPreviousLocationAsync(Path.Combine(nas, "2020"), cancellationToken: Ct));
+
+        // Once it's indexed itself, there's nothing to ask.
+        await _index.ScanAsync(nas, cancellationToken: Ct);
+        Assert.Null(await _index.FindPreviousLocationAsync(nas, cancellationToken: Ct));
+    }
+
+    [Fact]
+    public async Task PreviousLocation_WithDifferentFiles_OnlyCountsIfTheOldFolderHasGone()
+    {
+        Photo("a.jpg", "Beach");
+        Photo("b.jpg");
+        Photo(Path.Combine("2020", "c.jpg"));
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+        var copy = CopyLibrary(Path.Combine(_dir.Path, "Copy"), keepTimes: false);
+
+        Assert.Null(await _index.FindPreviousLocationAsync(copy, cancellationToken: Ct)); // same names, but both still there
+
+        Directory.Delete(_library, recursive: true);
+        Assert.Equal(new PreviousLocation(_library, 3), await _index.FindPreviousLocationAsync(copy, cancellationToken: Ct));
+    }
+
+    [Fact]
+    public async Task PreviousLocation_IsNotFound_ForUnrelatedPhotos()
+    {
+        Photo("a.jpg", "Beach");
+        Photo("b.jpg");
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+        var other = Path.Combine(_dir.Path, "Other");
+        Directory.CreateDirectory(other);
+        File.WriteAllBytes(Path.Combine(other, "a.jpg"), TestImages.Jpeg(20, 20)); // same name as one, different photo
+        File.WriteAllBytes(Path.Combine(other, "x.jpg"), TestImages.Jpeg(20, 20));
+        File.WriteAllBytes(Path.Combine(other, "y.jpg"), TestImages.Jpeg(20, 20));
+
+        Assert.Null(await _index.FindPreviousLocationAsync(other, cancellationToken: Ct));
+        Assert.Null(await _index.FindPreviousLocationAsync(Path.Combine(_dir.Path, "Empty"), cancellationToken: Ct));
+    }
+
     [Fact]
     public async Task Cancelling_AScan_Throws_AndLeavesTheIndexUsable()
     {

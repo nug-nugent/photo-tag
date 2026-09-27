@@ -44,6 +44,9 @@ Early days. Today it can:
   Under a photo's tags, the library's most used tags are one click away.
 - Keep up with changes made outside PhotoTag: photos copied in, deleted or retagged by another app, and folders
   added, renamed or deleted, show up by themselves without losing your place or selection
+- Notice when photos it already knows turn up at another path (copied to a NAS, or the same share opened as `Z:\`
+  one day and `\nas\photos` the next) and, if you say they've moved, bring their index along instead of reading
+  every photo again
 - Manage tags and people across the library (**Manage tags**): see each with its count, rename or merge them
   (including tidying "beach" and "Beach" into one), or delete one from every photo. These can be undone too.
 

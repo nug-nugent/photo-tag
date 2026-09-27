@@ -34,13 +34,6 @@ tag writes. Handle the share being asleep/offline without hanging the UI (timeou
 measure first-scan and thumbnail speed.
 **Where:** `PhotoFiles`, `LibraryIndex.ScanAsync`, `ThumbnailCache`, `MainWindowViewModel.ShowPhotosAsync`.
 
-### 2.2 "Library moved" (M)
-**Why:** moving photos from the PC to the NAS, or the same share appearing as `Z:\` one day and `\\nas\photos` the next,
-makes the index treat everything as new files.
-**What:** detect or let the user declare "this folder is now at that path" and rewrite `photos.path`/`folder` in the index
-(keeping tags, favourites, counts) instead of rescanning from scratch.
-**Where:** `LibraryIndex` (schema v1; bump `user_version` if the schema changes).
-
 ## 4. Browsing
 
 ### 4.1 More formats (S each)
