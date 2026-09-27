@@ -39,6 +39,9 @@ public sealed class AppSettings
     /// <summary>When grouped by day, show favourites at double size.</summary>
     public bool HighlightFavourites { get; set; } = true;
 
+    /// <summary>How big the thumbnail cache may grow before the least recently used thumbnails are deleted.</summary>
+    public long ThumbnailCacheLimit { get; set; } = ThumbnailCache.DefaultMaxBytes;
+
     public static AppSettings Load(string? filePath = null)
     {
         filePath ??= DefaultFilePath;

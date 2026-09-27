@@ -200,6 +200,33 @@ public sealed class LibraryTests : UiTestBase
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task AFavourite_StaysShown_WhenTheIndexIsReadBeforeItsSaveIsRecorded()
+    {
+        await using var exifTool = RequireExifTool();
+        Photo("a.jpg");
+        Photo("b.jpg");
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        await vm.Library.ScanCompletion;
+        await vm.SummariesLoading;
+        var details = await SelectSingleAsync(window, vm, 0);
+
+        // Favourite, and before the save reaches the index, have the tiles refreshed from it (as a scan
+        // finishing would). The index doesn't know about the ♥ yet, and mustn't take it away.
+        Press(window, PhysicalKey.F);
+        Assert.True(details.IsSaving);
+        await vm.Library.PhotosChangedAsync(new Dictionary<string, PhotoMetadata>());
+        await vm.SummariesLoading;
+        Assert.True(vm.Photos[0].IsFavourite);
+
+        await details.SaveCompletion;
+        await WaitForAsync(() => !vm.Library.IsRecording);
+        await vm.SummariesLoading;
+        Assert.True(vm.Photos[0].IsFavourite);
+        Assert.Equal("1", vm.FavouriteCount);
+        window.Close();
+    }
+
     private static int VisibleHearts(Window window, MainWindowViewModel vm)
     {
         window.UpdateLayout();

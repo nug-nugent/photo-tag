@@ -35,6 +35,7 @@ public partial class App : Application
             Log.Info($"Started {viewModel.Updates.VersionText} on {RuntimeInformation.OSDescription} " +
                      $"({RuntimeInformation.OSArchitecture}), .NET {Environment.Version}");
             if (exifTool is null) Log.Warn($"Tags can't be edited: ExifTool {exifToolSetup.Status}");
+            _ = viewModel.Settings.CleanUpThumbnailsAsync(); // in the background
 
             // Optional: a folder passed on the command line wins over the last-used one.
             var startFolder = desktop.Args is [var arg, ..] ? arg : settings.LastFolder;

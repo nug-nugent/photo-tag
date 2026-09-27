@@ -83,6 +83,9 @@ public partial class LibraryViewModel(LibraryIndex index, KeywordSuggestions sug
     /// <summary>True while PhotoTag is writing tags: outside changes wait, so PhotoTag's own writes aren't taken for them.</summary>
     public Func<bool> IsWriting { get; set; } = () => false;
 
+    /// <summary>True while PhotoTag's own edits are being recorded in the index.</summary>
+    public bool IsRecording => _recording > 0;
+
     /// <summary>The folders to look at when polling: the one on screen.</summary>
     public Func<IEnumerable<string>> FoldersToPoll { get; set; } = () => [];
 

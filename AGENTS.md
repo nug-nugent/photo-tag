@@ -9,7 +9,7 @@ Tags are written into the photos (XMP, plus IPTC for JPEGs) via ExifTool; RAW fi
 | Path | What |
 |---|---|
 | `src/PhotoTag.Core` | No UI code. `PhotoFiles` (discovery, RAW+JPEG pairing, sidecars), `PhotoMetadata` (read), `PhotoMetadataWriter` + `ExifTool` (write, via a long-running `-stay_open` process), `BulkMetadataEditor`, `ImageRenderer`/`PhotoRenderer`/`RawPreviewExtractor` (thumbnails, previews), `ThumbnailCache`, `LibraryIndex` (SQLite), `FolderWatcher` (changes made outside PhotoTag), `Log` (the rolling log file). |
-| `src/PhotoTag.App` | Avalonia UI, MVVM with CommunityToolkit.Mvvm (`[ObservableProperty]` partial properties) and compiled bindings (`x:DataType` everywhere). `MainWindow.axaml` is the only window; view models in `ViewModels/`. Also `AppUpdater` (Velopack), `SelfCheck` (`--self-check`). |
+| `src/PhotoTag.App` | Avalonia UI, MVVM with CommunityToolkit.Mvvm (`[ObservableProperty]` partial properties) and compiled bindings (`x:DataType` everywhere). `MainWindow.axaml` is the main window and `SettingsWindow.axaml` the only other; styles shared by both are in `Views/Styles.axaml`; view models in `ViewModels/`. Also `AppUpdater` (Velopack), `SelfCheck` (`--self-check`). |
 | `tests/PhotoTag.Core.Tests` | xUnit v3. `TestImages` builds real JPEGs with hand-made EXIF/XMP; `RawSamples` downloads CC0 RAW files. |
 | `tests/PhotoTag.App.Tests` | Headless UI tests (Avalonia.Headless.XUnit) that drive the real `MainWindow` with keyboard and mouse. `UiTestBase` has the helpers. |
 | `tools/Screenshots` | Renders the main window to PNGs for design work (see "How we work"). |

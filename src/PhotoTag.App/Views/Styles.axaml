@@ -1,0 +1,379 @@
+<!-- The app's look, shared by its windows: warm greys, 2px rules, square corners (colours in App.axaml). -->
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <!-- Text -->
+    <Style Selector="TextBlock.label">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="LetterSpacing" Value="0.9" />
+        <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+    </Style>
+    <!-- Type selectors don't match subclasses, so SelectableTextBlock is listed too. -->
+    <Style Selector="TextBlock.caption, SelectableTextBlock.caption">
+        <Setter Property="FontSize" Value="11" />
+        <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.muted, SelectableTextBlock.muted">
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+    </Style>
+    <Style Selector="TextBlock.error">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TextBlock.heading">
+        <Setter Property="FontSize" Value="28" />
+        <Setter Property="FontWeight" Value="ExtraBold" />
+        <Setter Property="LetterSpacing" Value="-0.3" />
+    </Style>
+    <Style Selector="TextBlock.name, SelectableTextBlock.name">
+        <Setter Property="FontSize" Value="18" />
+        <Setter Property="FontWeight" Value="ExtraBold" />
+    </Style>
+
+    <!-- Buttons. "flat" drops Fluent's look for a plain box, so these can be styled from scratch. -->
+    <Style Selector="Button.flat, ToggleButton.flat">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Padding" Value="8,4" />
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="Template">
+            <ControlTemplate>
+                <ContentPresenter Name="Presenter" Background="{TemplateBinding Background}"
+                                  BorderBrush="{TemplateBinding BorderBrush}" BorderThickness="{TemplateBinding BorderThickness}"
+                                  Padding="{TemplateBinding Padding}" Content="{TemplateBinding Content}"
+                                  ContentTemplate="{TemplateBinding ContentTemplate}" Foreground="{TemplateBinding Foreground}"
+                                  HorizontalContentAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                  VerticalContentAlignment="{TemplateBinding VerticalContentAlignment}" />
+            </ControlTemplate>
+        </Setter>
+    </Style>
+    <Style Selector="Button.flat:pointerover, ToggleButton.flat:pointerover">
+        <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+    </Style>
+    <Style Selector="Button.flat:disabled, ToggleButton.flat:disabled">
+        <Setter Property="Opacity" Value="0.45" />
+    </Style>
+    <Style Selector="Button.flat PathIcon, ToggleButton.flat PathIcon">
+        <Setter Property="Width" Value="16" />
+        <Setter Property="Height" Value="16" />
+    </Style>
+    <!-- A bordered button: "Grid", "Date taken", "Mark favourite". -->
+    <Style Selector="Button.outline, ToggleButton.outline">
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="{DynamicResource RuleBrush}" />
+        <Setter Property="Padding" Value="10,0" />
+        <Setter Property="MinHeight" Value="32" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="ToggleButton.outline:checked">
+        <Setter Property="Background" Value="{DynamicResource NavBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource NavBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource NavInkBrush}" />
+    </Style>
+    <!-- Rows in the sidebar: the blue fill marks where you are. -->
+    <Style Selector="ToggleButton.nav, Button.nav">
+        <Setter Property="HorizontalAlignment" Value="Stretch" />
+        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        <Setter Property="Padding" Value="16,8" />
+        <Setter Property="FontSize" Value="14" />
+    </Style>
+    <Style Selector="ToggleButton.nav:checked">
+        <Setter Property="Background" Value="{DynamicResource NavBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource NavInkBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.link">
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource LinkBrush}" />
+    </Style>
+    <Style Selector="Button.link:pointerover">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Button.link PathIcon">
+        <Setter Property="Width" Value="13" />
+        <Setter Property="Height" Value="13" />
+    </Style>
+    <Style Selector="HyperlinkButton">
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="Foreground" Value="{DynamicResource LinkBrush}" />
+    </Style>
+    <Style Selector="Button.crumb">
+        <Setter Property="Padding" Value="4,2" />
+        <Setter Property="FontSize" Value="14" />
+        <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+    </Style>
+    <Style Selector="Button.crumb.last">
+        <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- The favourite button beside a photo's name: filled red when it's a favourite. -->
+    <Style Selector="Button.favourite">
+        <Setter Property="MinHeight" Value="36" />
+    </Style>
+    <Style Selector="Button.favourite.on">
+        <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Foreground" Value="White" />
+    </Style>
+    <Style Selector="Button.favourite PathIcon">
+        <Setter Property="Width" Value="15" />
+        <Setter Property="Height" Value="15" />
+    </Style>
+
+    <!-- The ♥ on every tile: a dark square, outlined when off, red when on. -->
+    <Style Selector="Button.tileHeart">
+        <Setter Property="Width" Value="26" />
+        <Setter Property="Height" Value="26" />
+        <Setter Property="Padding" Value="0" />
+        <Setter Property="Margin" Value="6" />
+        <Setter Property="Background" Value="{DynamicResource HeartOffBrush}" />
+        <Setter Property="Foreground" Value="White" />
+        <Setter Property="HorizontalContentAlignment" Value="Center" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.tileHeart:pointerover">
+        <Setter Property="Background" Value="#99141211" />
+    </Style>
+    <Style Selector="Button.tileHeart.on">
+        <Setter Property="Background" Value="{DynamicResource HeartOnBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Button.tileHeart PathIcon">
+        <Setter Property="Width" Value="15" />
+        <Setter Property="Height" Value="15" />
+    </Style>
+
+    <!-- Photo tiles -->
+    <Style Selector="Border.tile">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="Border.thumb">
+        <Setter Property="Background" Value="{DynamicResource SoftBrush}" />
+        <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+    <Style Selector="Border.tile:pointerover Border.thumb">
+        <Setter Property="Opacity" Value="0.92" />
+    </Style>
+    <Style Selector="Border.selectionRing">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderThickness" Value="4" />
+        <Setter Property="IsVisible" Value="False" />
+    </Style>
+    <Style Selector="Border.tile.selected Border.selectionRing">
+        <Setter Property="IsVisible" Value="True" />
+    </Style>
+    <Style Selector="Border.tile.selected TextBlock.fileName">
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.badge">
+        <Setter Property="Background" Value="#CC141211" />
+        <Setter Property="Padding" Value="6,3" />
+        <Setter Property="TextElement.Foreground" Value="#F3F2F2" />
+        <Setter Property="TextElement.FontSize" Value="10" />
+        <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+    </Style>
+
+    <!-- Tag chips: a square box in the tag's own colour. -->
+    <Style Selector="Border.chip">
+        <Setter Property="Padding" Value="8,3,4,3" />
+        <Setter Property="Margin" Value="0,0,5,5" />
+        <Setter Property="MinHeight" Value="26" />
+    </Style>
+    <Style Selector="Border.chip.person">
+        <Setter Property="Background" Value="{DynamicResource SoftBrush}" />
+    </Style>
+    <Style Selector="Border.chip.partial">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SoftBrush}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+    </Style>
+    <Style Selector="Button.chipRemove, Button.searchClear">
+        <Setter Property="Padding" Value="3" />
+        <Setter Property="Foreground" Value="{DynamicResource MutedTextBrush}" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Button.chipRemove:pointerover, Button.searchClear:pointerover">
+        <Setter Property="Background" Value="#1F000000" />
+    </Style>
+    <Style Selector="Button.chipRemove PathIcon, Button.searchClear PathIcon">
+        <Setter Property="Width" Value="11" />
+        <Setter Property="Height" Value="11" />
+    </Style>
+    <Style Selector="Button.suggestion">
+        <Setter Property="BorderThickness" Value="1.5" />
+        <Setter Property="BorderBrush" Value="{DynamicResource SoftBrush}" />
+        <Setter Property="Padding" Value="7,3" />
+        <Setter Property="Margin" Value="0,0,5,5" />
+        <Setter Property="FontSize" Value="12" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.suggestion:pointerover">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- Boxes: 2px rules, white fields, red when focused. -->
+    <Style Selector="TextBox">
+        <Setter Property="BorderBrush" Value="{DynamicResource RuleBrush}" />
+        <Setter Property="Background" Value="{DynamicResource FieldBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="TextBox:pointerover /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource RuleBrush}" />
+        <Setter Property="Background" Value="{DynamicResource FieldBrush}" />
+    </Style>
+    <Style Selector="TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="Background" Value="{DynamicResource FieldBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="TextBox">
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+    </Style>
+    <!-- AutoCompleteBox hands its border to the TextBox inside, so it's set here too. -->
+    <Style Selector="AutoCompleteBox">
+        <Setter Property="BorderBrush" Value="{DynamicResource RuleBrush}" />
+        <Setter Property="Background" Value="{DynamicResource FieldBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+    </Style>
+    <Style Selector="AutoCompleteBox.inline">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <!-- Borderless boxes inside a box of their own: the tag box, the place grid. -->
+    <Style Selector="AutoCompleteBox.inline TextBox, TextBox.inline">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="MinHeight" Value="30" />
+    </Style>
+    <Style Selector="AutoCompleteBox.inline TextBox:pointerover /template/ Border#PART_BorderElement,
+                     AutoCompleteBox.inline TextBox:focus /template/ Border#PART_BorderElement">
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Background" Value="Transparent" />
+    </Style>
+    <Style Selector="Border.box">
+        <Setter Property="BorderBrush" Value="{DynamicResource RuleBrush}" />
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="Background" Value="{DynamicResource FieldBrush}" />
+    </Style>
+    <Style Selector="Border.box:focus-within">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="Border.box:disabled">
+        <Setter Property="Opacity" Value="0.6" />
+    </Style>
+    <Style Selector="ComboBox">
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="{DynamicResource RuleBrush}" />
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="FontSize" Value="13" />
+        <Setter Property="FontWeight" Value="SemiBold" />
+        <Setter Property="MinHeight" Value="32" />
+    </Style>
+    <Style Selector="ComboBox:pointerover /template/ Border#Background">
+        <Setter Property="BorderBrush" Value="{DynamicResource RuleBrush}" />
+        <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+    </Style>
+    <Style Selector="ProgressBar.thin">
+        <Setter Property="MinHeight" Value="3" />
+        <Setter Property="Height" Value="3" />
+        <Setter Property="MinWidth" Value="0" />
+        <Setter Property="Background" Value="{DynamicResource SoftBrush}" />
+        <Setter Property="Foreground" Value="{DynamicResource BlueBrush}" />
+        <Setter Property="CornerRadius" Value="0" />
+    </Style>
+    <Style Selector="ProgressBar.thin.current">
+        <Setter Property="Foreground" Value="{DynamicResource AccentBrush}" />
+    </Style>
+
+    <!-- The Tags | People switch in the panel: tab text at the panel's scale. -->
+    <Style Selector="TabStripItem">
+        <Setter Property="FontSize" Value="15" />
+        <Setter Property="MinHeight" Value="36" />
+        <Setter Property="Padding" Value="8,0" />
+    </Style>
+
+    <!-- Panes and notices -->
+    <Style Selector="Border.notice">
+        <Setter Property="Background" Value="{DynamicResource TintBrush}" />
+        <Setter Property="Padding" Value="12,10" />
+    </Style>
+    <Style Selector="GridSplitter">
+        <Setter Property="Background" Value="{DynamicResource RuleBrush}" />
+        <Setter Property="MinWidth" Value="2" />
+        <Setter Property="Width" Value="2" />
+    </Style>
+    <Style Selector="FlyoutPresenter">
+        <Setter Property="BorderThickness" Value="2" />
+        <Setter Property="BorderBrush" Value="{DynamicResource RuleBrush}" />
+        <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+    </Style>
+
+    <!-- Folder tree: a red edge on the folder being shown, rather than Fluent's accent fill. -->
+    <Style Selector="TreeViewItem">
+        <Setter Property="MinHeight" Value="30" />
+    </Style>
+    <Style Selector="TreeViewItem">
+        <Setter Property="BorderThickness" Value="4,0,0,0" />
+        <Setter Property="BorderBrush" Value="Transparent" />
+        <Setter Property="FocusAdorner" Value="{x:Null}" />
+    </Style>
+    <Style Selector="TreeViewItem /template/ Border#PART_LayoutRoot">
+        <Setter Property="Padding" Value="0,0,14,0" />
+    </Style>
+    <Style Selector="TreeViewItem:pointerover /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+    </Style>
+    <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="Transparent" />
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+    </Style>
+    <Style Selector="TreeViewItem:selected:pointerover /template/ Border#PART_LayoutRoot">
+        <Setter Property="Background" Value="{DynamicResource HoverBrush}" />
+    </Style>
+    <Style Selector="TreeViewItem:selected /template/ Border#PART_LayoutRoot > ContentPresenter">
+        <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+    </Style>
+
+    <!-- The viewer's stage: black and edge to edge when full screen. -->
+    <Style Selector="Grid.stage">
+        <Setter Property="Background" Value="{DynamicResource StageBrush}" />
+    </Style>
+    <Style Selector="Grid.stage Panel.photo">
+        <Setter Property="Margin" Value="0,24" />
+    </Style>
+    <Style Selector="Grid.stage.fullscreen">
+        <Setter Property="Background" Value="Black" />
+    </Style>
+    <Style Selector="Grid.stage.fullscreen Panel.photo">
+        <Setter Property="Margin" Value="0" />
+    </Style>
+
+    <!-- The viewer's filmstrip -->
+    <Style Selector="Border.frame">
+        <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+        <Setter Property="BorderThickness" Value="0" />
+        <Setter Property="Opacity" Value="0.7" />
+    </Style>
+    <Style Selector="Border.frame.current">
+        <Setter Property="BorderThickness" Value="3" />
+        <Setter Property="Opacity" Value="1" />
+    </Style>
+    <Style Selector="Border.key">
+        <Setter Property="BorderBrush" Value="{DynamicResource MutedTextBrush}" />
+        <Setter Property="BorderThickness" Value="1.5" />
+        <Setter Property="Padding" Value="5,0" />
+        <Setter Property="VerticalAlignment" Value="Center" />
+        <Setter Property="TextElement.FontSize" Value="11" />
+        <Setter Property="TextElement.FontWeight" Value="SemiBold" />
+        <Setter Property="TextElement.Foreground" Value="{DynamicResource MutedTextBrush}" />
+    </Style>
+</Styles>
