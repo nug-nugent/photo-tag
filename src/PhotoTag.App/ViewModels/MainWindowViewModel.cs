@@ -841,7 +841,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         if (shown is not null)
         {
             if (changes.Everything || changes.Folders.Contains(shown)
-                || changes.Changed.Concat(changes.Removed).Any(p => PathComparer.Equals(Path.GetDirectoryName(p), shown)))
+                || changes.Added.Concat(changes.Removed).Any(p => PathComparer.Equals(Path.GetDirectoryName(p), shown)))
             {
                 var files = await Task.Run(() => PhotoFiles.EnumeratePhotos(shown));
                 if (ShownFolder != shown) return;
@@ -853,11 +853,18 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             await ReconcileAsync([.. _loaded.Where(p => !changes.Removed.Contains(p.Path)).Select(p => p.File)]);
         }
 
-        foreach (var photo in _loaded)
+        // Only photos changed since they were indexed: one indexed for the first time just now hasn't changed
+        // since PhotoTag read it for its tile or panel.
+        var changed = _loaded.Where(p => changes.Changed.Contains(p.Path)).ToList();
+        foreach (var photo in changed) photo.FileChanged();
+        switch (Details)
         {
-            if (!changes.Changed.Contains(photo.Path)) continue;
-            photo.FileChanged();
-            if (Details is PhotoDetailsViewModel details && details.Photo == photo) await details.FileChangedAsync();
+            case PhotoDetailsViewModel details when changed.Contains(details.Photo):
+                await details.FileChangedAsync();
+                break;
+            case BulkDetailsViewModel bulk when changed.Any(bulk.Photos.Contains):
+                await bulk.LoadAsync(); // re-reads the ones that changed
+                break;
         }
     }
 

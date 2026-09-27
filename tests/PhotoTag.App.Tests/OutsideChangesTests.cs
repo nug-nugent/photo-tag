@@ -67,6 +67,27 @@ public sealed class OutsideChangesTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task APhotoRetaggedWhileSeveralAreSelected_IsReadAgain()
+    {
+        var path = Photo("a.jpg", "Before");
+        Photo("b.jpg", "Before");
+        var (window, vm) = await OpenAsync(writer: null);
+        await vm.Library.ScanCompletion;
+        ClickTile(window, 0);
+        Press(window, Avalonia.Input.PhysicalKey.A, CommandKey);
+        var bulk = Assert.IsType<BulkDetailsViewModel>(vm.Details);
+        await WaitForAsync(() => bulk.IsLoaded);
+        Assert.Equal([("Before", 2)], bulk.Keywords.Select(k => (k.Keyword, k.Count)));
+
+        File.WriteAllBytes(path, TestImages.Jpeg(120, 90, xmpKeywords: ["After"]));
+
+        await WaitForAsync(() => bulk.Keywords.Any(k => k.Keyword == "After"));
+        Assert.Equal([("After", 1), ("Before", 1)], bulk.Keywords.Select(k => (k.Keyword, k.Count)).Order());
+        Assert.Same(bulk, vm.Details);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task NewFoldersAppearInTheTree_AndADeletedFolderOnScreen_GoesBackUp()
     {
         Photo(Path.Combine("2020", "a.jpg"));
