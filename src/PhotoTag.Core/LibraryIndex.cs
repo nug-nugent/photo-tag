@@ -93,8 +93,7 @@ public sealed class LibraryIndex : IDisposable
         CreateSchema();
     }
 
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhotoTag", "library.db");
+    public static string DefaultPath => Path.Combine(AppData.Folder, "library.db");
 
     // --- Scanning --------------------------------------------------------------------------
 

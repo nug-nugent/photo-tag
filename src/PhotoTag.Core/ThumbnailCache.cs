@@ -30,9 +30,7 @@ public sealed class ThumbnailCache : IDisposable
         Directory.CreateDirectory(cacheDirectory);
     }
 
-    public static string DefaultDirectory => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-        "PhotoTag", "thumbnails");
+    public static string DefaultDirectory => Path.Combine(AppData.Folder, "thumbnails");
 
     /// <summary>About 100,000 thumbnails at 320 px (they average 15–25 KB).</summary>
     public const long DefaultMaxBytes = 2L * 1024 * 1024 * 1024;
