@@ -105,6 +105,15 @@ try
         bulk.CancelFillCommand.Execute(null);
         CaptureTall(window, $"{name}-3-several-full");
 
+        // Part way through a bulk edit: how far it's got, in the floating bar and the panel. Then undone, so the
+        // sample library is as it was for the next run.
+        bulk.NewKeyword = "Saving";
+        var adding = bulk.AddKeywordCommand.ExecuteAsync(null);
+        WaitUntil(() => vm.Operations.ProgressPercent > 0);
+        Capture(window, $"{name}-3-several-saving");
+        WaitFor(adding);
+        WaitFor(vm.UndoCommand.ExecuteAsync(null));
+
         vm.ClearSelection();
         ShowFlyout(window, "TagsButton");
         WaitFor(vm.TagManager.Loading);

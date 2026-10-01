@@ -432,7 +432,10 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
 
         Assert.True(result.Cancelled);
         Assert.Equal(2, result.Changed);
-        Assert.Equal([new BulkProgress(1, 6), new BulkProgress(2, 6)], reports);
+        Assert.Equal([(1, 6), (2, 6)], reports.Select(r => (r.Done, r.Total)));
+        // Each report says which photo was done and what it has now, for showing it straight away.
+        Assert.Equal(paths[..2], reports.Select(r => r.Photo));
+        Assert.All(reports, r => Assert.Equal(["Partial"], r.After!.Keywords));
         Assert.Equal(["Partial"], PhotoMetadata.Read(paths[1]).Keywords);
         Assert.Empty(PhotoMetadata.Read(paths[2]).Keywords);
     }

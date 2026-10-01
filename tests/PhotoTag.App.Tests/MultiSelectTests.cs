@@ -161,6 +161,44 @@ public sealed class MultiSelectTests : UiTestBase
         window.Close();
     }
 
+    [AvaloniaFact]
+    public async Task BulkEdit_ShowsEachPhotoAsItsSaved()
+    {
+        await using var exifTool = RequireExifTool();
+        for (var i = 0; i < 60; i++) Photo($"p{i:D2}.jpg");
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        await vm.Library.ScanCompletion;
+        await WaitForAsync(() => vm.Photos.All(p => p.IsUntagged));
+
+        ClickTile(window, 0);
+        Press(window, PhysicalKey.A, CommandKey);
+        var bulk = Assert.IsType<BulkDetailsViewModel>(vm.Details);
+        await WaitForAsync(() => bulk.IsLoaded);
+
+        Find<AutoCompleteBox>(window, "BulkTagBox").Focus();
+        window.KeyTextInput("Live");
+        window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
+
+        // Part way through: the photos done so far show it, on their tiles and in the panel's count.
+        await WaitForAsync(() => bulk.Keywords.Any(k => k is { Keyword: "Live", Count: > 0 and < 60 }));
+        Assert.True(vm.Operations.IsBusy);
+        var done = vm.Photos.Where(p => p.Keywords.Contains("Live")).ToList();
+        Assert.NotEmpty(done);
+        Assert.All(done, p => Assert.False(p.IsUntagged));
+        Assert.Contains(vm.Photos, p => p.IsUntagged); // and the rest don't, yet
+        Assert.Matches(@"of 60 done$", Find<TextBlock>(window, "CommandBarProgressText").Text);
+        Assert.True(Find<TextBlock>(window, "CommandBarProgressText").IsEffectivelyVisible);
+        Assert.True(Find<Button>(window, "BulkCancelButton").IsEffectivelyVisible);
+        await WaitForAsync(() => vm.Subheading is { } s && !s.StartsWith("0 of 60 tagged", StringComparison.Ordinal));
+
+        Click(window, Find<Button>(window, "CommandBarCancel"));
+        await WaitForBulkAsync(vm);
+        Assert.False(Find<TextBlock>(window, "CommandBarProgressText").IsEffectivelyVisible);
+        var tagged = vm.Photos.Count(p => PhotoMetadata.Read(p.Path).Keywords.Contains("Live"));
+        Assert.Equal(tagged, vm.Photos.Count(p => p.Keywords.Contains("Live"))); // the tiles match the files
+        window.Close();
+    }
+
     private static void AssertSelected(Window window, MainWindowViewModel vm, params int[] expected)
     {
         Assert.Equal(expected, vm.SelectedPhotos.Select(p => p.Index));
