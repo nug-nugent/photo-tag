@@ -45,8 +45,7 @@ public sealed class LogFile : IAsyncDisposable
 {
     public const long DefaultMaxSize = 1024 * 1024;
 
-    public static string DefaultPath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhotoTag", "log.txt");
+    public static string DefaultPath => Path.Combine(AppData.Folder, "log.txt");
 
     // Lines to write, and flush requests (completed once everything queued before them is written).
     private readonly Channel<object> _queue = Channel.CreateUnbounded<object>(new UnboundedChannelOptions { SingleReader = true });

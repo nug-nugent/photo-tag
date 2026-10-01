@@ -16,8 +16,11 @@ internal sealed class Program
 
         if (args is ["--self-check", var report]) return SelfCheck.RunAsync(report).GetAwaiter().GetResult();
 
+        // Before anything opens them: settings, index, thumbnails and log used to live in the installer's folder.
+        var notMoved = AppData.MoveFromOldLocation();
         var log = new LogFile(LogFile.DefaultPath);
         Log.Start(log);
+        foreach (var problem in notMoved) Log.Warn($"Couldn't move to {AppData.Folder}: {problem}");
         AppDomain.CurrentDomain.UnhandledException += (_, e) =>
         {
             Log.Error("PhotoTag crashed", e.ExceptionObject as Exception);

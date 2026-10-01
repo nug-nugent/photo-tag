@@ -19,8 +19,7 @@ public enum PhotoSort
 /// <summary>Per-user settings, stored as JSON next to the thumbnail cache.</summary>
 public sealed class AppSettings
 {
-    public static readonly string DefaultFilePath = Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PhotoTag", "settings.json");
+    public static readonly string DefaultFilePath = Path.Combine(AppData.Folder, "settings.json");
 
     /// <summary>Where <see cref="Save"/> writes. Tests point this at a temp file.</summary>
     [JsonIgnore]

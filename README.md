@@ -72,8 +72,13 @@ If you'd rather keep the original dates, turn on *Keep each photo's "date modifi
 first that your backup tool compares file contents or checksums, not just dates and sizes.
 
 **If something goes wrong**, *Show log* under ⚙ Settings opens PhotoTag's log: folders opened, how long indexing
-took, and anything that failed (a photo that couldn't be saved, a share that couldn't be reached). It lives in the
-local app-data folder (`PhotoTag/log.txt`, plus `log.old.txt` once it passes 1 MB), and it's worth attaching to a bug report.
+took, and anything that failed (a photo that couldn't be saved, a share that couldn't be reached). It's `log.txt` (plus
+`log.old.txt` once it passes 1 MB) in PhotoTag's data folder, and it's worth attaching to a bug report.
+
+**PhotoTag's data folder** holds its settings, library index, thumbnail cache and log: `%LocalAppData%\PhotoTag-Data`
+on Windows (beside the app, which installs to `%LocalAppData%\PhotoTag`; uninstalling leaves the data for a reinstall),
+`~/Library/Application Support/PhotoTag` on macOS and `~/.local/share/PhotoTag` on Linux. Everything in it can be
+rebuilt: the tags are in the photos.
 
 ## Building from source
 
@@ -130,12 +135,12 @@ workflow as a trial, without publishing. The icon is drawn by `dotnet run build/
 - **Photos are never fully decoded for a thumbnail.** JPEGs are decoded at 1/8–1/2 scale via libjpeg's DCT
   scaling (SkiaSharp), then resized and rotated per EXIF orientation. TIFFs, which Skia can't read, are decoded
   with LibTiff.NET a strip at a time and shrunk as they're read, so a large scan is never held in memory whole.
-- **Thumbnails are cached on disk** under the local app-data folder (`PhotoTag/thumbnails`). The cache is keyed on
+- **Thumbnails are cached on disk** in PhotoTag's data folder (`thumbnails`). The cache is keyed on
   path, size and modified time, so an edited photo gets a fresh thumbnail automatically. Once the cache passes its
   limit (2 GB, about 100,000 thumbnails, unless changed in ⚙ Settings), PhotoTag deletes the ones used least recently.
 - **The library index is incremental.** Opening a folder scans its whole tree in the background, but files whose
   size and modified time are unchanged are skipped (a rescan of 1,600 photos takes about 25 ms). PhotoTag's own edits
-  go straight into the index, and it lives in the local app-data folder (`PhotoTag/library.db`).
+  go straight into the index, and it lives in PhotoTag's data folder (`library.db`).
 - **Outside changes only touch what changed.** A file watcher (`FolderWatcher`) batches changes, and only the
   folders they're in are looked at again. The grid keeps its tiles, thumbnails and selection. Notifications can go
   missing (especially from network shares), so the folder on screen is also checked whenever you switch back to
