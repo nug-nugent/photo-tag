@@ -117,6 +117,10 @@ dotnet run --project src/PhotoTag.App
 - **No file access on the UI thread**, not even `Directory.Exists` or `new FileInfo(...).Length`: on a network share
   that's asleep each can take many seconds. Core async methods do theirs off the caller's thread (`ThumbnailCache`,
   `LibraryIndex.UpdateAsync`, `PhotoMetadataWriter.WriteAsync`), and opening a folder is `OpenRootAsync`.
+- **Thumbnails come in the order they're asked for** (the grid's, top to bottom): `ThumbnailCache` queues them for
+  threads of its own. Don't hand them to `Task.Run` again: the thread pool runs work queued from its own threads
+  newest first, and the index scan keeps it busy, which made a NAS folder fill in roughly bottom to top. A cached
+  thumbnail is found from the size and time in the folder listing (`PhotoFile.Listed`), without touching the photo.
 - **Open library files with `PhotoFiles.OpenRead`**, not `File.OpenRead`: on Windows a file open without
   `FileShare.Delete` can't be deleted or renamed by anyone else until it's closed, so deleting a photo in Explorer
   while PhotoTag read it failed (and so did `OutsideChangesTests` on a Windows runner).

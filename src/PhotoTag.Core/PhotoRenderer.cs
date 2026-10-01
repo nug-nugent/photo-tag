@@ -24,14 +24,27 @@ public sealed class PhotoRenderer(RawPreviewExtractor? rawPreviews)
         if (!PhotoFiles.IsRaw(path))
             return await Task.Run(() => ImageRenderer.Render(path, maxSize), cancellationToken).ConfigureAwait(false);
 
+        var preview = await ExtractPreviewAsync(path, maxSize, cancellationToken).ConfigureAwait(false);
+        return await Task.Run(() => ImageRenderer.Render(preview.Jpeg, maxSize, preview.Orientation), cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Like <see cref="RenderAsync"/>, on the calling thread (a RAW's preview still comes from ExifTool).</summary>
+    public byte[] Render(string path, int maxSize, CancellationToken cancellationToken = default)
+    {
+        if (!PhotoFiles.IsRaw(path)) return ImageRenderer.Render(path, maxSize);
+
+        var preview = ExtractPreviewAsync(path, maxSize, cancellationToken).GetAwaiter().GetResult();
+        return ImageRenderer.Render(preview.Jpeg, maxSize, preview.Orientation);
+    }
+
+    private async Task<RawPreview> ExtractPreviewAsync(string path, int maxSize, CancellationToken cancellationToken)
+    {
         if (rawPreviews is null)
             throw new PreviewUnavailableException("Showing RAW files needs ExifTool.");
 
-        var preview = await rawPreviews.ExtractAsync(path, maxSize, cancellationToken).ConfigureAwait(false)
-                      ?? throw new PreviewUnavailableException("This RAW file has no preview PhotoTag can show.");
-
-        return await Task.Run(() => ImageRenderer.Render(preview.Jpeg, maxSize, preview.Orientation), cancellationToken)
-            .ConfigureAwait(false);
+        return await rawPreviews.ExtractAsync(path, maxSize, cancellationToken).ConfigureAwait(false)
+               ?? throw new PreviewUnavailableException("This RAW file has no preview PhotoTag can show.");
     }
 }
 

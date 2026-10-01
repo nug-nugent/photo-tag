@@ -100,6 +100,56 @@ public sealed class ThumbnailTests : IDisposable
     }
 
     [Fact]
+    public async Task Cache_RendersInTheOrderAsked_SkippingCancelledRequests()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var photos = Enumerable.Range(0, 8).Select(i => TestImages.Write(_dir.Path, $"photo{i}.jpg", TestImages.Jpeg(50, 50))).ToList();
+        var thumbnail = File.ReadAllBytes(photos[0]);
+        var rendered = new System.Collections.Concurrent.ConcurrentQueue<string>();
+        using var busy = new SemaphoreSlim(0);
+        using var carryOn = new ManualResetEventSlim();
+        using var cache = new ThumbnailCache(Path.Combine(_dir.Path, "cache"), (path, _, _) =>
+        {
+            rendered.Enqueue(path);
+            if (path == photos[0])
+            {
+                busy.Release();
+                carryOn.Wait(ct);
+            }
+            return thumbnail;
+        }, maxConcurrency: 1);
+
+        var first = cache.GetAsync(photos[0], ct);
+        await busy.WaitAsync(ct); // the only render thread is busy with the first photo
+        using var scrolledAway = new CancellationTokenSource();
+        var rest = photos.Skip(1).Select(p => cache.GetAsync(p, p == photos[3] ? scrolledAway.Token : ct)).ToList();
+        while (cache.RendersWaiting < rest.Count) await Task.Delay(10, ct); // all looked up, none cached
+        await scrolledAway.CancelAsync();
+        carryOn.Set();
+
+        await first;
+        foreach (var request in rest.Where((_, i) => i != 2)) await request;
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => rest[2]);
+        Assert.Equal(photos.Where(p => p != photos[3]), rendered);
+    }
+
+    [Fact]
+    public async Task Cache_FindsThumbnail_FromTheFolderListing_WithoutTouchingThePhoto()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var photo = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(200, 200));
+        using var cache = new ThumbnailCache(Path.Combine(_dir.Path, "cache"));
+        var thumbnail = await cache.GetAsync(photo, ct);
+        var listed = Assert.Single(PhotoFiles.EnumeratePhotos(_dir.Path)).Listed;
+        Assert.NotNull(listed);
+
+        File.Delete(photo); // as good as unreachable
+
+        Assert.Equal(thumbnail, await cache.GetAsync(photo, listed, ct));
+        await Assert.ThrowsAsync<FileNotFoundException>(() => cache.GetAsync(photo, ct));
+    }
+
+    [Fact]
     public async Task Cache_ThrowsForCorruptFile()
     {
         var photo = TestImages.Write(_dir.Path, "broken.jpg", [1, 2, 3, 4]);

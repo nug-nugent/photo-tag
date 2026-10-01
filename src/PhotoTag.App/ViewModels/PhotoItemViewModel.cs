@@ -14,6 +14,9 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
     private CancellationTokenSource? _loading;
     private int _uses;
 
+    // Size and time from the folder's listing, so the thumbnail is found without a round trip to the photo.
+    private FileStamp? _listed = file.Listed;
+
     /// <summary>The photo's files: one, or a RAW+JPEG pair (shown and indexed as the JPEG).</summary>
     public PhotoFile File { get; } = file;
     public string Path => File.Path;
@@ -103,6 +106,7 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
     public void FileChanged()
     {
         Metadata = null;
+        _listed = null;
         LoadFailed = false;
         LoadFailedText = null;
         if (_uses == 0) return;
@@ -115,7 +119,7 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
         var cts = _loading = new CancellationTokenSource();
         try
         {
-            var file = await thumbnails.GetAsync(Path, cts.Token);
+            var file = await thumbnails.GetAsync(Path, _listed, cts.Token);
             var bitmap = await Task.Run(() => new Bitmap(file), cts.Token);
 
             if (cts.IsCancellationRequested)

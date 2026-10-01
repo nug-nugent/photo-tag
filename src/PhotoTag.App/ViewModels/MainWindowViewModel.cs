@@ -611,7 +611,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             {
                 var paths = await Library.Index.SearchAsync(root, query);
                 // The index may lag deletions; results need their RAW companions to be tagged as pairs.
-                return await Task.Run(() => paths.Where(File.Exists).Select(PhotoFiles.WithCompanions).ToList());
+                return await Task.Run(() => paths.Select(p => (Path: p, File: new FileInfo(p))).Where(f => f.File.Exists)
+                    .Select(f => PhotoFiles.WithCompanions(f.Path) with { Listed = FileStamp.Of(f.File) }).ToList());
             },
             count => count == 0 ? $"No {description}" : $"{count:N0} {description} in {Path.GetFileName(root)}");
     }
