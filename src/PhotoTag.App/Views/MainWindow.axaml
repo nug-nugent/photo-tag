@@ -402,7 +402,8 @@
                         <TextBlock Text="Open a folder of photos" Classes="heading" TextWrapping="Wrap" TextAlignment="Center" />
                         <TextBlock Classes="muted" FontSize="14" TextWrapping="Wrap" TextAlignment="Center"
                                    Text="PhotoTag shows every photo in it and its subfolders. Tags are saved in the photos themselves." />
-                        <Button Classes="flat outline" HorizontalAlignment="Center" Click="OpenFolder_Click" MinHeight="40" Padding="16,0">
+                        <Button x:Name="StartOpenFolderButton" Classes="flat outline" HorizontalAlignment="Center" Click="OpenFolder_Click"
+                                MinHeight="40" Padding="16,0">
                             <StackPanel Orientation="Horizontal" Spacing="8">
                                 <PathIcon Data="{StaticResource IconFolder}" />
                                 <TextBlock Text="Open folder…" FontSize="14" />
@@ -411,9 +412,11 @@
                     </StackPanel>
 
                     <!-- Thumbnail grid: ItemsRepeater only creates tiles for what's on screen.
-                         Focusable so arrow keys, Shift+arrows, Ctrl/⌘+A, F, Space and Esc work once a tile is clicked. -->
+                         Focusable so arrow keys, Shift+arrows, Ctrl/⌘+A, F, Space and Esc work once a tile is clicked.
+                         Hidden until a folder is open: it shares a cell with the start panel above, and would take its clicks. -->
                     <ScrollViewer Grid.Row="1" x:Name="GridScroller" Focusable="True" KeyDown="Grid_KeyDown"
-                                  HorizontalScrollBarVisibility="Disabled">
+                                  HorizontalScrollBarVisibility="Disabled"
+                                  IsVisible="{Binding RootPath, Converter={x:Static ObjectConverters.IsNotNull}}">
                         <ItemsRepeater x:Name="PhotoGrid" Margin="20,4,20,96" ItemsSource="{Binding GridItems}"
                                        ElementPrepared="PhotoGrid_ElementPrepared"
                                        ElementClearing="PhotoGrid_ElementClearing">
