@@ -16,6 +16,20 @@ public sealed class AppDataTests : IDisposable
     }
 
     [Fact]
+    public void ADevelopmentBuild_KeepsItsOwnFiles_UnlessToldWhere()
+    {
+        var installed = AppData.ChooseFolder(null, development: false);
+        var dev = AppData.ChooseFolder(null, development: true);
+
+        Assert.NotEqual(installed, dev);
+        Assert.Equal("PhotoTag-Dev", Path.GetFileName(dev));
+        Assert.Equal(OperatingSystem.IsWindows() ? "PhotoTag-Data" : "PhotoTag", Path.GetFileName(installed));
+        Assert.Equal(_dir.Path, AppData.ChooseFolder(_dir.Path, development: true));
+        Assert.Equal(_dir.Path, AppData.ChooseFolder(_dir.Path, development: false));
+        Assert.Equal(installed, AppData.ChooseFolder("", development: false));
+    }
+
+    [Fact]
     public void PhotoTagsFiles_Move_AndTheInstallersStay()
     {
         foreach (var name in new[] { "settings.json", "library.db", "library.db-wal", "log.txt", "log.old.txt", Path.Combine("thumbnails", "ab", "abc.thumb") })
