@@ -76,6 +76,8 @@ public sealed class FolderWatcher : IDisposable
 
     private void Add(string path)
     {
+        // A NAS recycle bin or thumbnail cache: photos deleted from the share land in #recycle, which isn't a new photo.
+        if (PhotoFiles.IsInSkippedFolder(Root, path)) return;
         lock (_lock)
         {
             StartBatch();

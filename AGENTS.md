@@ -132,6 +132,9 @@ dotnet run --project src/PhotoTag.App   # a Debug build: its own settings and in
   while PhotoTag read it failed (and so did `OutsideChangesTests` on a Windows runner).
 - **Missing isn't always deleted.** A scan or refresh of a folder whose parent is missing too throws
   `DirectoryNotFoundException` (the share is probably unreachable) rather than dropping its photos from the index.
+- **NAS housekeeping folders aren't hidden over SMB.** Synology's `#recycle` (where photos deleted from the share go),
+  `#snapshot`, `@eaDir`, QNAP's `@Recycle` and the like are skipped by name (`PhotoFiles.SkippedFolders`) by every
+  folder listing and by `FolderWatcher`. List folders through `PhotoFiles`, not `Directory.Enumerate*`, to keep that.
 - **Network shares are tested over `\\localhost\C$`** (`NetworkShareTests`, `NetworkShareUiTests`), which needs an
   administrator account on Windows; the tests skip elsewhere.
 - **Log what you catch.** A failure PhotoTag copes with (a locked file, an unreachable share) gets `Log.Warn`; one
