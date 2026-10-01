@@ -1,4 +1,5 @@
 using System.Collections.Frozen;
+using System.IO.Enumeration;
 
 namespace PhotoTag.Core;
 
@@ -11,7 +12,19 @@ public sealed record PhotoFile(string Path, IReadOnlyList<string> Companions)
 {
     public static PhotoFile Single(string path) => new(path, []);
 
+    /// <summary>
+    /// <see cref="Path"/>'s size and modified time as listed with its folder, if known, so its thumbnail can be
+    /// found without asking for them again (a round trip each, on a network share). Can be out of date.
+    /// </summary>
+    public FileStamp? Listed { get; init; }
+
     public IEnumerable<string> AllPaths => Companions.Prepend(Path);
+}
+
+/// <summary>A file's size and last-modified time (UTC ticks).</summary>
+public readonly record struct FileStamp(long Size, long Ticks)
+{
+    public static FileStamp Of(FileInfo file) => new(file.Length, file.LastWriteTimeUtc.Ticks);
 }
 
 /// <summary>
@@ -74,7 +87,15 @@ public static class PhotoFiles
     public static IReadOnlyList<PhotoFile> EnumeratePhotos(string folder)
     {
         if (!Directory.Exists(folder)) return [];
-        var photos = Group(Directory.EnumerateFiles(folder, "*", Options).Where(IsSupported)).ToList();
+        // The listing has each file's size and time anyway: keep them for finding thumbnails.
+        var listed = new FileSystemEnumerable<(string Path, FileStamp Stamp)>(folder,
+                (ref FileSystemEntry entry) => (entry.ToSpecifiedFullPath(), new FileStamp(entry.Length, entry.LastWriteTimeUtc.UtcTicks)),
+                Options)
+            {
+                ShouldIncludePredicate = (ref FileSystemEntry entry) => !entry.IsDirectory && IsSupported(entry.FileName.ToString()),
+            }
+            .ToDictionary(f => f.Path, f => f.Stamp);
+        var photos = Group(listed.Keys).Select(p => p with { Listed = listed[p.Path] }).ToList();
         photos.Sort((a, b) => CompareFileNames(a.Path, b.Path));
         return photos;
     }

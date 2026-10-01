@@ -8,8 +8,11 @@ namespace PhotoTag.Core;
 /// has to be decoded once. Cache entries are keyed on path + size + last-write time, so
 /// editing a photo invalidates its thumbnail automatically.
 ///
-/// At most <c>maxConcurrency</c> thumbnails are generated at once; waiting requests can
-/// be cancelled (e.g. when the tile scrolls out of view) before they cost anything.
+/// Requests are served in the order they're made, which is the grid's order: top to bottom. Each is first
+/// looked up in the cache, then if need be rendered, at most <c>maxConcurrency</c> at once. Both stages have
+/// their own threads, so a lookup never waits behind a render, and neither waits for the thread pool (which
+/// the index scan keeps busy reading photos). Waiting requests can be cancelled (e.g. when the tile scrolls
+/// out of view) before they cost anything.
 ///
 /// Nothing is deleted as it goes stale (an edited photo's old thumbnail, a folder since deleted):
 /// <see cref="CleanUpAsync"/> removes the least recently used thumbnails once the cache is too big.
@@ -18,15 +21,25 @@ public sealed class ThumbnailCache : IDisposable
 {
     private readonly string _cacheDirectory;
     private readonly int _size;
-    private readonly PhotoRenderer _renderer;
-    private readonly SemaphoreSlim _gate;
+    private readonly Func<string, int, CancellationToken, byte[]> _render;
+    private readonly Stage _lookups;
+    private readonly Stage _renders;
+    private long _requests;
 
     public ThumbnailCache(string cacheDirectory, PhotoRenderer? renderer = null, int size = 320, int? maxConcurrency = null)
+        : this(cacheDirectory, (renderer ?? PhotoRenderer.ImagesOnly).Render, size, maxConcurrency)
+    {
+    }
+
+    /// <summary>For tests: <paramref name="render"/> stands in for the <see cref="PhotoRenderer"/>.</summary>
+    internal ThumbnailCache(string cacheDirectory, Func<string, int, CancellationToken, byte[]> render, int size = 320,
+        int? maxConcurrency = null)
     {
         _cacheDirectory = cacheDirectory;
         _size = size;
-        _renderer = renderer ?? PhotoRenderer.ImagesOnly;
-        _gate = new SemaphoreSlim(maxConcurrency ?? Math.Max(2, Environment.ProcessorCount - 1));
+        _render = render;
+        _lookups = new Stage("Thumbnail lookup", 2, LookUp);
+        _renders = new Stage("Thumbnail render", maxConcurrency ?? Math.Max(2, Environment.ProcessorCount - 1), Render);
         Directory.CreateDirectory(cacheDirectory);
     }
 
@@ -42,35 +55,151 @@ public sealed class ThumbnailCache : IDisposable
     internal static readonly TimeSpan UsedResolution = TimeSpan.FromDays(1);
 
     /// <summary>Returns the path of a cached thumbnail file for <paramref name="photoPath"/>, creating it if needed.</summary>
-    public async Task<string> GetAsync(string photoPath, CancellationToken cancellationToken = default)
-    {
-        // Off the caller's (UI) thread: the key needs the photo's size and time, a round trip on a network share.
-        var (cachePath, cached) = await Task.Run(() =>
-        {
-            var path = GetCachePath(photoPath);
-            return (path, MarkUsed(path));
-        }, cancellationToken).ConfigureAwait(false);
-        if (cached) return cachePath;
+    public Task<string> GetAsync(string photoPath, CancellationToken cancellationToken = default) =>
+        GetAsync(photoPath, null, cancellationToken);
 
-        await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
+    /// <summary>
+    /// Like <see cref="GetAsync(string, CancellationToken)"/>. Given the photo's size and time from its folder's
+    /// listing (<see cref="PhotoFile.Listed"/>), a cached thumbnail is found without touching the photo at all.
+    /// </summary>
+    public async Task<string> GetAsync(string photoPath, FileStamp? listed, CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var request = new Request(photoPath, listed, Interlocked.Increment(ref _requests), cancellationToken);
+        await using (cancellationToken.Register(() => request.Done.TrySetCanceled(cancellationToken)).ConfigureAwait(false))
+        {
+            _lookups.Add(request);
+            return await request.Done.Task.ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>For tests: how many requests are waiting to be rendered (some perhaps cancelled).</summary>
+    internal int RendersWaiting => _renders.Waiting;
+
+    /// <summary>On a lookup thread: answers from the cache, or passes the request on to be rendered.</summary>
+    private void LookUp(Request request)
+    {
         try
         {
-            // Another request may have produced it while we waited.
-            if (File.Exists(cachePath)) return cachePath;
-
-            cancellationToken.ThrowIfCancellationRequested();
-            var bytes = await _renderer.RenderAsync(photoPath, _size, cancellationToken).ConfigureAwait(false);
-
-            // Write-then-rename so a crash never leaves a half-written thumbnail behind.
-            Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
-            var tempPath = cachePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
-            await File.WriteAllBytesAsync(tempPath, bytes, CancellationToken.None).ConfigureAwait(false);
-            File.Move(tempPath, cachePath, overwrite: true);
-            return cachePath;
+            request.CachePath = GetCachePath(request.PhotoPath, request.Listed);
+            if (MarkUsed(request.CachePath)) request.Done.TrySetResult(request.CachePath);
+            else _renders.Add(request);
         }
-        finally
+        catch (Exception e)
         {
-            _gate.Release();
+            request.Done.TrySetException(e);
+        }
+    }
+
+    /// <summary>On a render thread: makes the thumbnail.</summary>
+    private void Render(Request request)
+    {
+        var cachePath = request.CachePath!;
+        try
+        {
+            // Another request may have produced it while this one waited.
+            if (!File.Exists(cachePath))
+            {
+                var bytes = _render(request.PhotoPath, _size, request.CancellationToken);
+
+                // Write-then-rename so a crash never leaves a half-written thumbnail behind.
+                Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+                var tempPath = cachePath + "." + Guid.NewGuid().ToString("N") + ".tmp";
+                File.WriteAllBytes(tempPath, bytes);
+                File.Move(tempPath, cachePath, overwrite: true);
+            }
+            request.Done.TrySetResult(cachePath);
+        }
+        catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
+        {
+            request.Done.TrySetCanceled(request.CancellationToken);
+        }
+        catch (Exception e)
+        {
+            request.Done.TrySetException(e);
+        }
+    }
+
+    private sealed class Request(string photoPath, FileStamp? listed, long order, CancellationToken cancellationToken)
+    {
+        public string PhotoPath { get; } = photoPath;
+        public FileStamp? Listed { get; } = listed;
+        public long Order { get; } = order;
+        public CancellationToken CancellationToken { get; } = cancellationToken;
+        public TaskCompletionSource<string> Done { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public string? CachePath { get; set; }
+    }
+
+    /// <summary>
+    /// Requests waiting for one kind of work, taken oldest first by up to <c>threads</c> threads of its own.
+    /// Threads start as they're needed; cancelled requests are skipped when their turn comes.
+    /// </summary>
+    private sealed class Stage(string name, int threads, Action<Request> work) : IDisposable
+    {
+        private readonly PriorityQueue<Request, long> _waiting = new();
+        private int _started, _idle;
+        private bool _disposed;
+
+        public int Waiting
+        {
+            get
+            {
+                lock (_waiting) return _waiting.Count;
+            }
+        }
+
+        public void Add(Request request)
+        {
+            lock (_waiting)
+            {
+                if (_disposed)
+                {
+                    request.Done.TrySetCanceled();
+                    return;
+                }
+                _waiting.Enqueue(request, request.Order);
+                if (_idle > 0)
+                {
+                    // Counted off here, not when it wakes: a second request before then must wake another.
+                    _idle--;
+                    Monitor.Pulse(_waiting);
+                }
+                else if (_started < threads)
+                {
+                    _started++;
+                    new Thread(Run) { Name = name, IsBackground = true }.Start();
+                }
+            }
+        }
+
+        private void Run()
+        {
+            while (Take() is { } request) work(request);
+        }
+
+        private Request? Take()
+        {
+            lock (_waiting)
+            {
+                while (!_disposed)
+                {
+                    while (_waiting.TryDequeue(out var request, out _))
+                        if (!request.Done.Task.IsCompleted) return request;
+                    _idle++;
+                    Monitor.Wait(_waiting);
+                }
+                return null;
+            }
+        }
+
+        public void Dispose()
+        {
+            lock (_waiting)
+            {
+                _disposed = true;
+                while (_waiting.TryDequeue(out var request, out _)) request.Done.TrySetCanceled();
+                Monitor.PulseAll(_waiting);
+            }
         }
     }
 
@@ -158,16 +287,20 @@ public sealed class ThumbnailCache : IDisposable
         }
     }
 
-    internal string GetCachePath(string photoPath)
+    internal string GetCachePath(string photoPath, FileStamp? listed = null)
     {
-        var file = new FileInfo(photoPath);
-        var key = $"{file.FullName}|{file.Length}|{file.LastWriteTimeUtc.Ticks}|{_size}";
+        var stamp = listed ?? FileStamp.Of(new FileInfo(photoPath));
+        var key = $"{Path.GetFullPath(photoPath)}|{stamp.Size}|{stamp.Ticks}|{_size}";
         var hash = Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(key)));
         // Fan out into subfolders so no single directory holds hundreds of thousands of files.
         return Path.Combine(_cacheDirectory, hash[..2], hash + ".thumb");
     }
 
-    public void Dispose() => _gate.Dispose();
+    public void Dispose()
+    {
+        _lookups.Dispose();
+        _renders.Dispose();
+    }
 }
 
 /// <summary>What <see cref="ThumbnailCache.CleanUpAsync"/> did: files deleted, bytes freed, and the thumbnails' size now.</summary>
