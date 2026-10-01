@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.IO.Enumeration;
 
@@ -141,19 +142,40 @@ public static class PhotoFiles
         }
     }
 
-    /// <summary>For a photo found some other way (e.g. a search result), finds its RAW companions.</summary>
-    public static PhotoFile WithCompanions(string path)
-    {
-        if (!JpegExtensions.Contains(Path.GetExtension(path))) return PhotoFile.Single(path);
-        var folder = Path.GetDirectoryName(path);
-        if (folder is null || !Directory.Exists(folder)) return PhotoFile.Single(path);
+    // Windows and macOS file systems are case-insensitive by default.
+    private static readonly StringComparer PathComparer =
+        OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
 
-        var pattern = Path.GetFileNameWithoutExtension(path) + ".*";
-        var raws = Directory.EnumerateFiles(folder, pattern, Options).Where(IsRaw)
-            .Where(f => string.Equals(Path.GetFileNameWithoutExtension(f), Path.GetFileNameWithoutExtension(path), StringComparison.OrdinalIgnoreCase))
-            .Order(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-        return new PhotoFile(path, raws);
+    /// <summary>
+    /// For photos found some other way (search results from the index): those that still exist, in the order
+    /// given, with their RAW companions and listed size and time. Lists each folder once, several at a time,
+    /// rather than asking about each photo: on a network share that's a round trip each, which made
+    /// "All photos" take minutes.
+    /// </summary>
+    public static async Task<IReadOnlyList<PhotoFile>> FindAsync(IReadOnlyList<string> paths, CancellationToken cancellationToken = default)
+    {
+        var folders = paths.Select(Path.GetDirectoryName).OfType<string>().Distinct(PathComparer).ToList();
+        if (folders.Count == 0) return [];
+        var found = new ConcurrentDictionary<string, PhotoFile>(PathComparer);
+        var parallelism = IsOnNetworkDrive(folders[0]) ? 8 : 4;
+        await Parallel.ForEachAsync(folders, new ParallelOptions { MaxDegreeOfParallelism = parallelism, CancellationToken = cancellationToken },
+            (folder, _) =>
+            {
+                try
+                {
+                    // By any of its files: a RAW indexed on its own may since have been joined by its JPEG.
+                    foreach (var photo in EnumeratePhotos(folder))
+                        foreach (var path in photo.AllPaths) found[path] = photo;
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    Log.Warn($"Couldn't list {folder}", e);
+                }
+                return ValueTask.CompletedTask;
+            }).ConfigureAwait(false);
+
+        var seen = new HashSet<string>(PathComparer);
+        return [.. paths.Select(found.GetValueOrDefault).OfType<PhotoFile>().Where(p => seen.Add(p.Path))];
     }
 
     // --- Sidecars ------------------------------------------------------------------------------
