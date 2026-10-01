@@ -359,18 +359,35 @@
                 <!-- The grid, under a heading that says what's showing. -->
                 <Grid Grid.Column="1" RowDefinitions="Auto,*">
                     <StackPanel>
-                        <Grid Margin="20,20,20,14" ColumnDefinitions="*,Auto" IsVisible="{Binding Heading, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        <Grid Margin="20,20,20,14" ColumnDefinitions="*,Auto" IsVisible="{Binding Heading, Converter={x:Static ObjectConverters.IsNotNull}}"
+                              Container.Name="GridHeader" Container.Sizing="Width">
+                            <Grid.Styles>
+                                <!-- When the grid is narrow, the buttons beside the heading are just icons (they have tooltips), to leave it room. -->
+                                <ContainerQuery Name="GridHeader" Query="max-width:560">
+                                    <Style Selector="TextBlock.buttonLabel">
+                                        <Setter Property="IsVisible" Value="False" />
+                                    </Style>
+                                </ContainerQuery>
+                            </Grid.Styles>
                             <StackPanel Spacing="6" VerticalAlignment="Bottom">
                                 <TextBlock x:Name="HeadingText" Classes="heading" Text="{Binding Heading}" TextTrimming="CharacterEllipsis" />
                                 <TextBlock x:Name="SubheadingText" Classes="muted" FontSize="13" Text="{Binding Subheading}" TextTrimming="CharacterEllipsis" />
                             </StackPanel>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Bottom">
+                                <ToggleButton x:Name="IncludeSubfoldersButton" Classes="flat outline" IsVisible="{Binding !IsSearching}"
+                                              IsChecked="{Binding IncludeSubfolders, Mode=TwoWay}"
+                                              ToolTip.Tip="Show the photos in subfolders too, so a year folder shows the whole year">
+                                    <StackPanel Orientation="Horizontal" Spacing="6">
+                                        <PathIcon Width="13" Height="13" Data="{StaticResource IconFolder}" />
+                                        <TextBlock Classes="buttonLabel" Text="Subfolders" />
+                                    </StackPanel>
+                                </ToggleButton>
                                 <ToggleButton x:Name="HighlightFavouritesButton" Classes="flat outline" IsVisible="{Binding IsGroupedByDay}"
                                               IsChecked="{Binding HighlightFavourites, Mode=TwoWay}"
                                               ToolTip.Tip="Show favourites at double size, so each day reads as its highlights">
                                     <StackPanel Orientation="Horizontal" Spacing="6">
                                         <PathIcon Width="13" Height="13" Data="{StaticResource IconHeart}" />
-                                        <TextBlock Text="Highlight favourites" />
+                                        <TextBlock Classes="buttonLabel" Text="Highlight favourites" />
                                     </StackPanel>
                                 </ToggleButton>
                                 <ComboBox x:Name="SortBox" SelectedIndex="{Binding SortIndex, Mode=TwoWay}" ToolTip.Tip="Order the photos">

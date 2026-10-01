@@ -152,6 +152,14 @@ try
         WaitUntil(() => vm.Viewer?.Preview is not null && vm.Details is PhotoDetailsViewModel { IsLoaded: true });
         Capture(window, $"{name}-9-viewer");
         vm.CloseViewer();
+
+        // A year folder with no photos of its own: its subfolders' photos, by day.
+        vm.ClearSearchCommand.Execute(null);
+        vm.SelectedFolder = year;
+        WaitFor(vm.PhotosLoading);
+        WaitFor(vm.SummariesLoading);
+        WaitForThumbnails(vm);
+        Capture(window, $"{name}-8-days-folder");
         vm.Sort = PhotoSort.FileName;
 
         // Narrowest the window allows.

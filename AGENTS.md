@@ -42,7 +42,7 @@ dotnet run --project src/PhotoTag.App   # a Debug build: its own settings and in
   mouse/keyboard input**: the owner may be using the machine, and it has collided before. Headless mode doesn't really
   decode bitmaps, so check image sizes and orientation in Core tests instead.
 - **To see the UI, render it:** `dotnet run --project tools/Screenshots` draws the real window with Skia (no window
-  appears, no input) in each state (folder, one photo, several, Tags panel, settings, search, by day, viewer, smallest size, moved library), light
+  appears, no input) in each state (folder, one photo, several, Tags panel, settings, search, by day, a year folder by day, viewer, smallest size, moved library), light
   and dark, into `artifacts/screenshots`. It builds a sample library from `tests/.samples` (run the tests once first)
   and needs ExifTool. Look at the PNGs before and after any UI change.
 - **Releases:** push a `vX.Y.Z` tag. PRs touching packaging run `release.yml` as a trial (no publishing). Each package

@@ -85,20 +85,71 @@ public static class PhotoFiles
     /// Photos directly inside <paramref name="folder"/>, sorted by file name, with RAW+JPEG
     /// pairs merged into one <see cref="PhotoFile"/>.
     /// </summary>
-    public static IReadOnlyList<PhotoFile> EnumeratePhotos(string folder)
+    public static IReadOnlyList<PhotoFile> EnumeratePhotos(string folder) => Directory.Exists(folder) ? List(folder).Photos : [];
+
+    /// <summary>
+    /// Photos in <paramref name="root"/> and every folder under it, skipping hidden and inaccessible folders: each
+    /// folder's photos sorted by file name, the folders in the order of the folder tree. Each level's folders are
+    /// listed several at a time, which on a network share is much quicker than one after another.
+    /// </summary>
+    public static async Task<IReadOnlyList<PhotoFile>> EnumeratePhotosUnderAsync(string root, CancellationToken cancellationToken = default)
     {
-        if (!Directory.Exists(folder)) return [];
-        // The listing has each file's size and time anyway: keep them for finding thumbnails.
-        var listed = new FileSystemEnumerable<(string Path, FileStamp Stamp)>(folder,
-                (ref FileSystemEntry entry) => (entry.ToSpecifiedFullPath(), new FileStamp(entry.Length, entry.LastWriteTimeUtc.UtcTicks)),
-                Options)
+        if (!await Task.Run(() => Directory.Exists(root), cancellationToken).ConfigureAwait(false)) return [];
+        var options = new ParallelOptions { MaxDegreeOfParallelism = IsOnNetworkDrive(root) ? 8 : 4, CancellationToken = cancellationToken };
+        var listings = new ConcurrentDictionary<string, (List<PhotoFile> Photos, List<string> Subfolders)>(PathComparer);
+        var failed = 0;
+        IReadOnlyList<string> level = [root];
+        while (level.Count > 0)
+        {
+            await Parallel.ForEachAsync(level, options, (folder, _) =>
             {
-                ShouldIncludePredicate = (ref FileSystemEntry entry) => !entry.IsDirectory && IsSupported(entry.FileName.ToString()),
-            }
-            .ToDictionary(f => f.Path, f => f.Stamp);
-        var photos = Group(listed.Keys).Select(p => p with { Listed = listed[p.Path] }).ToList();
-        photos.Sort((a, b) => CompareFileNames(a.Path, b.Path));
+                try
+                {
+                    listings[folder] = List(folder);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    // Gone since its parent was listed, say. Only the first few: a share dropping out fails them all.
+                    if (Interlocked.Increment(ref failed) <= 3) Log.Warn($"Couldn't list {folder}", e);
+                }
+                return ValueTask.CompletedTask;
+            }).ConfigureAwait(false);
+            level = [.. level.SelectMany(f => listings.TryGetValue(f, out var l) ? l.Subfolders : [])];
+        }
+
+        var photos = new List<PhotoFile>();
+        Add(root);
         return photos;
+
+        void Add(string folder)
+        {
+            if (!listings.TryGetValue(folder, out var listing)) return;
+            photos.AddRange(listing.Photos);
+            foreach (var subfolder in listing.Subfolders) Add(subfolder);
+        }
+    }
+
+    /// <summary>One listing of a folder: its photos (sorted, pairs merged) and its subfolders (sorted).</summary>
+    private static (List<PhotoFile> Photos, List<string> Subfolders) List(string folder)
+    {
+        // The listing has each file's size and time anyway: keep them for finding thumbnails.
+        var files = new Dictionary<string, FileStamp>();
+        var subfolders = new List<string>();
+        var entries = new FileSystemEnumerable<(string Path, bool IsDirectory, FileStamp Stamp)>(folder,
+            (ref FileSystemEntry entry) => (entry.ToSpecifiedFullPath(), entry.IsDirectory, new FileStamp(entry.Length, entry.LastWriteTimeUtc.UtcTicks)),
+            Options)
+        {
+            ShouldIncludePredicate = (ref FileSystemEntry entry) => entry.IsDirectory || IsSupported(entry.FileName.ToString()),
+        };
+        foreach (var (path, isDirectory, stamp) in entries)
+        {
+            if (isDirectory) subfolders.Add(path);
+            else files[path] = stamp;
+        }
+        var photos = Group(files.Keys).Select(p => p with { Listed = files[p.Path] }).ToList();
+        photos.Sort((a, b) => CompareFileNames(a.Path, b.Path));
+        subfolders.Sort(CompareFileNames);
+        return (photos, subfolders);
     }
 
     /// <summary>Photos anywhere under <paramref name="root"/>, pairs merged, skipping hidden and inaccessible folders.</summary>
