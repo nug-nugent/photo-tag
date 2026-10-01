@@ -79,8 +79,11 @@ dotnet run --project src/PhotoTag.App
   nowhere else, and never in bulk. Tests use a stand-in `IExactPlaceLookup` and never go online.
 - **No HEIC support.** The owner decided against it (it would need Magick.NET, ~30 MB per platform).
 - **Saving tags updates "date modified"** so backup tools notice; keeping it is an opt-in setting.
-- **PhotoTag doesn't do backups.** The owner plans a NAS with snapshots and off-site copies; PhotoTag should work well
-  with photos on a share (see TODO.md).
+- **PhotoTag doesn't do backups.** The owner keeps the photos on a NAS with snapshots and off-site copies; PhotoTag
+  should work well with photos on a share (see TODO.md).
+- **Two PCs edit the same library as equals** (a desktop and a laptop, both on the NAS share, each with its own index).
+  Edits from one must not undo or lose the other's: re-read a photo just before changing it, and change only what
+  the user changed.
 - **The look comes from the owner's claude.ai design** ("PhotoTag Redesign", all three directions combined): warm
   greys, 2px rules, square corners, red for favourites and what still needs tagging, blue for where you are. The
   palette is in `App.axaml`; tags each get their own hue (`TagColors`). The design's Archivo font is bundled (static
