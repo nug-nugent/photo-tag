@@ -55,13 +55,31 @@ public sealed class PhotoFilesTests : IDisposable
     }
 
     [Fact]
-    public void WithCompanions_FindsTheRawOfASearchResult()
+    public async Task FindAsync_GivesSearchResultsTheirRawsAndListing_DroppingMissingOnes()
     {
-        foreach (var name in new[] { "a.jpg", "a.RAF", "b.jpg" })
+        var sub = Directory.CreateDirectory(System.IO.Path.Combine(_dir.Path, "sub")).FullName;
+        foreach (var name in new[] { "a.jpg", "a.RAF", "b.jpg", "c.nef", "c.jpg" })
             File.WriteAllText(System.IO.Path.Combine(_dir.Path, name), "");
+        File.WriteAllText(System.IO.Path.Combine(sub, "d.png"), "four");
+        string P(string name) => System.IO.Path.Combine(_dir.Path, name);
 
-        Assert.Equal(["a.RAF"], PhotoFiles.WithCompanions(System.IO.Path.Combine(_dir.Path, "a.jpg")).Companions.Select(System.IO.Path.GetFileName));
-        Assert.Empty(PhotoFiles.WithCompanions(System.IO.Path.Combine(_dir.Path, "b.jpg")).Companions);
+        var found = await PhotoFiles.FindAsync(
+            [
+                System.IO.Path.Combine(sub, "d.png"),
+                P("b.jpg"),
+                P("gone.jpg"),                                   // deleted since it was indexed
+                System.IO.Path.Combine(_dir.Path, "nowhere", "e.jpg"), // and its folder too
+                P("c.nef"),                                      // indexed on its own; its JPEG came later
+                P("A.JPG"),                                      // as the index spelt it (case-insensitive systems)
+                P("a.RAF"),                                      // the same photo again
+            ],
+            TestContext.Current.CancellationToken);
+
+        var expected = OperatingSystem.IsLinux()
+            ? new[] { ("d.png", ""), ("b.jpg", ""), ("c.jpg", "c.nef") }
+            : new[] { ("d.png", ""), ("b.jpg", ""), ("c.jpg", "c.nef"), ("a.jpg", "a.RAF") };
+        Assert.Equal(expected, found.Select(p => (System.IO.Path.GetFileName(p.Path), string.Join(",", p.Companions.Select(System.IO.Path.GetFileName)))));
+        Assert.Equal(4, found[0].Listed?.Size); // from the folder listing, for finding thumbnails
     }
 
     [Fact]

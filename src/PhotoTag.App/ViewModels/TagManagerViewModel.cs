@@ -176,7 +176,7 @@ public partial class TagManagerViewModel : ViewModelBase
         // Every spelling (the index matches tags ignoring case); pairs need their RAW so both files change.
         var query = IsPeople ? new PhotoQuery { People = [keyword] } : new PhotoQuery { Keywords = [keyword] };
         var paths = await _library.Index.SearchAsync(root, query);
-        var files = await Task.Run(() => paths.Where(File.Exists).Select(PhotoFiles.WithCompanions).ToList());
+        var files = await PhotoFiles.FindAsync(paths);
         if (files.Count == 0)
         {
             Loading = LoadAsync(); // the index was out of date
