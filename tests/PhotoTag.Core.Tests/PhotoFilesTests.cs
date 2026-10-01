@@ -122,6 +122,47 @@ public sealed class PhotoFilesTests : IDisposable
         Assert.False(PhotoFiles.HasSubfolders(System.IO.Path.Combine(_dir.Path, "apple")));
     }
 
+    // NAS recycle bins, snapshots and thumbnail caches, which aren't hidden over SMB.
+    public static TheoryData<string> HousekeepingFolders =>
+        ["#recycle", "#snapshot", "@eaDir", "@tmp", "@Recycle", ".@__thumb", "$RECYCLE.BIN", ".Trashes", "#RECYCLE"];
+
+    [Theory]
+    [MemberData(nameof(HousekeepingFolders))]
+    public async Task HousekeepingFolders_AreNotListed(string name)
+    {
+        TestImages.Write(_dir.Path, "a.jpg", TestImages.Jpeg(16, 16));
+        var sub = Directory.CreateDirectory(System.IO.Path.Combine(_dir.Path, "sub")).FullName;
+        TestImages.Write(sub, "b.jpg", TestImages.Jpeg(16, 16));
+        foreach (var folder in new[] { _dir.Path, sub, System.IO.Path.Combine(_dir.Path, "only") })
+        {
+            var skipped = Directory.CreateDirectory(System.IO.Path.Combine(folder, name, "nested")).Parent!.FullName;
+            TestImages.Write(skipped, "deleted.jpg", TestImages.Jpeg(16, 16));
+            TestImages.Write(System.IO.Path.Combine(skipped, "nested"), "deeper.jpg", TestImages.Jpeg(16, 16));
+        }
+
+        string[] expected = ["a.jpg", "b.jpg"];
+        Assert.Equal(expected, PhotoFiles.EnumeratePhotosRecursive(_dir.Path).Select(p => System.IO.Path.GetFileName(p.Path)).Order());
+        Assert.Equal(expected, (await PhotoFiles.EnumeratePhotosUnderAsync(_dir.Path, TestContext.Current.CancellationToken))
+            .Select(p => System.IO.Path.GetFileName(p.Path)));
+        Assert.Equal(["only", "sub"], PhotoFiles.EnumerateSubfolders(_dir.Path).Select(System.IO.Path.GetFileName));
+        Assert.False(PhotoFiles.HasSubfolders(sub));
+
+        Assert.True(PhotoFiles.IsInSkippedFolder(_dir.Path, System.IO.Path.Combine(sub, name, "deleted.jpg")));
+        Assert.False(PhotoFiles.IsInSkippedFolder(_dir.Path, System.IO.Path.Combine(sub, "b.jpg")));
+    }
+
+    [Fact]
+    public async Task OpeningAHousekeepingFolderItself_StillShowsItsPhotos()
+    {
+        // Only folders below the one asked for are skipped: someone looking inside #recycle on purpose sees what's there.
+        var recycle = Directory.CreateDirectory(System.IO.Path.Combine(_dir.Path, "#recycle")).FullName;
+        TestImages.Write(recycle, "deleted.jpg", TestImages.Jpeg(16, 16));
+
+        Assert.Single(PhotoFiles.EnumeratePhotosRecursive(recycle));
+        Assert.Single(await PhotoFiles.EnumeratePhotosUnderAsync(recycle, TestContext.Current.CancellationToken));
+        Assert.False(PhotoFiles.IsInSkippedFolder(recycle, System.IO.Path.Combine(recycle, "deleted.jpg")));
+    }
+
     [Fact]
     public void MissingFolder_ReturnsEmpty()
     {

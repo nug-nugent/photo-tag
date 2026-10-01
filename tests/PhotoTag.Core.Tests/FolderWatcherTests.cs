@@ -57,6 +57,22 @@ public sealed class FolderWatcherTests : IDisposable
     }
 
     [Fact]
+    public async Task ChangesInANasRecycleBin_AreNotReported()
+    {
+        var recycle = Directory.CreateDirectory(Path.Combine(_dir.Path, "#recycle", "2020")).FullName;
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        _batches.Clear();
+
+        File.WriteAllBytes(Path.Combine(recycle, "deleted.jpg"), TestImages.Jpeg(16, 16));
+        var photo = Path.Combine(_dir.Path, "a.jpg");
+        File.WriteAllBytes(photo, TestImages.Jpeg(16, 16)); // and something that is reported, to know when to look
+        await WaitForAsync(() => Reported.Contains(photo));
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+
+        Assert.DoesNotContain(Reported, p => p.Contains("#recycle", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task ABurstOfChanges_ArrivesTogether()
     {
         for (var i = 0; i < 30; i++) File.WriteAllBytes(Path.Combine(_dir.Path, $"p{i}.jpg"), TestImages.Jpeg(16, 16));

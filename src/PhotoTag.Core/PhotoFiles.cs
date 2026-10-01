@@ -77,6 +77,33 @@ public static class PhotoFiles
         RecurseSubdirectories = false,
     };
 
+    /// <summary>
+    /// Housekeeping folders that NAS boxes and operating systems keep inside shared folders: recycle bins, snapshots,
+    /// thumbnail caches. Over SMB they aren't hidden, so they're skipped by name; a deleted photo in Synology's
+    /// #recycle mustn't turn up in All photos or the folder tree.
+    /// </summary>
+    private static readonly FrozenSet<string> SkippedFolders = new[]
+    {
+        "#recycle", "#snapshot", "@eaDir", "@tmp", // Synology
+        "@Recycle", ".@__thumb",                   // QNAP
+        "$RECYCLE.BIN", ".Trashes",                // Windows and macOS, on drives where they aren't hidden
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    private static readonly FrozenSet<string>.AlternateLookup<ReadOnlySpan<char>> SkippedFolderNames =
+        SkippedFolders.GetAlternateLookup<ReadOnlySpan<char>>();
+
+    /// <summary>Whether a folder with this name is NAS or system housekeeping, never photos (see <see cref="SkippedFolders"/>).</summary>
+    public static bool IsSkippedFolder(ReadOnlySpan<char> name) => SkippedFolderNames.Contains(name);
+
+    /// <summary>Whether <paramref name="path"/> is, or is inside, a skipped folder below <paramref name="root"/>.</summary>
+    public static bool IsInSkippedFolder(string root, string path)
+    {
+        var relative = Path.GetRelativePath(root, path).AsSpan();
+        foreach (var part in relative.SplitAny(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            if (IsSkippedFolder(relative[part])) return true;
+        return false;
+    }
+
     public static bool IsSupported(string path) => Extensions.Contains(Path.GetExtension(path));
 
     public static bool IsRaw(string path) => RawExtensions.Contains(Path.GetExtension(path));
@@ -88,7 +115,7 @@ public static class PhotoFiles
     public static IReadOnlyList<PhotoFile> EnumeratePhotos(string folder) => Directory.Exists(folder) ? List(folder).Photos : [];
 
     /// <summary>
-    /// Photos in <paramref name="root"/> and every folder under it, skipping hidden and inaccessible folders: each
+    /// Photos in <paramref name="root"/> and every folder under it, skipping hidden, inaccessible and housekeeping folders: each
     /// folder's photos sorted by file name, the folders in the order of the folder tree. Each level's folders are
     /// listed several at a time, which on a network share is much quicker than one after another.
     /// </summary>
@@ -139,7 +166,8 @@ public static class PhotoFiles
             (ref FileSystemEntry entry) => (entry.ToSpecifiedFullPath(), entry.IsDirectory, new FileStamp(entry.Length, entry.LastWriteTimeUtc.UtcTicks)),
             Options)
         {
-            ShouldIncludePredicate = (ref FileSystemEntry entry) => entry.IsDirectory || IsSupported(entry.FileName.ToString()),
+            ShouldIncludePredicate = (ref FileSystemEntry entry) =>
+                entry.IsDirectory ? !IsSkippedFolder(entry.FileName) : IsSupported(entry.FileName.ToString()),
         };
         foreach (var (path, isDirectory, stamp) in entries)
         {
@@ -152,7 +180,7 @@ public static class PhotoFiles
         return (photos, subfolders);
     }
 
-    /// <summary>Photos anywhere under <paramref name="root"/>, pairs merged, skipping hidden and inaccessible folders.</summary>
+    /// <summary>Photos anywhere under <paramref name="root"/>, pairs merged, skipping hidden, inaccessible and housekeeping folders.</summary>
     public static IEnumerable<PhotoFile> EnumeratePhotosRecursive(string root)
     {
         if (!Directory.Exists(root)) return [];
@@ -162,8 +190,11 @@ public static class PhotoFiles
             AttributesToSkip = FileAttributes.Hidden | FileAttributes.System,
             RecurseSubdirectories = true,
         };
-        return Directory.EnumerateFiles(root, "*", options)
-            .Where(IsSupported)
+        return new FileSystemEnumerable<string>(root, (ref FileSystemEntry entry) => entry.ToSpecifiedFullPath(), options)
+            {
+                ShouldIncludePredicate = (ref FileSystemEntry entry) => !entry.IsDirectory && IsSupported(entry.FileName.ToString()),
+                ShouldRecursePredicate = (ref FileSystemEntry entry) => !IsSkippedFolder(entry.FileName),
+            }
             .GroupBy(Path.GetDirectoryName)
             .SelectMany(Group);
     }
@@ -273,7 +304,7 @@ public static class PhotoFiles
     {
         if (!Directory.Exists(folder)) return [];
 
-        var folders = Directory.EnumerateDirectories(folder, "*", Options).ToList();
+        var folders = Directory.EnumerateDirectories(folder, "*", Options).Where(f => !IsSkippedFolder(Path.GetFileName(f))).ToList();
         folders.Sort(CompareFileNames);
         return folders;
     }
@@ -282,7 +313,7 @@ public static class PhotoFiles
     {
         try
         {
-            return Directory.EnumerateDirectories(folder, "*", Options).Any();
+            return Directory.EnumerateDirectories(folder, "*", Options).Any(f => !IsSkippedFolder(Path.GetFileName(f)));
         }
         catch (IOException)
         {

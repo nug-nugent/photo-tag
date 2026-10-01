@@ -41,6 +41,23 @@ public sealed class LibraryIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task Scan_SkipsNasRecycleBinsAndThumbnailFolders()
+    {
+        // A photo deleted from a Synology share lands in #recycle; it mustn't come back in All photos.
+        Photo("a.jpg", "Beach");
+        Photo(Path.Combine("2020", "#recycle", "b.jpg"), "Beach");
+        Photo(Path.Combine("#recycle", "2020", "c.jpg"));
+        Photo(Path.Combine("2020", "@eaDir", "d.jpg"));
+        Photo(Path.Combine("#snapshot", "e.jpg"));
+        Photo(Path.Combine("@Recycle", "f.jpg"));
+
+        var result = await _index.ScanAsync(_library, cancellationToken: Ct);
+
+        Assert.Equal(1, result.Total);
+        Assert.Equal([Path.Combine(_library, "a.jpg")], await _index.SearchAsync(_library, new PhotoQuery()));
+    }
+
+    [Fact]
     public async Task FolderCounts_DoNotIncludeSiblingsWithTheSamePrefix()
     {
         Photo(Path.Combine("2020", "a.jpg"), "X");
