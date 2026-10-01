@@ -19,6 +19,8 @@ macOS open **System Settings → Privacy & Security** and click **Open Anyway**.
 Early days. Today it can:
 
 - Browse a folder tree (subfolders load lazily, off the UI thread)
+- See a folder's subfolders' photos with it (*Subfolders*), so a year folder shows the whole year, by day if you like;
+  a folder with no photos of its own always does
 - Show a virtualized thumbnail grid that stays responsive with thousands of photos. Every tile has a ♥ to favourite
   it in one click, a dot for each tag, and a red mark if it has no tags yet. Sort by file name or date taken, or
   group by day with favourites at double size, so each day reads as its highlights (and jump from day to day)

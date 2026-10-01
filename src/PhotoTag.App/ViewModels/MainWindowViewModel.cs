@@ -242,6 +242,26 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// A folder shows the photos in its subfolders too, so a year folder shows the whole year. Saved in
+    /// settings.json. A folder with no photos of its own shows its subfolders' photos either way.
+    /// </summary>
+    public bool IncludeSubfolders
+    {
+        get => _settings.IncludeSubfolders;
+        set
+        {
+            if (value == _settings.IncludeSubfolders) return;
+            _settings.IncludeSubfolders = value;
+            _settings.Save();
+            OnPropertyChanged();
+            if (!IsSearching && SelectedFolder is { IsPlaceholder: false } folder) ShowFolder(folder);
+        }
+    }
+
+    /// <summary>Whether the grid has the photos of the folder's subfolders as well as its own.</summary>
+    [ObservableProperty] public partial bool ShowsSubfolders { get; private set; }
+
     /// <summary>Orders the loaded photos by the current sort, and adds day headings if grouped.</summary>
     private void Arrange()
     {
@@ -354,7 +374,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
         if (SelectedFolder is not { IsPlaceholder: false } folder) return;
         Heading = folder.Name;
-        Subheading = Photos.Count == 0 ? "No photos in this folder" : $"{tagged:N0} of {Photos.Count:N0} tagged · {favouriteText}";
+        Subheading = Photos.Count == 0
+            ? ShowsSubfolders ? "No photos in this folder or its subfolders" : "No photos in this folder"
+            : $"{tagged:N0} of {Photos.Count:N0} tagged · {favouriteText}" + FromFolders(folder.Path);
 
         // Root, then each folder down to this one.
         var crumbs = new List<BreadcrumbItem>();
@@ -371,6 +393,19 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             }
         }
         SetBreadcrumb(crumbs);
+    }
+
+    /// <summary>" · from 12 folders" when the grid has photos from the folder's subfolders, else nothing.</summary>
+    private string FromFolders(string shown)
+    {
+        if (!ShowsSubfolders) return "";
+        var folders = Photos.Select(p => Path.GetDirectoryName(p.Path) ?? "").Distinct(PathComparer).ToList();
+        return folders switch
+        {
+            [var only] when PathComparer.Equals(only, shown) => "",
+            [_] => " · from 1 subfolder",
+            _ => $" · from {folders.Count:N0} folders",
+        };
     }
 
     /// <summary>
@@ -407,14 +442,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             }
         }
         return null;
+    }
 
-        static bool IsSameOrUnder(string path, string folder)
-        {
-            folder = Path.TrimEndingDirectorySeparator(folder);
-            path = Path.TrimEndingDirectorySeparator(path);
-            return path.Equals(folder, StringComparison.OrdinalIgnoreCase)
-                   || path.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-        }
+    private static bool IsSameOrUnder(string path, string folder)
+    {
+        folder = Path.TrimEndingDirectorySeparator(folder);
+        path = Path.TrimEndingDirectorySeparator(path);
+        return path.Equals(folder, StringComparison.OrdinalIgnoreCase)
+               || path.StartsWith(folder + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
@@ -611,7 +646,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             {
                 var paths = await Library.Index.SearchAsync(root, query);
                 // The index may lag deletions; results need their RAW companions to be tagged as pairs.
-                return await PhotoFiles.FindAsync(paths);
+                return (await PhotoFiles.FindAsync(paths), false);
             },
             count => count == 0 ? $"No {description}" : $"{count:N0} {description} in {Path.GetFileName(root)}");
     }
@@ -752,19 +787,29 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             _changingFilters = false;
         }
         if (value.IsPlaceholder) return;
+        ShowFolder(value);
+    }
 
+    private void ShowFolder(FolderNodeViewModel folder)
+    {
         PhotosLoading = ShowPhotosAsync(
-            () => Task.Run(() => PhotoFiles.EnumeratePhotos(value.Path)),
-            count => count switch
-            {
-                0 => $"No photos in {value.Name}",
-                1 => $"1 photo in {value.Name}",
-                var n => $"{n:N0} photos in {value.Name}",
-            });
+            () => LoadFolderAsync(folder.Path),
+            count => (count == 1 ? "1 photo" : $"{count:N0} photos") + $" in {folder.Name}" + (ShowsSubfolders ? " and its subfolders" : ""));
+    }
+
+    /// <summary>A folder's photos, and its subfolders' too if <see cref="IncludeSubfolders"/> is on or it has none of its own.</summary>
+    private async Task<(IReadOnlyList<PhotoFile> Files, bool WithSubfolders)> LoadFolderAsync(string folder)
+    {
+        if (!IncludeSubfolders)
+        {
+            var own = await Task.Run(() => PhotoFiles.EnumeratePhotos(folder));
+            if (own.Count > 0) return (own, false);
+        }
+        return (await PhotoFiles.EnumeratePhotosUnderAsync(folder), true);
     }
 
     /// <summary>Replaces the grid's photos with a folder's contents or search results.</summary>
-    private async Task ShowPhotosAsync(Func<Task<IReadOnlyList<PhotoFile>>> load, Func<int, string> describe)
+    private async Task ShowPhotosAsync(Func<Task<(IReadOnlyList<PhotoFile> Files, bool WithSubfolders)>> load, Func<int, string> describe)
     {
         _photosLoad?.Cancel();
         _photosLoad?.Dispose();
@@ -785,7 +830,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
         try
         {
-            var files = await load();
+            var (files, withSubfolders) = await load();
             if (cts.IsCancellationRequested) return;
 
             var photos = files.Select((f, i) => new PhotoItemViewModel(f, i, _thumbnails)).ToList();
@@ -798,6 +843,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             }
             foreach (var photo in photos) photo.PropertyChanged += OnPhotoChanged;
             _loaded = photos;
+            ShowsSubfolders = withSubfolders;
             Arrange();
             StatusText = describe(files.Count);
             await RefreshSummariesAsync();
@@ -870,11 +916,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
 
         if (shown is not null)
         {
-            if (changes.Everything || changes.Folders.Contains(shown)
-                || changes.Added.Concat(changes.Removed).Any(p => PathComparer.Equals(Path.GetDirectoryName(p), shown)))
+            // With subfolders on screen, a change in any of them; otherwise one in the folder itself.
+            bool Affects(string folder) => ShowsSubfolders ? IsSameOrUnder(folder, shown) : PathComparer.Equals(folder, shown);
+            if (changes.Everything || changes.Folders.Any(Affects)
+                || changes.Added.Concat(changes.Removed).Any(p => Path.GetDirectoryName(p) is { } folder && Affects(folder)))
             {
-                var files = await Task.Run(() => PhotoFiles.EnumeratePhotos(shown));
+                var (files, withSubfolders) = await LoadFolderAsync(shown);
                 if (ShownFolder != shown) return;
+                ShowsSubfolders = withSubfolders; // e.g. a folder that had none of its own now has a photo
                 await ReconcileAsync(files);
             }
         }
