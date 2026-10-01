@@ -7,15 +7,7 @@ Sizes are rough: **S** = an hour or two, **M** = a session, **L** = several sess
 
 ## 1. Shipping
 
-### 1.1 Publish the first release and prove install + update work (S, needs the owner)
-**Why:** the release workflow has only run as a trial. Real installs and Velopack's auto-update have never been exercised.
-**What:** tag and push `v0.1.0`; install it on Windows (and a Mac, if available); then push a small `v0.1.1` and check the
-installed copy offers *"PhotoTag 0.1.1 is ready to install"* and updates on restart.
-**Where:** `.github/workflows/release.yml`, `src/PhotoTag.App/AppUpdater.cs`, `UpdatesViewModel.cs`.
-**Done when:** a v0.1.0 install updates itself to v0.1.1 on at least Windows. Fix anything found (e.g. delta packages,
-the "download previous release" step, which has never run for real).
-
-### 1.2 Code signing (M, needs paid accounts)
+### 1.1 Code signing (M, needs paid accounts)
 **Why:** unsigned builds trigger SmartScreen on Windows and Gatekeeper on macOS on first launch.
 **What:** macOS: Apple Developer ID + notarisation (`vpk pack --signAppIdentity/--signInstallIdentity/--notaryProfile`).
 Windows: Azure Trusted Signing (`vpk pack --azureTrustedSignFile`). Secrets go in GitHub Actions secrets; the owner sets
@@ -24,8 +16,10 @@ up the accounts.
 
 ## 2. Photos on a NAS
 
-The owner is planning to keep photos on a NAS (PhotoTag opens the network share; the NAS does snapshots and off-site
-backup; PhotoTag should **not** implement backup itself).
+The owner keeps the photos on a NAS (a Synology DS223j, mapped as a drive). PhotoTag opens the network share; the NAS
+does snapshots and off-site backup, and PhotoTag should **not** implement backup itself. **Two PCs (a desktop and a
+laptop) use it as equals:** both run PhotoTag on the same share and both edit tags, people, places and favourites.
+Each keeps its own index and notices the other's edits through the folder watcher and the 30-second poll.
 
 ### 2.1 Try it on the real NAS (S, needs the NAS)
 **Why:** network shares are tested over Windows' loopback share (`\\localhost\C$`, see `NetworkShareTests`), which has
@@ -35,6 +29,25 @@ fine; that a sleeping NAS shows "Waiting for …" rather than freezing; that pul
 clear message and loses nothing from the index; and that other apps' changes on the share show up (notifications,
 or the 30-second poll). Tune the scan's parallelism for network drives (`LibraryIndex`, now 8) if needed. The log
 (⚙ Settings → Show log) records how long each folder took to answer and each scan took, and what failed.
+
+### 2.2 Tags and people added on both PCs always merge (S)
+**Why:** the single-photo panel saves its **whole** tag (or people) list. If the other PC added a tag to the same photo
+a few seconds earlier and this panel hadn't reloaded yet, the save writes the list without it, and that tag is lost.
+(Text fields are fine: a save writes only the field that changed. Bulk edits are fine: each photo is re-read just
+before it's changed.)
+**What:** make the panel's add and remove work like bulk editing: when saving, re-read the photo's current tags or
+people and add or remove only what was changed, then show the merged result. Same for "Add suggested tag" and
+removing a chip.
+**Where:** `PhotoDetailsViewModel.AddToListAsync`/`RemoveFromListAsync`, `PhotoMetadataWriter`, and `BulkMetadataEditor`'s
+read-then-plan approach to reuse. A test can play the other PC by writing the file directly, then adding a tag in the
+panel before the watcher reloads it.
+
+### 2.3 Undo doesn't overwrite the other PC's later edits (S)
+**Why:** undoing a bulk edit puts back each photo's earlier values. If the other PC has changed the same field on some of
+those photos since, undo replaces their change.
+**What:** before undoing a photo, check its field still holds what the bulk edit wrote (`BulkChange.After`); if not,
+leave that photo alone, and say so in the summary ("Undid 40 photos; 2 changed since on another PC were left").
+**Where:** `BulkMetadataEditor.UndoAsync`, `BulkOperations.UndoAsync` (status text).
 
 ## 5. Housekeeping
 
