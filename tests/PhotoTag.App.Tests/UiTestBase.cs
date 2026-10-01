@@ -64,6 +64,18 @@ public abstract class UiTestBase : IAsyncDisposable
         IAppUpdater? updater = null, IExactPlaceLookup? placeLookup = null, ExifToolStatus exifToolStatus = ExifToolStatus.NotFound,
         string? root = null, string? logPath = null)
     {
+        var (window, vm) = Show(writer, renderer, updater, placeLookup, exifToolStatus, logPath);
+        await vm.OpenRootAsync(root ?? DirPath);
+        await WaitForAsync(() => vm.Photos.Count > 0);
+        await WaitForAsync(() => Tiles(window).Count >= Math.Min(vm.Photos.Count, 12));
+        return (window, vm);
+    }
+
+    /// <summary>The main window as it first appears, with no folder open.</summary>
+    protected (MainWindow Window, MainWindowViewModel Vm) Show(PhotoMetadataWriter? writer = null, PhotoRenderer? renderer = null,
+        IAppUpdater? updater = null, IExactPlaceLookup? placeLookup = null, ExifToolStatus exifToolStatus = ExifToolStatus.NotFound,
+        string? logPath = null)
+    {
         var settings = AppSettings.Load(SettingsPath);
         var thumbnails = new ThumbnailCache(ThumbnailsPath(_opened.Count), renderer);
         var index = new LibraryIndex(Path.Combine(_appData.Path, $"library{_opened.Count}.db"));
@@ -76,9 +88,7 @@ public abstract class UiTestBase : IAsyncDisposable
         // Tall enough that the whole details panel and all test tiles are on screen.
         var window = new MainWindow { DataContext = vm, Width = 1400, Height = 2400 };
         window.Show();
-        await vm.OpenRootAsync(root ?? DirPath);
-        await WaitForAsync(() => vm.Photos.Count > 0);
-        await WaitForAsync(() => Tiles(window).Count >= Math.Min(vm.Photos.Count, 12));
+        Settle();
         return (window, vm);
     }
 

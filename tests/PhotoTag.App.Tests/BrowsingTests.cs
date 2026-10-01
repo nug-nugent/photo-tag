@@ -1,7 +1,9 @@
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
+using Avalonia.VisualTree;
 using PhotoTag.App.ViewModels;
 using PhotoTag.Core;
 
@@ -10,6 +12,20 @@ namespace PhotoTag.App.Tests;
 /// <summary>Finding your way around: library views, the breadcrumb, sorting and grouping by day, the tiles.</summary>
 public sealed class BrowsingTests : UiTestBase
 {
+    [AvaloniaFact]
+    public void BeforeAFolderIsOpen_TheBigOpenFolderButtonTakesClicks()
+    {
+        var (window, _) = Show();
+        var button = Find<Button>(window, "StartOpenFolderButton");
+        Assert.True(button.IsEffectivelyVisible);
+
+        // What a click at its centre would land on: the button, not something drawn over it.
+        var centre = button.TranslatePoint(new Point(button.Bounds.Width / 2, button.Bounds.Height / 2), window)!.Value;
+        var hit = Assert.IsAssignableFrom<Visual>(window.InputHitTest(centre));
+        Assert.True(hit == button || button.IsVisualAncestorOf(hit), $"A click there lands on {hit.GetType().Name} {(hit as Control)?.Name}");
+        window.Close();
+    }
+
     [AvaloniaFact]
     public async Task LibraryViews_ShowCounts_AndAllPhotosComesFromEveryFolder()
     {
