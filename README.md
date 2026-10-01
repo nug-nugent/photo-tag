@@ -75,7 +75,7 @@ first that your backup tool compares file contents or checksums, not just dates 
 took, and anything that failed (a photo that couldn't be saved, a share that couldn't be reached). It's `log.txt` (plus
 `log.old.txt` once it passes 1 MB) in PhotoTag's data folder, and it's worth attaching to a bug report.
 
-**PhotoTag's data folder** holds its settings, library index, thumbnail cache and log: `%LocalAppData%\PhotoTag Data`
+**PhotoTag's data folder** holds its settings, library index, thumbnail cache and log: `%LocalAppData%\PhotoTag-Data`
 on Windows (beside the app, which installs to `%LocalAppData%\PhotoTag`; uninstalling leaves the data for a reinstall),
 `~/Library/Application Support/PhotoTag` on macOS and `~/.local/share/PhotoTag` on Linux. Everything in it can be
 rebuilt: the tags are in the photos.

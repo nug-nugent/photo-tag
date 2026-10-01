@@ -6,12 +6,12 @@ public static class AppData
     private static readonly string LocalAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
 
     /// <summary>
-    /// <c>%LocalAppData%\PhotoTag Data</c> on Windows, where the installer puts the app itself in
+    /// <c>%LocalAppData%\PhotoTag-Data</c> on Windows, where the installer puts the app itself in
     /// <c>%LocalAppData%\PhotoTag</c>: sharing that folder made a fresh install think PhotoTag was already there,
     /// and uninstalling would delete the index. macOS and Linux install the app elsewhere, so there it's the
     /// usual <c>PhotoTag</c> folder.
     /// </summary>
-    public static string Folder { get; } = Path.Combine(LocalAppData, OperatingSystem.IsWindows() ? "PhotoTag Data" : "PhotoTag");
+    public static string Folder { get; } = Path.Combine(LocalAppData, OperatingSystem.IsWindows() ? "PhotoTag-Data" : "PhotoTag");
 
     /// <summary>What PhotoTag keeps in <see cref="Folder"/>, and so what's moved from the old Windows location.</summary>
     internal static readonly string[] Contents =

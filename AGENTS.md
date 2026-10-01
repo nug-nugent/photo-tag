@@ -134,7 +134,7 @@ dotnet run --project src/PhotoTag.App
   flips and notices errors through the (global) error handler. `TiffTests` covers every orientation and layout.
 - **PhotoTag's own files go in `AppData.Folder`**, never straight under `LocalApplicationData`. On Windows the installer
   (Velopack) owns `%LocalAppData%\PhotoTag`: data there made a fresh install say "already installed", and an
-  uninstall would delete it. So Windows uses `PhotoTag Data` beside it, and `Program.Main` moves anything left in
+  uninstall would delete it. So Windows uses `PhotoTag-Data` beside it, and `Program.Main` moves anything left in
   the old place (`AppData.MoveFromOldLocation`, never replacing). Add any new file to `AppData.Contents`.
 - **Styles match exact types:** `TextBlock.caption` doesn't style a `SelectableTextBlock`; list both.
 - **Line endings:** `.gitattributes` normalises to LF in the repo; Windows checkouts get CRLF. Scripts that edit files

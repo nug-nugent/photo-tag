@@ -5,7 +5,7 @@ public sealed class AppDataTests : IDisposable
 {
     private readonly TempDir _dir = new();
     private string Old => Path.Combine(_dir.Path, "PhotoTag");
-    private string New => Path.Combine(_dir.Path, "PhotoTag Data");
+    private string New => Path.Combine(_dir.Path, "PhotoTag-Data");
 
     private string Write(string folder, string relativePath, string text = "x")
     {
