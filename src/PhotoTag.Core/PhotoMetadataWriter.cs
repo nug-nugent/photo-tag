@@ -101,14 +101,92 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         }
     }
 
+    /// <summary>Where ExifTool writes each new file before it's copied over the photo.</summary>
+    internal string TempFolder { get; init; } = Path.Combine(Path.GetTempPath(), "PhotoTag-writes");
+
+    /// <summary>
+    /// ExifTool rewrites the whole file. Left to update it in place, it writes a full copy beside the photo, copies that
+    /// back over it and deletes it: on a network share, four times the photo's size over the network (1.6 s for a 3 MB
+    /// JPEG on the owner's NAS), and the deleted copy kept in the NAS's recycle bin. So it writes the new file here
+    /// instead, and that's copied over the photo: twice the size, nothing left on the share, and the photo is still
+    /// the same file (its created time, attributes and permissions are kept).
+    /// </summary>
     private async Task WriteFileAsync(string path, MetadataChanges changes, CancellationToken cancellationToken)
     {
-        var output = await exifTool.ExecuteAsync(BuildArguments(path, changes, PreserveModifiedTime), cancellationToken)
-            .ConfigureAwait(false);
-        if (!output.Contains("1 image files updated", StringComparison.Ordinal)
-            && !output.Contains("1 image files unchanged", StringComparison.Ordinal))
+        var modified = PreserveModifiedTime ? File.GetLastWriteTimeUtc(path) : default;
+        Directory.CreateDirectory(TempFolder);
+        var written = Path.Combine(TempFolder, Guid.NewGuid().ToString("N") + Path.GetExtension(path));
+        var keep = false;
+        try
         {
-            throw new ExifToolException($"ExifTool didn't update the file: {output.Trim()}");
+            var output = await exifTool.ExecuteAsync(BuildArguments(path, changes, written), cancellationToken).ConfigureAwait(false);
+            if (!output.Contains("1 image files created", StringComparison.Ordinal) || !File.Exists(written))
+                throw new ExifToolException($"ExifTool didn't update the file: {output.Trim()}");
+
+            await CopyOverAsync(written, path).ConfigureAwait(false);
+            if (PreserveModifiedTime) File.SetLastWriteTimeUtc(path, modified);
+        }
+        catch (HalfWrittenException)
+        {
+            keep = true; // the only good copy now
+            throw;
+        }
+        finally
+        {
+            if (!keep) TryDelete(written);
+        }
+    }
+
+    /// <summary>
+    /// Copies <paramref name="source"/> over the contents of <paramref name="target"/>. Throws
+    /// <see cref="HalfWrittenException"/> if it fails part way, after trying again.
+    /// </summary>
+    private static async Task CopyOverAsync(string source, string target)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            var started = false;
+            try
+            {
+                using var from = PhotoFiles.OpenRead(source);
+                using var to = new FileStream(target, FileMode.Open, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete, CopyBuffer);
+                started = true;
+                from.CopyTo(to, CopyBuffer);
+                to.SetLength(from.Length);
+                to.Flush(flushToDisk: true);
+                return;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                // Not started: the photo is as it was (locked, say), and the caller reports it like any other failure.
+                if (!started) throw;
+                // A network share dropping out mid-copy leaves the photo half written: try again, then keep the new file.
+                if (attempt < 3)
+                {
+                    Log.Warn($"Couldn't finish saving {target}; trying again", e);
+                    await Task.Delay(TimeSpan.FromSeconds(attempt)).ConfigureAwait(false);
+                    continue;
+                }
+                Log.Error($"Couldn't finish saving {target}, which may be damaged. The saved version is at {source}", e);
+                throw new HalfWrittenException($"Couldn't finish saving {Path.GetFileName(target)}: it may be damaged. " +
+                                               $"A good copy, with the new tags, is at {source}.", e);
+            }
+        }
+    }
+
+    private sealed class HalfWrittenException(string message, Exception inner) : IOException(message, inner);
+
+    private const int CopyBuffer = 1 << 20; // fewer, larger writes: each one is a round trip on a network share
+
+    private static void TryDelete(string path)
+    {
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Log.Warn($"Couldn't delete {path}", e);
         }
     }
 
@@ -177,7 +255,8 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
 
-    internal static List<string> BuildArguments(string path, MetadataChanges changes, bool preserveModifiedTime = false)
+    /// <param name="output">Where ExifTool writes the new file; the photo itself is only read.</param>
+    internal static List<string> BuildArguments(string path, MetadataChanges changes, string output)
     {
         // JPEGs and TIFFs also get the older IPTC and EXIF fields. Other apps write them there and PhotoTag reads
         // them, so if they were left alone a tag removed from XMP would come back from IPTC.
@@ -188,9 +267,8 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
             "-charset", "filename=utf8", // file names are passed as UTF-8
             "-E",                         // values are HTML-escaped, so they can contain newlines
             "-m",                         // don't refuse to write because of minor quirks in existing metadata
-            "-overwrite_original_in_place", // no *_original backups; keeps created time and attributes
+            "-o", output,
         ];
-        if (preserveModifiedTime) args.Add("-P");
 
         if (changes.Keywords is { } keywords)
         {
