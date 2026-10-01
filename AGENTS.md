@@ -21,7 +21,7 @@ The [README](README.md) describes features and design; [TODO.md](TODO.md) lists 
 ```bash
 dotnet build PhotoTag.slnx
 dotnet test --solution PhotoTag.slnx
-dotnet run --project src/PhotoTag.App
+dotnet run --project src/PhotoTag.App   # a Debug build: its own settings and index, in PhotoTag-Dev
 ```
 
 - **ExifTool must be on PATH** for the tag-writing and RAW tests; without it they skip. On Windows it's installed at
@@ -136,6 +136,9 @@ dotnet run --project src/PhotoTag.App
   (Velopack) owns `%LocalAppData%\PhotoTag`: data there made a fresh install say "already installed", and an
   uninstall would delete it. So Windows uses `PhotoTag-Data` beside it, and `Program.Main` moves anything left in
   the old place (`AppData.MoveFromOldLocation`, never replacing). Add any new file to `AppData.Contents`.
+  A Debug build (`dotnet run`) uses `PhotoTag-Dev` instead and says "(dev)" in its title, so it never shares the
+  installed copy's settings, index or log; `PHOTOTAG_DATA` points either at another folder. The self-check fails a
+  Debug build, so one can't be released.
 - **Styles match exact types:** `TextBlock.caption` doesn't style a `SelectableTextBlock`; list both.
 - **Line endings:** `.gitattributes` normalises to LF in the repo; Windows checkouts get CRLF. Scripts that edit files
   should cope with both.

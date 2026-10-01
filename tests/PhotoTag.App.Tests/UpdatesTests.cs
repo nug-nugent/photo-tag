@@ -95,7 +95,10 @@ public sealed class UpdatesTests : UiTestBase
             Assert.Contains("decoded 32x24", json);
             // In a test run ExifTool comes from PATH (if installed), so only check it was reported.
             Assert.Contains("\"exiftool\"", json);
-            Assert.Equal(ExifToolSetup.Find().Status == ExifToolStatus.Ready ? 0 : 1, exitCode);
+            // A Debug build fails, as it uses PhotoTag-Dev for its files: only Release builds are released.
+            Assert.Contains("\"data folder\"", json);
+            var shouldPass = ExifToolSetup.Find().Status == ExifToolStatus.Ready && !AppData.IsDevelopmentBuild;
+            Assert.Equal(shouldPass ? 0 : 1, exitCode);
         }
         finally
         {

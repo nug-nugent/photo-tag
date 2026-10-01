@@ -42,6 +42,8 @@ public partial class App : Application
             if (startFolder is not null) _ = viewModel.OpenRootAsync(startFolder); // says so if it can't be reached
 
             desktop.MainWindow = new MainWindow { DataContext = viewModel };
+            // So a dev copy (with its own settings and index) isn't mistaken for the installed one.
+            if (AppData.IsDevelopmentBuild) desktop.MainWindow.Title += " (dev)";
             desktop.MainWindow.Opened += (_, _) => _ = viewModel.Updates.CheckOnStartupAsync();
             desktop.Exit += (_, _) =>
             {

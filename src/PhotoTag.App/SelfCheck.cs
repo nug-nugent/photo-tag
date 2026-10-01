@@ -46,6 +46,11 @@ internal static class SelfCheck
             return $"{version} at {path}{(bundled ? " (bundled)" : " (NOT bundled)")}{perl}";
         });
 
+        // A Debug build keeps its files in PhotoTag-Dev, so a package built that way wouldn't find the user's.
+        await Check("data folder", () => AppData.IsDevelopmentBuild
+            ? throw new InvalidOperationException($"This is a Debug build, using {AppData.Folder}.")
+            : Task.FromResult(AppData.Folder));
+
         await Check("sqlite", () =>
         {
             using var connection = new SqliteConnection("Data Source=:memory:");
