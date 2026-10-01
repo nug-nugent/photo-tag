@@ -127,6 +127,10 @@ dotnet run --project src/PhotoTag.App   # a Debug build: its own settings and in
 - **Search results are checked by folder, not by photo.** The index's paths go through `PhotoFiles.FindAsync`, which
   lists each folder once (several at a time) for existence, RAW companions and stamps. Asking about each photo was
   ~20 ms a time on the owner's NAS: "All photos" (26k) took 9 minutes; listing its 421 folders takes 3 s.
+- **ExifTool never writes beside the photo.** It writes the new file to `%TEMP%/PhotoTag-writes` (`-o`), and
+  `PhotoMetadataWriter` copies that over the photo in place. Left to itself (`-overwrite_original_in_place`) it wrote a
+  full copy on the share, copied it back and deleted it: 4x the photo over the network, and a Synology keeps every
+  deleted copy in `#recycle`. If the copy back fails part way, the new file is kept and its path logged.
 - **Open library files with `PhotoFiles.OpenRead`**, not `File.OpenRead`: on Windows a file open without
   `FileShare.Delete` can't be deleted or renamed by anyone else until it's closed, so deleting a photo in Explorer
   while PhotoTag read it failed (and so did `OutsideChangesTests` on a Windows runner).

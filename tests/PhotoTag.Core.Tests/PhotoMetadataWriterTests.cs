@@ -252,16 +252,57 @@ public sealed class PhotoMetadataWriterTests(ExifToolFixture fixture) : IClassFi
     [Fact]
     public void BuildArguments_SkipsIptcForNonJpeg_AndEscapesValues()
     {
-        var png = PhotoMetadataWriter.BuildArguments("a.png", new MetadataChanges { Keywords = ["A"], Description = "x\ny & z" });
+        var png = PhotoMetadataWriter.BuildArguments("a.png", new MetadataChanges { Keywords = ["A"], Description = "x\ny & z" }, "out.png");
         Assert.DoesNotContain(png, a => a.StartsWith("-IPTC", StringComparison.Ordinal));
         Assert.Contains("-XMP-dc:Description=x&#xa;y &amp; z", png);
         Assert.Equal("a.png", png[^1]);
 
-        var jpg = PhotoMetadataWriter.BuildArguments("a.JPG", new MetadataChanges { Keywords = [] });
+        var jpg = PhotoMetadataWriter.BuildArguments("a.JPG", new MetadataChanges { Keywords = [] }, "out.JPG");
         Assert.Contains("-IPTC:Keywords=", jpg);
         Assert.Contains("-XMP-dc:Subject=", jpg);
-        Assert.DoesNotContain("-P", jpg);
-        Assert.Contains("-P", PhotoMetadataWriter.BuildArguments("a.jpg", new MetadataChanges { Favourite = true }, preserveModifiedTime: true));
+        Assert.Equal("out.JPG", jpg[jpg.IndexOf("-o") + 1]); // the photo itself is only read
+    }
+
+    [Fact]
+    public async Task Saving_LeavesNothingBehind_AndKeepsTheFile()
+    {
+        using var temp = new TempDir();
+        var writer = new PhotoMetadataWriter(fixture.RequireExifTool()) { TempFolder = temp.Path };
+        var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(200, 100));
+        var created = new DateTime(2019, 3, 4, 5, 6, 7, DateTimeKind.Utc);
+        if (!OperatingSystem.IsLinux()) File.SetCreationTimeUtc(path, created);
+
+        await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Beach"], Favourite = true }, Ct);
+        await writer.WriteAsync(path, new MetadataChanges { Keywords = ["Beach", "A much longer tag than before"] }, Ct);
+        var longer = new FileInfo(path).Length;
+        await writer.WriteAsync(path, new MetadataChanges { Keywords = [] }, Ct);
+        Assert.True(new FileInfo(path).Length < longer, "the file should shrink, not keep the old file's end"); // written over in place
+
+        Assert.Equal(["photo.jpg"], Directory.GetFiles(_dir.Path).Select(Path.GetFileName));
+        Assert.Empty(Directory.GetFiles(temp.Path));
+        if (!OperatingSystem.IsLinux()) Assert.Equal(created, File.GetCreationTimeUtc(path)); // the same file, rewritten
+        var metadata = PhotoMetadata.Read(path);
+        Assert.Empty(metadata.Keywords);
+        Assert.True(metadata.IsFavourite);
+        using (var bitmap = SKBitmap.Decode(path)) Assert.Equal((200, 100), (bitmap.Width, bitmap.Height)); // still a whole JPEG
+        var validation = await fixture.RequireExifTool().ExecuteAsync(["-validate", "-warning", "-a", path], Ct);
+        Assert.DoesNotContain("Warning", validation, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task APhotoThatCantBeOpened_IsLeftAsItWas()
+    {
+        if (!OperatingSystem.IsWindows()) Assert.Skip("Only Windows locks files against writing.");
+        var writer = fixture.RequireWriter();
+        var path = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(64, 64, xmpKeywords: ["Old"]));
+        var before = File.ReadAllBytes(path);
+
+        using (new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read)) // another app has it open, not sharing writes
+        {
+            await Assert.ThrowsAnyAsync<IOException>(() => writer.WriteAsync(path, new MetadataChanges { Keywords = ["New"] }, Ct));
+        }
+
+        Assert.Equal(before, File.ReadAllBytes(path));
     }
 
     [Fact]
