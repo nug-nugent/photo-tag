@@ -186,14 +186,13 @@ public sealed class MultiSelectTests : UiTestBase
         // Part way through: the photos done so far show it, on their tiles and in the panel's count.
         await WaitForAsync(() => vm.Photos.Count(p => p.Keywords.Contains("Live")) == 4);
         Assert.True(vm.Operations.IsBusy);
-        Assert.Contains(bulk.Keywords, k => k is { Keyword: "Live", Count: > 0 and < 60 });
+        await WaitForAsync(() => bulk.Keywords.Any(k => k is { Keyword: "Live", Count: 4 })); // a moment later at most
+        await WaitForAsync(() => vm.Subheading?.StartsWith("4 of 60 tagged", StringComparison.Ordinal) == true);
         Assert.All(vm.Photos.Where(p => p.Keywords.Contains("Live")), p => Assert.False(p.IsUntagged));
         Assert.Equal(56, vm.Photos.Count(p => p.IsUntagged)); // and the rest don't, yet
         var progressText = await WaitForControlAsync(() => FindAll<TextBlock>(window).FirstOrDefault(t => t.Name == "CommandBarProgressText"));
         Assert.EndsWith("4 of 60 done", progressText.Text, StringComparison.Ordinal);
         Assert.True(Find<Button>(window, "BulkCancelButton").IsEffectivelyVisible);
-        Assert.NotNull(vm.Subheading);
-        Assert.DoesNotMatch("^0 of 60 tagged", vm.Subheading);
 
         Click(window, Find<Button>(window, "CommandBarCancel"));
         gate.Release(60);
