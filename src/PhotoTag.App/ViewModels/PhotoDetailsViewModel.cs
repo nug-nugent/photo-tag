@@ -326,13 +326,10 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private Task RemovePerson(string name) => RemoveFromListAsync(ListField.People, People, name);
 
-    /// <summary>"beach, family" adds both.</summary>
+    /// <summary>"beach; family" (or "beach, family") adds both.</summary>
     private async Task AddToListAsync(ListField field, ObservableCollection<string> list, string? text)
     {
-        var toAdd = (text ?? "").Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-            .Where(v => !list.Contains(v, StringComparer.OrdinalIgnoreCase))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        var toAdd = ListInput.Split(text).Where(v => !list.Contains(v, StringComparer.OrdinalIgnoreCase)).ToList();
         if (toAdd.Count == 0) return;
 
         foreach (var value in toAdd) list.Add(value); // straight away; the save shows the merged list

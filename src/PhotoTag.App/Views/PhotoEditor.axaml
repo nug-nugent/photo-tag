@@ -78,6 +78,8 @@
                     <AutoCompleteBox x:Name="NewTagBox" Classes="inline" MinWidth="110" Margin="0,0,0,5"
                                      PlaceholderText="Add a tag, Enter"
                                      Text="{Binding NewKeyword, Mode=TwoWay}"
+                                     views:CommitOnLeave.Command="{Binding AddKeywordCommand}"
+                                     ToolTip.Tip="Add several at once by separating them with ; or ,"
                                      ItemsSource="{Binding KeywordSuggestions}"
                                      FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
                         <AutoCompleteBox.KeyBindings>
@@ -116,6 +118,8 @@
                     <AutoCompleteBox x:Name="NewPersonBox" Classes="inline" MinWidth="110" Margin="0,0,0,5"
                                      PlaceholderText="Add a person"
                                      Text="{Binding NewPerson, Mode=TwoWay}"
+                                     views:CommitOnLeave.Command="{Binding AddPersonCommand}"
+                                     ToolTip.Tip="Add several at once by separating them with ; or ,"
                                      ItemsSource="{Binding PeopleSuggestions}"
                                      FilterMode="Contains" MinimumPrefixLength="1">
                         <AutoCompleteBox.KeyBindings>

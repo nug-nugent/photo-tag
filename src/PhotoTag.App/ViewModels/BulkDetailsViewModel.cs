@@ -279,7 +279,7 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task AddKeyword()
     {
-        var keywords = PhotoMetadataWriter.NormalizeKeywords((NewKeyword ?? "").Split(','));
+        var keywords = ListInput.Split(NewKeyword);
         NewKeyword = "";
         if (keywords.Count > 0) await _operations.AddAsync(Photos, ListField.Tags, keywords);
     }
@@ -294,7 +294,7 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task AddPerson()
     {
-        var names = PhotoMetadataWriter.NormalizeKeywords((NewPerson ?? "").Split(','));
+        var names = ListInput.Split(NewPerson);
         NewPerson = "";
         if (names.Count > 0) await _operations.AddAsync(Photos, ListField.People, names);
     }

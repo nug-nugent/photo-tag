@@ -687,7 +687,9 @@
                                                              IsEnabled="{Binding CanEdit}"
                                                              Text="{Binding NewKeyword, Mode=TwoWay}"
                                                              ItemsSource="{Binding KeywordSuggestions}"
-                                                             FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
+                                                             FilterMode="ContainsOrdinal" MinimumPrefixLength="1"
+                                                             views:CommitOnLeave.Command="{Binding AddKeywordCommand}"
+                                                             ToolTip.Tip="Add several at once by separating them with ; or ,">
                                                 <AutoCompleteBox.KeyBindings>
                                                     <KeyBinding Gesture="Enter" Command="{Binding AddKeywordCommand}" />
                                                 </AutoCompleteBox.KeyBindings>
@@ -728,7 +730,9 @@
                                                              IsEnabled="{Binding CanEdit}"
                                                              Text="{Binding NewPerson, Mode=TwoWay}"
                                                              ItemsSource="{Binding PeopleSuggestions}"
-                                                             FilterMode="Contains" MinimumPrefixLength="1">
+                                                             FilterMode="Contains" MinimumPrefixLength="1"
+                                                             views:CommitOnLeave.Command="{Binding AddPersonCommand}"
+                                                             ToolTip.Tip="Add several at once by separating them with ; or ,">
                                                 <AutoCompleteBox.KeyBindings>
                                                     <KeyBinding Gesture="Enter" Command="{Binding AddPersonCommand}" />
                                                 </AutoCompleteBox.KeyBindings>
