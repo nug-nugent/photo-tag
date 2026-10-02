@@ -1,0 +1,211 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PhotoTag.App.ViewModels"
+             xmlns:views="using:PhotoTag.App.Views"
+             x:Class="PhotoTag.App.Views.PhotoEditor"
+             x:DataType="vm:PhotoDetailsViewModel">
+    <!-- Editing one photo: tags, people, title, description and place. The same in the side panel and the viewer. -->
+    <UserControl.Resources>
+        <!-- A tag: its own colour, and ✕ to remove it. Used by the details panel and the viewer. -->
+        <DataTemplate x:Key="TagChipTemplate" x:DataType="x:String">
+            <Border Classes="chip">
+                <Border.Background>
+                    <MultiBinding Converter="{x:Static views:TagColors.Instance}" ConverterParameter="Background">
+                        <Binding />
+                        <Binding Path="$parent[TopLevel].ActualThemeVariant" />
+                    </MultiBinding>
+                </Border.Background>
+                <StackPanel Orientation="Horizontal" Spacing="2">
+                    <TextBlock x:Name="ChipText" Text="{Binding}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center">
+                        <TextBlock.Foreground>
+                            <MultiBinding Converter="{x:Static views:TagColors.Instance}" ConverterParameter="Foreground">
+                                <Binding />
+                                <Binding Path="$parent[TopLevel].ActualThemeVariant" />
+                            </MultiBinding>
+                        </TextBlock.Foreground>
+                    </TextBlock>
+                    <Button Classes="flat chipRemove" ToolTip.Tip="Remove tag" Foreground="{Binding #ChipText.Foreground}"
+                            IsVisible="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).CanEdit}"
+                            Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).RemoveKeywordCommand}"
+                            CommandParameter="{Binding}">
+                        <PathIcon Data="{StaticResource IconClose}" />
+                    </Button>
+                </StackPanel>
+            </Border>
+        </DataTemplate>
+
+        <!-- A one-click suggestion under the tags: the library's most used tags this photo doesn't have. -->
+        <DataTemplate x:Key="SuggestionTemplate" x:DataType="x:String">
+            <Button Classes="flat suggestion" ToolTip.Tip="Add this tag"
+                    IsEnabled="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).CanEdit}"
+                    Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).AddSuggestedKeywordCommand}"
+                    CommandParameter="{Binding}">
+                <StackPanel Orientation="Horizontal" Spacing="6">
+                    <Rectangle Width="8" Height="8" VerticalAlignment="Center">
+                        <Rectangle.Fill>
+                            <MultiBinding Converter="{x:Static views:TagColors.Instance}" ConverterParameter="Dot">
+                                <Binding />
+                                <Binding Path="$parent[TopLevel].ActualThemeVariant" />
+                            </MultiBinding>
+                        </Rectangle.Fill>
+                    </Rectangle>
+                    <TextBlock Text="{Binding}" />
+                </StackPanel>
+            </Button>
+        </DataTemplate>
+
+        <ItemsPanelTemplate x:Key="WrapPanelTemplate">
+            <WrapPanel />
+        </ItemsPanelTemplate>
+    </UserControl.Resources>
+
+    <StackPanel Spacing="20">
+        <TextBlock Text="{Binding Error}" Classes="error" TextWrapping="Wrap"
+                   IsVisible="{Binding Error, Converter={x:Static ObjectConverters.IsNotNull}}" />
+
+        <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
+            <TextBlock TextWrapping="Wrap" FontSize="12"
+                       Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ExifToolMissingText}" />
+        </Border>
+
+        <!-- Tags: chips in a box with room to type more (Enter, or comma-separated), and suggestions under it. -->
+        <StackPanel Spacing="8">
+            <TextBlock Classes="label" Text="TAGS" />
+            <Border Classes="box" Padding="5,5,5,0" IsEnabled="{Binding CanEdit}">
+                <WrapPanel>
+                    <ItemsControl ItemsSource="{Binding Keywords}" ItemsPanel="{StaticResource WrapPanelTemplate}"
+                                  ItemTemplate="{StaticResource TagChipTemplate}" />
+                    <AutoCompleteBox x:Name="NewTagBox" Classes="inline" MinWidth="110" Margin="0,0,0,5"
+                                     PlaceholderText="Add a tag, Enter"
+                                     Text="{Binding NewKeyword, Mode=TwoWay}"
+                                     ItemsSource="{Binding KeywordSuggestions}"
+                                     FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
+                        <AutoCompleteBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding AddKeywordCommand}" />
+                        </AutoCompleteBox.KeyBindings>
+                    </AutoCompleteBox>
+                </WrapPanel>
+            </Border>
+            <ItemsControl x:Name="SuggestedTags" ItemsSource="{Binding SuggestedKeywords}"
+                          ItemsPanel="{StaticResource WrapPanelTemplate}"
+                          ItemTemplate="{StaticResource SuggestionTemplate}" />
+        </StackPanel>
+
+        <!-- People: names, edited like tags. -->
+        <StackPanel Spacing="8">
+            <TextBlock Classes="label" Text="PEOPLE" />
+            <Border Classes="box" Padding="5,5,5,0" IsEnabled="{Binding CanEdit}">
+                <WrapPanel>
+                    <ItemsControl ItemsSource="{Binding People}" ItemsPanel="{StaticResource WrapPanelTemplate}">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <Border Classes="chip person">
+                                    <StackPanel Orientation="Horizontal" Spacing="2">
+                                        <TextBlock Text="{Binding}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <Button Classes="flat chipRemove personRemove" ToolTip.Tip="Remove person"
+                                                IsVisible="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).CanEdit}"
+                                                Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).RemovePersonCommand}"
+                                                CommandParameter="{Binding}">
+                                            <PathIcon Data="{StaticResource IconClose}" />
+                                        </Button>
+                                    </StackPanel>
+                                </Border>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <AutoCompleteBox x:Name="NewPersonBox" Classes="inline" MinWidth="110" Margin="0,0,0,5"
+                                     PlaceholderText="Add a person"
+                                     Text="{Binding NewPerson, Mode=TwoWay}"
+                                     ItemsSource="{Binding PeopleSuggestions}"
+                                     FilterMode="Contains" MinimumPrefixLength="1">
+                        <AutoCompleteBox.KeyBindings>
+                            <KeyBinding Gesture="Enter" Command="{Binding AddPersonCommand}" />
+                        </AutoCompleteBox.KeyBindings>
+                    </AutoCompleteBox>
+                </WrapPanel>
+            </Border>
+        </StackPanel>
+
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="TITLE" />
+            <TextBox x:Name="TitleBox" IsEnabled="{Binding CanEdit}" PlaceholderText="Give it a name"
+                     Text="{Binding Title, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+        </StackPanel>
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="DESCRIPTION" />
+            <TextBox x:Name="DescriptionBox" IsEnabled="{Binding CanEdit}" PlaceholderText="Who, what, why it matters"
+                     AcceptsReturn="True" TextWrapping="Wrap" MinLines="2" MaxLines="8" VerticalContentAlignment="Top"
+                     Text="{Binding Description, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+        </StackPanel>
+
+        <!-- Place: one box, split by rules. -->
+        <StackPanel Spacing="6">
+            <TextBlock Classes="label" Text="PLACE" />
+            <Border Classes="box" IsEnabled="{Binding CanEdit}">
+                <Grid ColumnDefinitions="*,2,*" RowDefinitions="Auto,2,Auto,2,Auto">
+                    <AutoCompleteBox Grid.ColumnSpan="3" x:Name="LocationBox" Classes="inline"
+                                     PlaceholderText="Location: a beach, park or venue" ToolTip.Tip="Location"
+                                     FilterMode="Contains" MinimumPrefixLength="1"
+                                     ItemsSource="{Binding LocationSuggestions}"
+                                     Text="{Binding Location, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                    <Rectangle Grid.Row="1" Grid.ColumnSpan="3" Fill="{DynamicResource RuleBrush}" />
+                    <AutoCompleteBox Grid.Row="2" x:Name="CityBox" Classes="inline"
+                                     PlaceholderText="City or town" ToolTip.Tip="City"
+                                     FilterMode="Contains" MinimumPrefixLength="1"
+                                     ItemsSource="{Binding CitySuggestions}"
+                                     Text="{Binding City, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                    <Rectangle Grid.Row="2" Grid.Column="1" Fill="{DynamicResource RuleBrush}" />
+                    <AutoCompleteBox Grid.Row="2" Grid.Column="2" x:Name="StateBox" Classes="inline"
+                                     PlaceholderText="State/Province" ToolTip.Tip="State/Province (or county)"
+                                     FilterMode="Contains" MinimumPrefixLength="1"
+                                     ItemsSource="{Binding StateSuggestions}"
+                                     Text="{Binding State, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                    <Rectangle Grid.Row="3" Grid.ColumnSpan="3" Fill="{DynamicResource RuleBrush}" />
+                    <AutoCompleteBox Grid.Row="4" Grid.ColumnSpan="3" x:Name="CountryBox" Classes="inline"
+                                     PlaceholderText="Country" ToolTip.Tip="Country"
+                                     FilterMode="Contains" MinimumPrefixLength="1"
+                                     ItemsSource="{Binding CountrySuggestions}"
+                                     Text="{Binding Country, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                </Grid>
+            </Border>
+            <WrapPanel IsVisible="{Binding HasGps}">
+                <Button x:Name="FillFromGpsButton" Classes="flat link" Command="{Binding FillPlacesFromGpsCommand}"
+                        IsEnabled="{Binding CanEdit}"
+                        ToolTip.Tip="Fill the empty boxes with the nearest town, from the photo's GPS (works offline)"
+                        Content="Fill from GPS" />
+                <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" Margin="6,0" />
+                <Button x:Name="LookUpPlaceButton" Classes="flat link" Command="{Binding LookUpExactPlaceCommand}"
+                        IsVisible="{Binding CanLookUpPlace}" IsEnabled="{Binding CanEdit}"
+                        ToolTip.Tip="Ask OpenStreetMap what's at this spot, such as a beach, park or venue. This sends the photo's GPS position to OpenStreetMap."
+                        Content="Look up exact place" />
+                <TextBlock Text="·" Classes="muted" VerticalAlignment="Center" Margin="6,0"
+                           IsVisible="{Binding CanLookUpPlace}" />
+                <HyperlinkButton x:Name="OpenMapLink" Content="Open in map" NavigateUri="{Binding MapUri}"
+                                 Padding="0" FontSize="12" VerticalAlignment="Center"
+                                 ToolTip.Tip="Show this spot on OpenStreetMap, in your browser" />
+            </WrapPanel>
+            <Border Classes="notice" IsVisible="{Binding IsShowingLookup}">
+                <StackPanel Spacing="10">
+                    <TextBlock Text="{Binding LookupText}" FontSize="12" TextWrapping="Wrap" />
+                    <StackPanel Orientation="Horizontal" Spacing="6" IsVisible="{Binding !IsLookingUp}">
+                        <Button x:Name="LookupFillButton" Classes="accent" Content="Fill empty boxes"
+                                IsVisible="{Binding CanUseLookup}" IsEnabled="{Binding CanEdit}"
+                                Command="{Binding FillFromLookupCommand}" />
+                        <Button x:Name="LookupReplaceButton" Content="Use all"
+                                ToolTip.Tip="Replace what's in the boxes with what OpenStreetMap says"
+                                IsVisible="{Binding CanUseLookup}" IsEnabled="{Binding CanEdit}"
+                                Command="{Binding ReplaceWithLookupCommand}" />
+                        <Button x:Name="LookupCloseButton" Content="Close" Command="{Binding CloseLookupCommand}" />
+                    </StackPanel>
+                    <TextBlock Classes="caption" Text="© OpenStreetMap contributors" IsVisible="{Binding CanUseLookup}" />
+                </StackPanel>
+            </Border>
+            <TextBlock Text="{Binding FillNote}" Classes="caption" TextWrapping="Wrap"
+                       IsVisible="{Binding FillNote, Converter={x:Static ObjectConverters.IsNotNull}}" />
+        </StackPanel>
+
+        <TextBlock Text="{Binding SaveStatus}" FontSize="12" TextWrapping="Wrap"
+                   Classes="muted" Classes.error="{Binding SaveFailed}"
+                   IsVisible="{Binding SaveStatus, Converter={x:Static ObjectConverters.IsNotNull}}" />
+    </StackPanel>
+</UserControl>
