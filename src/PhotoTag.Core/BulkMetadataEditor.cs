@@ -26,7 +26,7 @@ public sealed record BulkResult
     /// <summary>Every file that was written, with its metadata before and after, so the edit can be undone.</summary>
     public IReadOnlyList<BulkChange> Written { get; init; } = [];
 
-    /// <summary>For an undo: photos edited again since, so left as they are.</summary>
+    /// <summary>For an undo: photos changed again since, whose later changes were kept.</summary>
     public int ChangedSince { get; init; }
 
     /// <summary>The metadata of every photo that was read, as it is after the operation.</summary>
@@ -188,9 +188,11 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
             progress, cancellationToken);
 
     /// <summary>
-    /// Puts back the tags, favourite, title, description and place an earlier edit changed. A file whose
-    /// values have changed again since is left alone (counted in <see cref="BulkResult.ChangedSince"/>), so undo
-    /// never throws away later work.
+    /// Undoes an earlier edit: puts back the tags, people, favourite, title, description and place it changed, and
+    /// only those. Whatever has changed since (on the other PC, say) is kept: a tag the edit added comes off and one
+    /// it removed goes back, leaving tags added or removed since as they are, and a text field or favourite goes back
+    /// only if it still holds what the edit wrote. Photos where something changed since was kept are counted in
+    /// <see cref="BulkResult.ChangedSince"/>.
     /// </summary>
     public async Task<BulkResult> UndoAsync(IReadOnlyList<BulkChange> changes,
         IProgress<BulkProgress>? progress = null, CancellationToken cancellationToken = default)
@@ -204,51 +206,80 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
         var result = await ApplyAsync(photos, (path, current) =>
         {
             if (!byPath.TryGetValue(path, out var change)) return null; // e.g. only the RAW of a pair was written
-            if (!SameEditableValues(current, change.After))
-            {
-                changedSince.Add(change.Photo);
-                return null;
-            }
-            return Restore(change.Before, current);
+            var (undo, keptLater) = Reverse(change.Before, change.After, current);
+            if (keptLater) changedSince.Add(change.Photo);
+            return undo;
         }, progress, cancellationToken).ConfigureAwait(false);
 
         return result with { ChangedSince = changedSince.Count };
     }
 
-    // What bulk edits can change: tags (and Lightroom's nested keywords), rating, and the text fields.
-    private static bool SameEditableValues(PhotoMetadata a, PhotoMetadata b) =>
-        a.Rating == b.Rating && a.Keywords.SequenceEqual(b.Keywords, StringComparer.Ordinal)
-        && a.People.SequenceEqual(b.People, StringComparer.Ordinal)
-        && a.HierarchicalKeywords.SequenceEqual(b.HierarchicalKeywords, StringComparer.Ordinal)
-        && TextFields.All.All(f => SameText(a.Get(f), b.Get(f)));
-
     private static bool SameText(string? a, string? b) => PhotoMetadataWriter.NormalizeText(a) == PhotoMetadataWriter.NormalizeText(b);
 
-    private static MetadataChanges? Restore(PhotoMetadata before, PhotoMetadata current)
+    private static bool SameList(IReadOnlyList<string> a, IReadOnlyList<string> b) => a.SequenceEqual(b, StringComparer.Ordinal);
+
+    /// <summary>
+    /// What undoing one file's edit (<paramref name="before"/> to <paramref name="after"/>) takes, now that it holds
+    /// <paramref name="current"/>; and whether anything changed since had to be kept.
+    /// </summary>
+    private static (MetadataChanges? Changes, bool KeptLater) Reverse(PhotoMetadata before, PhotoMetadata after, PhotoMetadata current)
     {
+        var keptLater = false;
         var changes = new MetadataChanges
         {
-            Keywords = before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal) ? null : before.Keywords,
-            People = before.People.SequenceEqual(current.People, StringComparer.Ordinal) ? null : before.People,
-            // Put these back exactly, rather than working them out again from the tag changes.
-            HierarchicalKeywords = before.HierarchicalKeywords.SequenceEqual(current.HierarchicalKeywords, StringComparer.Ordinal)
-                                   && before.Keywords.SequenceEqual(current.Keywords, StringComparer.Ordinal)
-                ? null
-                : before.HierarchicalKeywords,
+            Keywords = ReverseList(before.Keywords, after.Keywords, current.Keywords, ref keptLater),
+            People = ReverseList(before.People, after.People, current.People, ref keptLater),
         };
-        foreach (var field in TextFields.All)
-            if (!SameText(before.Get(field), current.Get(field)))
-                changes = changes.With(field, PhotoMetadataWriter.NormalizeText(before.Get(field)));
-        if (before.Rating != current.Rating)
+
+        // Lightroom's nested keywords go back exactly when the tags do; otherwise they follow the tags (ApplyAsync).
+        if (!SameList(before.HierarchicalKeywords, after.HierarchicalKeywords))
         {
-            changes = before.Rating switch
-            {
-                null => changes with { Favourite = false },
-                PhotoMetadataWriter.FavouriteRating => changes with { Favourite = true },
-                var rating => changes with { Rating = rating }, // e.g. 4★ from another app
-            };
+            if (SameList(current.HierarchicalKeywords, after.HierarchicalKeywords) && SameList(current.Keywords, after.Keywords))
+                changes = changes with { HierarchicalKeywords = before.HierarchicalKeywords };
+            else
+                keptLater = true;
         }
-        return changes.IsEmpty ? null : changes;
+
+        foreach (var field in TextFields.All)
+        {
+            if (SameText(before.Get(field), after.Get(field))) continue; // the edit didn't change it
+            if (SameText(current.Get(field), after.Get(field)))
+                changes = changes.With(field, PhotoMetadataWriter.NormalizeText(before.Get(field)));
+            else
+                keptLater = true;
+        }
+
+        if (before.Rating != after.Rating)
+        {
+            if (current.Rating != after.Rating)
+                keptLater = true;
+            else
+                changes = before.Rating switch
+                {
+                    null => changes with { Favourite = false },
+                    PhotoMetadataWriter.FavouriteRating => changes with { Favourite = true },
+                    var rating => changes with { Rating = rating }, // e.g. 4★ from another app
+                };
+        }
+
+        return (changes.IsEmpty ? null : changes, keptLater);
+    }
+
+    /// <summary>
+    /// Tags or people as they'd be with an edit undone: exactly as before, if nothing has changed them since;
+    /// otherwise what the edit added comes off and what it removed goes back. Null if there's nothing to change.
+    /// </summary>
+    private static IReadOnlyList<string>? ReverseList(IReadOnlyList<string> before, IReadOnlyList<string> after,
+        IReadOnlyList<string> current, ref bool keptLater)
+    {
+        if (SameList(before, after)) return null; // the edit didn't change them
+        if (SameList(current, after)) return before; // e.g. "beach" renamed to "Beach" goes back exactly
+
+        keptLater = true;
+        var added = after.Except(before, StringComparer.OrdinalIgnoreCase).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var removed = before.Except(after, StringComparer.OrdinalIgnoreCase);
+        var undone = PhotoMetadataWriter.NormalizeKeywords(current.Where(v => !added.Contains(v)).Concat(removed));
+        return SameList(undone, current) ? null : undone;
     }
 
     private Task<BulkResult> ApplyAsync(IReadOnlyList<PhotoFile> photos, Func<PhotoMetadata, MetadataChanges?> plan,
