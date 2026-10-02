@@ -12,6 +12,7 @@
   </ItemGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="PhotoTag.Core.Tests" />
+    <InternalsVisibleTo Include="PhotoTag.App.Tests" />
   </ItemGroup>
   <ItemGroup>
     <!-- GeoNames place data for "Fill from GPS", built by build/MakePlaces.cs. -->

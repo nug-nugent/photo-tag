@@ -250,7 +250,7 @@ void WaitForThumbnails(MainWindowViewModel vm)
         var steady = Stopwatch.StartNew();
         WaitUntil(() =>
         {
-            var now = vm.Photos.Count(p => p.Thumbnail is not null || p.LoadFailed);
+            var now = vm.Photos.Count(p => (p.Thumbnail is not null && !p.IsQuickThumbnail) || p.LoadFailed);
             if (now != loaded)
             {
                 loaded = now;
@@ -261,7 +261,7 @@ void WaitForThumbnails(MainWindowViewModel vm)
     }
     catch (TimeoutException)
     {
-        Console.Error.WriteLine($"Thumbnails: {vm.Photos.Count} photos, {vm.Photos.Count(p => p.Thumbnail is not null)} loaded, {vm.Photos.Count(p => p.LoadFailed)} failed");
+        Console.Error.WriteLine($"Thumbnails: {vm.Photos.Count} photos, {vm.Photos.Count(p => p.Thumbnail is not null && !p.IsQuickThumbnail)} loaded, {vm.Photos.Count(p => p.LoadFailed)} failed");
         throw;
     }
 }

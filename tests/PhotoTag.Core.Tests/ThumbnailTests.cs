@@ -134,6 +134,63 @@ public sealed class ThumbnailTests : IDisposable
     }
 
     [Fact]
+    public async Task Cache_PassesOnTheEmbeddedThumbnail_WhileTheRealOneRenders()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var photo = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(50, 50));
+        var thumbnail = File.ReadAllBytes(photo);
+        using var quickShown = new ManualResetEventSlim();
+        using var cache = new ThumbnailCache(Path.Combine(_dir.Path, "cache"), (_, _, _) =>
+        {
+            quickShown.Wait(TimeSpan.FromSeconds(10), ct);
+            return thumbnail;
+        }, readEmbedded: _ => [1, 2, 3]);
+        var quick = new System.Collections.Concurrent.ConcurrentQueue<byte[]>();
+
+        await cache.GetAsync(photo, null, bytes =>
+        {
+            quick.Enqueue(bytes);
+            quickShown.Set();
+        }, ct);
+
+        Assert.Equal([1, 2, 3], Assert.Single(quick));
+
+        // Once it's cached, there's nothing to wait for.
+        await cache.GetAsync(photo, null, quick.Enqueue, ct);
+        Assert.Single(quick);
+    }
+
+    [Fact]
+    public async Task Cache_DoesNotPassOnTheEmbeddedThumbnail_OnceTheRealOneIsReady()
+    {
+        var ct = TestContext.Current.CancellationToken;
+        var photo = TestImages.Write(_dir.Path, "photo.jpg", TestImages.Jpeg(50, 50));
+        var thumbnail = File.ReadAllBytes(photo);
+        using var looking = new ManualResetEventSlim();
+        using var rendered = new ManualResetEventSlim();
+        using var lookedAt = new ManualResetEventSlim();
+        using var cache = new ThumbnailCache(Path.Combine(_dir.Path, "cache"), (_, _, _) =>
+        {
+            looking.Wait(TimeSpan.FromSeconds(10), ct);
+            return thumbnail;
+        }, readEmbedded: _ =>
+        {
+            looking.Set(); // and is slower than the render
+            rendered.Wait(TimeSpan.FromSeconds(10), ct);
+            lookedAt.Set();
+            return [1, 2, 3];
+        });
+        var quick = 0;
+
+        await cache.GetAsync(photo, null, _ => Interlocked.Increment(ref quick), ct);
+        rendered.Set();
+        lookedAt.Wait(TimeSpan.FromSeconds(10), ct);
+        await Task.Delay(100, ct); // for the quick look to finish
+
+        Assert.Equal(0, quick);
+    }
+
+    [Fact]
     public async Task Cache_FindsThumbnail_FromTheFolderListing_WithoutTouchingThePhoto()
     {
         var ct = TestContext.Current.CancellationToken;

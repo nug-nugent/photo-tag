@@ -1,4 +1,5 @@
 using Avalonia.Media.Imaging;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using PhotoTag.Core;
 
@@ -73,6 +74,12 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
     [ObservableProperty]
     public partial Bitmap? Thumbnail { get; private set; }
 
+    /// <summary>
+    /// Whether <see cref="Thumbnail"/> is for now the small one embedded in the photo, scaled up, until the real one
+    /// has been made.
+    /// </summary>
+    public bool IsQuickThumbnail { get; private set; }
+
     [ObservableProperty]
     public partial bool IsSelected { get; set; }
 
@@ -127,9 +134,30 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
     private async void LoadThumbnail()
     {
         var cts = _loading = new CancellationTokenSource();
+        var ready = false;
+
+        // On a cache thread. Not when the tile shows an old thumbnail already: that's better than a blurry one.
+        Action<byte[]>? quick = Thumbnail is null ? bytes =>
+        {
+            var bitmap = new Bitmap(new MemoryStream(bytes));
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (ready || _loading != cts || cts.IsCancellationRequested)
+                {
+                    bitmap.Dispose();
+                    return;
+                }
+                var old = Thumbnail;
+                Thumbnail = bitmap;
+                IsQuickThumbnail = true;
+                old?.Dispose();
+            });
+        } : null;
+
         try
         {
-            var file = await thumbnails.GetAsync(Path, _listed, cts.Token);
+            var file = await thumbnails.GetAsync(Path, _listed, quick, cts.Token);
+            ready = true;
             var bitmap = await Task.Run(() => new Bitmap(file), cts.Token);
 
             if (cts.IsCancellationRequested)
@@ -140,6 +168,7 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
             {
                 var old = Thumbnail;
                 Thumbnail = bitmap;
+                IsQuickThumbnail = false;
                 old?.Dispose();
             }
         }
@@ -150,12 +179,14 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
         {
             LoadFailedText = e.Message;
             LoadFailed = true;
+            if (IsQuickThumbnail) DropThumbnail();
         }
         catch (Exception e)
         {
             Log.Warn($"Couldn't make a thumbnail of {Path}", e);
             LoadFailedText = "Can't read this file";
             LoadFailed = true;
+            if (IsQuickThumbnail) DropThumbnail();
         }
         finally
         {
@@ -177,9 +208,14 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
         _uses = 0;
         _loading?.Cancel();
         _loading = null;
+        DropThumbnail();
+    }
 
+    private void DropThumbnail()
+    {
         var bitmap = Thumbnail;
         Thumbnail = null;
+        IsQuickThumbnail = false;
         bitmap?.Dispose();
     }
 }
