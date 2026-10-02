@@ -112,6 +112,25 @@ public sealed class RawTests(ExifToolFixture fixture) : IClassFixture<ExifToolFi
         Assert.Equal(hash, Hash(raw));
     }
 
+    [Theory]
+    [MemberData(nameof(Samples))]
+    public async Task UndoingABulkEdit_PutsBackARawWhoseSidecarItCreated(string sample)
+    {
+        var editor = new BulkMetadataEditor(fixture.RequireWriter());
+        var raw = await RawSamples.CopyAsync(sample, _dir.Path);
+        var before = PhotoMetadata.Read(raw);
+
+        var added = await editor.AddKeywordsAsync([raw], ["Undo me"], cancellationToken: Ct);
+        Assert.Contains("Undo me", PhotoMetadata.Read(raw).Keywords);
+        var undone = await editor.UndoAsync(added.Written, cancellationToken: Ct);
+
+        Assert.Equal(0, undone.ChangedSince);
+        Assert.Equal(1, undone.Changed);
+        var after = PhotoMetadata.Read(raw);
+        Assert.Equal(before.Keywords, after.Keywords);
+        Assert.Equal(before.Rating, after.Rating);
+    }
+
     [Fact]
     public async Task ANewSidecar_KeepsTagsAlreadyEmbeddedInTheRaw()
     {

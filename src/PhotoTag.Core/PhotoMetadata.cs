@@ -92,7 +92,7 @@ public sealed record PhotoMetadata
                 City = Clean(Xmp(xmp, "photoshop:City")),
                 State = Clean(Xmp(xmp, "photoshop:State")),
                 Country = Clean(Xmp(xmp, "photoshop:Country")),
-                Rating = int.TryParse(Xmp(xmp, "xmp:Rating"), out var rating) && rating > 0 ? rating : null,
+                Rating = ReadRating(xmp),
                 HierarchicalKeywords = XmpList(xmp, "lr:hierarchicalSubject"),
                 People = XmpNames(xmp, "Iptc4xmpExt:PersonInImage"),
             };
@@ -146,7 +146,7 @@ public sealed record PhotoMetadata
             City = Clean(Xmp(xmp, "photoshop:City") ?? iptc?.GetString(IptcDirectory.TagCity)),
             State = Clean(Xmp(xmp, "photoshop:State") ?? iptc?.GetString(IptcDirectory.TagProvinceOrState)),
             Country = Clean(Xmp(xmp, "photoshop:Country") ?? iptc?.GetString(IptcDirectory.TagCountryOrPrimaryLocationName)),
-            Rating = int.TryParse(Xmp(xmp, "xmp:Rating"), out var rating) ? rating : null,
+            Rating = ReadRating(xmp),
             Latitude = location is { IsZero: false } ? location.Value.Latitude : null,
             Longitude = location is { IsZero: false } ? location.Value.Longitude : null,
             Keywords = ReadKeywords(iptc, xmp),
@@ -220,6 +220,14 @@ public sealed record PhotoMetadata
     }
 
     /// <summary>Trims whitespace and the NUL padding cameras like to leave in EXIF strings.</summary>
+    /// <summary>
+    /// xmp:Rating, or null for none. 0 means "not rated" (many cameras write it), so it's read as none, the same
+    /// from a photo as from a sidecar; otherwise undo would see a RAW's new sidecar as edited since (0 vs none).
+    /// Other values, such as Lightroom's -1 for rejected, are kept.
+    /// </summary>
+    private static int? ReadRating(IDictionary<string, string> xmp) =>
+        int.TryParse(Xmp(xmp, "xmp:Rating"), out var rating) && rating != 0 ? rating : null;
+
     private static string? Clean(string? value)
     {
         var trimmed = value?.Trim().TrimEnd('\0').Trim();
