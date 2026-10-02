@@ -124,6 +124,9 @@ dotnet run --project src/PhotoTag.App   # a Debug build: its own settings and in
   threads of its own. Don't hand them to `Task.Run` again: the thread pool runs work queued from its own threads
   newest first, and the index scan keeps it busy, which made a NAS folder fill in roughly bottom to top. A cached
   thumbnail is found from the size and time in the folder listing (`PhotoFile.Listed`), without touching the photo.
+  While a JPEG waits to be rendered, the tile shows the ~160 px thumbnail from its EXIF block (`EmbeddedThumbnail`,
+  one 64 KB read; `PhotoItemViewModel.IsQuickThumbnail`), cropped of the black bars cameras pad it with. It's only
+  worth it over a share: on a local disk the real thumbnail is about as quick.
 - **Search results are checked by folder, not by photo.** The index's paths go through `PhotoFiles.FindAsync`, which
   lists each folder once (several at a time) for existence, RAW companions and stamps. Asking about each photo was
   ~20 ms a time on the owner's NAS: "All photos" (26k) took 9 minutes; listing its 421 folders takes 3 s.

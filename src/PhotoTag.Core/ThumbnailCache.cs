@@ -14,6 +14,9 @@ namespace PhotoTag.Core;
 /// the index scan keeps busy reading photos). Waiting requests can be cancelled (e.g. when the tile scrolls
 /// out of view) before they cost anything.
 ///
+/// While a JPEG waits to be rendered, a third stage can read the small thumbnail its EXIF block carries
+/// (<see cref="EmbeddedThumbnail"/>) from the start of the file, to show until the real one is ready.
+///
 /// Nothing is deleted as it goes stale (an edited photo's old thumbnail, a folder since deleted):
 /// <see cref="CleanUpAsync"/> removes the least recently used thumbnails once the cache is too big.
 /// </summary>
@@ -22,7 +25,9 @@ public sealed class ThumbnailCache : IDisposable
     private readonly string _cacheDirectory;
     private readonly int _size;
     private readonly Func<string, int, CancellationToken, byte[]> _render;
+    private readonly Func<string, byte[]?> _readEmbedded;
     private readonly Stage _lookups;
+    private readonly Stage _quickLooks;
     private readonly Stage _renders;
     private long _requests;
 
@@ -31,14 +36,20 @@ public sealed class ThumbnailCache : IDisposable
     {
     }
 
-    /// <summary>For tests: <paramref name="render"/> stands in for the <see cref="PhotoRenderer"/>.</summary>
+    /// <summary>
+    /// For tests: <paramref name="render"/> stands in for the <see cref="PhotoRenderer"/>, and
+    /// <paramref name="readEmbedded"/> for <see cref="EmbeddedThumbnail.Read"/>.
+    /// </summary>
     internal ThumbnailCache(string cacheDirectory, Func<string, int, CancellationToken, byte[]> render, int size = 320,
-        int? maxConcurrency = null)
+        int? maxConcurrency = null, Func<string, byte[]?>? readEmbedded = null)
     {
         _cacheDirectory = cacheDirectory;
         _size = size;
         _render = render;
+        _readEmbedded = readEmbedded ?? EmbeddedThumbnail.Read;
         _lookups = new Stage("Thumbnail lookup", 2, LookUp);
+        // Each is one short read, so a few at a time are plenty, even over a share.
+        _quickLooks = new Stage("Thumbnail quick look", 4, QuickLook);
         _renders = new Stage("Thumbnail render", maxConcurrency ?? Math.Max(2, Environment.ProcessorCount - 1), Render);
         Directory.CreateDirectory(cacheDirectory);
     }
@@ -62,10 +73,19 @@ public sealed class ThumbnailCache : IDisposable
     /// Like <see cref="GetAsync(string, CancellationToken)"/>. Given the photo's size and time from its folder's
     /// listing (<see cref="PhotoFile.Listed"/>), a cached thumbnail is found without touching the photo at all.
     /// </summary>
-    public async Task<string> GetAsync(string photoPath, FileStamp? listed, CancellationToken cancellationToken = default)
+    public Task<string> GetAsync(string photoPath, FileStamp? listed, CancellationToken cancellationToken = default) =>
+        GetAsync(photoPath, listed, null, cancellationToken);
+
+    /// <summary>
+    /// Like <see cref="GetAsync(string, FileStamp?, CancellationToken)"/>. If the thumbnail has to be rendered,
+    /// <paramref name="quick"/> may first be given the photo's embedded thumbnail (encoded, upright, about 160 px),
+    /// on a thread of the cache's own, at most once and only before the task completes.
+    /// </summary>
+    public async Task<string> GetAsync(string photoPath, FileStamp? listed, Action<byte[]>? quick,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var request = new Request(photoPath, listed, Interlocked.Increment(ref _requests), cancellationToken);
+        var request = new Request(photoPath, listed, Interlocked.Increment(ref _requests), quick, cancellationToken);
         await using (cancellationToken.Register(() => request.Done.TrySetCanceled(cancellationToken)).ConfigureAwait(false))
         {
             _lookups.Add(request);
@@ -82,14 +102,47 @@ public sealed class ThumbnailCache : IDisposable
         try
         {
             request.CachePath = GetCachePath(request.PhotoPath, request.Listed);
-            if (MarkUsed(request.CachePath)) request.Done.TrySetResult(request.CachePath);
-            else _renders.Add(request);
+            if (MarkUsed(request.CachePath))
+            {
+                request.Done.TrySetResult(request.CachePath);
+            }
+            else
+            {
+                if (request.Quick is not null && PhotoFiles.IsJpeg(request.PhotoPath)) _quickLooks.Add(request);
+                _renders.Add(request);
+            }
         }
         catch (Exception e)
         {
             request.Done.TrySetException(e);
         }
     }
+
+    /// <summary>On a quick-look thread: passes on the photo's embedded thumbnail, if it has one and is still waiting.</summary>
+    private void QuickLook(Request request)
+    {
+        try
+        {
+            if (_readEmbedded(request.PhotoPath) is not { } bytes) return;
+            // Under the lock that completing the request takes, so it's never passed on once the real one is ready.
+            lock (request)
+                if (!request.Done.Task.IsCompleted) request.Quick!(bytes);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Not logged: the render that follows reads the same file, and reports what's wrong with it.
+        }
+        catch (Exception e)
+        {
+            // A bug, or a thumbnail the parser didn't expect; the render still makes the real one.
+            // Only the first few, in case it's every photo in the folder.
+            if (Interlocked.Increment(ref _quickLookFailures) <= LoggedQuickLookFailures)
+                Log.Error($"Couldn't show the embedded thumbnail of {request.PhotoPath}", e);
+        }
+    }
+
+    private const int LoggedQuickLookFailures = 5;
+    private int _quickLookFailures;
 
     /// <summary>On a render thread: makes the thumbnail.</summary>
     private void Render(Request request)
@@ -108,7 +161,7 @@ public sealed class ThumbnailCache : IDisposable
                 File.WriteAllBytes(tempPath, bytes);
                 File.Move(tempPath, cachePath, overwrite: true);
             }
-            request.Done.TrySetResult(cachePath);
+            lock (request) request.Done.TrySetResult(cachePath);
         }
         catch (OperationCanceledException) when (request.CancellationToken.IsCancellationRequested)
         {
@@ -120,11 +173,13 @@ public sealed class ThumbnailCache : IDisposable
         }
     }
 
-    private sealed class Request(string photoPath, FileStamp? listed, long order, CancellationToken cancellationToken)
+    private sealed class Request(string photoPath, FileStamp? listed, long order, Action<byte[]>? quick,
+        CancellationToken cancellationToken)
     {
         public string PhotoPath { get; } = photoPath;
         public FileStamp? Listed { get; } = listed;
         public long Order { get; } = order;
+        public Action<byte[]>? Quick { get; } = quick;
         public CancellationToken CancellationToken { get; } = cancellationToken;
         public TaskCompletionSource<string> Done { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public string? CachePath { get; set; }
@@ -299,6 +354,7 @@ public sealed class ThumbnailCache : IDisposable
     public void Dispose()
     {
         _lookups.Dispose();
+        _quickLooks.Dispose();
         _renders.Dispose();
     }
 }
