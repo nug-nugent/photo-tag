@@ -32,6 +32,9 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     [ObservableProperty] public partial string? UndoToolTip { get; private set; }
     [ObservableProperty] public partial double ProgressPercent { get; private set; }
 
+    /// <summary>For tests: runs on the editing thread after each photo, e.g. to hold an edit part way through.</summary>
+    internal Action? AfterEachPhoto { get; set; }
+
     /// <summary>Raised on the UI thread as each photo on screen is saved, so it shows straight away.</summary>
     public event EventHandler<PhotoItemViewModel>? PhotoSaved;
 
@@ -153,7 +156,8 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
 
         try
         {
-            var result = await operation(_editor, files, progress, cts.Token);
+            IProgress<BulkProgress> reporter = AfterEachPhoto is { } after ? new InlineProgress(p => { ((IProgress<BulkProgress>)progress).Report(p); after(); }) : progress;
+            var result = await operation(_editor, files, reporter, cts.Token);
 
             foreach (var photo in shown)
                 if (result.After.TryGetValue(photo.Path, out var metadata))
@@ -198,6 +202,11 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     }
 
     private static string Photos(int count) => count == 1 ? "1 photo" : $"{count:N0} photos";
+
+    private sealed class InlineProgress(Action<BulkProgress> report) : IProgress<BulkProgress>
+    {
+        public void Report(BulkProgress value) => report(value);
+    }
 
     private static readonly StringComparer PathComparer =
         OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;

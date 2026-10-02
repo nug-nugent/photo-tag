@@ -175,24 +175,30 @@ public sealed class MultiSelectTests : UiTestBase
         var bulk = Assert.IsType<BulkDetailsViewModel>(vm.Details);
         await WaitForAsync(() => bulk.IsLoaded);
 
+        // Hold the edit after 4 photos, however fast this machine saves them (a Linux runner does all 60 in a blink).
+        using var gate = new SemaphoreSlim(3);
+        vm.Operations.AfterEachPhoto = () => gate.Wait(TestContext.Current.CancellationToken);
+
         Find<AutoCompleteBox>(window, "BulkTagBox").Focus();
         window.KeyTextInput("Live");
         window.KeyPressQwerty(PhysicalKey.Enter, RawInputModifiers.None);
 
         // Part way through: the photos done so far show it, on their tiles and in the panel's count.
-        await WaitForAsync(() => bulk.Keywords.Any(k => k is { Keyword: "Live", Count: > 0 and < 60 }));
+        await WaitForAsync(() => vm.Photos.Count(p => p.Keywords.Contains("Live")) == 4);
         Assert.True(vm.Operations.IsBusy);
-        var done = vm.Photos.Where(p => p.Keywords.Contains("Live")).ToList();
-        Assert.NotEmpty(done);
-        Assert.All(done, p => Assert.False(p.IsUntagged));
-        Assert.Contains(vm.Photos, p => p.IsUntagged); // and the rest don't, yet
-        Assert.Matches(@"of 60 done$", Find<TextBlock>(window, "CommandBarProgressText").Text);
-        Assert.True(Find<TextBlock>(window, "CommandBarProgressText").IsEffectivelyVisible);
+        Assert.Contains(bulk.Keywords, k => k is { Keyword: "Live", Count: > 0 and < 60 });
+        Assert.All(vm.Photos.Where(p => p.Keywords.Contains("Live")), p => Assert.False(p.IsUntagged));
+        Assert.Equal(56, vm.Photos.Count(p => p.IsUntagged)); // and the rest don't, yet
+        var progressText = await WaitForControlAsync(() => FindAll<TextBlock>(window).FirstOrDefault(t => t.Name == "CommandBarProgressText"));
+        Assert.EndsWith("4 of 60 done", progressText.Text, StringComparison.Ordinal);
         Assert.True(Find<Button>(window, "BulkCancelButton").IsEffectivelyVisible);
-        await WaitForAsync(() => vm.Subheading is { } s && !s.StartsWith("0 of 60 tagged", StringComparison.Ordinal));
+        Assert.NotNull(vm.Subheading);
+        Assert.DoesNotMatch("^0 of 60 tagged", vm.Subheading);
 
         Click(window, Find<Button>(window, "CommandBarCancel"));
+        gate.Release(60);
         await WaitForBulkAsync(vm);
+        Assert.False(progressText.IsEffectivelyVisible);
         Assert.False(Find<TextBlock>(window, "CommandBarProgressText").IsEffectivelyVisible);
         var tagged = vm.Photos.Count(p => PhotoMetadata.Read(p.Path).Keywords.Contains("Live"));
         Assert.Equal(tagged, vm.Photos.Count(p => p.Keywords.Contains("Live"))); // the tiles match the files
