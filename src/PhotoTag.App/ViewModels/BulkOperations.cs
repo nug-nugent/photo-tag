@@ -196,7 +196,7 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     private static string SummarizeUndo(BulkResult r)
     {
         var parts = new List<string> { $"Undone: put back {Photos(r.Changed)}" };
-        if (r.ChangedSince > 0) parts.Add($"left {Photos(r.ChangedSince)} alone (edited again since)");
+        if (r.ChangedSince > 0) parts.Add($"kept what was changed since on {Photos(r.ChangedSince)}");
         if (r.Failures.Count > 0) parts.Add($"{Photos(r.Failures.Count)} couldn't be saved");
         return (r.Cancelled ? "Cancelled. " : "") + string.Join(", ", parts) + ".";
     }

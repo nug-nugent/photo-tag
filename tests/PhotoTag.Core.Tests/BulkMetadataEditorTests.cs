@@ -128,19 +128,50 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
     }
 
     [Fact]
-    public async Task Undo_LeavesPhotosEditedAgainSinceAlone()
+    public async Task Undo_TakesOffWhatTheEditAdded_KeepingTagsAddedSince()
     {
         var editor = RequireEditor();
         var a = Photo("a.jpg", "Family");
         var b = Photo("b.jpg", "Family");
         var added = await editor.AddKeywordsAsync([a, b], ["Beach"], cancellationToken: Ct);
-        await editor.AddKeywordsAsync([a], ["Later"], cancellationToken: Ct); // someone kept working on a
+        await editor.AddKeywordsAsync([a], ["Later"], cancellationToken: Ct); // the other PC kept working on a
 
         var undone = await editor.UndoAsync(added.Written, cancellationToken: Ct);
 
-        Assert.Equal((1, 1, 1), (undone.Changed, undone.Unchanged, undone.ChangedSince));
-        Assert.Equal(["Family", "Beach", "Later"], PhotoMetadata.Read(a).Keywords);
+        Assert.Equal((2, 0, 1), (undone.Changed, undone.Unchanged, undone.ChangedSince));
+        Assert.Equal(["Family", "Later"], PhotoMetadata.Read(a).Keywords);
         Assert.Equal(["Family"], PhotoMetadata.Read(b).Keywords);
+    }
+
+    [Fact]
+    public async Task Undo_PutsBackWhatTheEditRemoved_KeepingChangesSince()
+    {
+        var editor = RequireEditor();
+        var a = Photo("a.jpg", "Family", "Beach", "Dog");
+        var removed = await editor.RemoveKeywordsAsync([a], ["Beach", "Dog"], cancellationToken: Ct);
+        await editor.AddKeywordsAsync([a], ["Boat"], cancellationToken: Ct);
+        await editor.RemoveKeywordsAsync([a], ["Family"], cancellationToken: Ct);
+
+        var undone = await editor.UndoAsync(removed.Written, cancellationToken: Ct);
+
+        Assert.Equal(1, undone.ChangedSince);
+        Assert.Equal(["Boat", "Beach", "Dog"], PhotoMetadata.Read(a).Keywords); // "Family" stays gone: that was later
+    }
+
+    [Fact]
+    public async Task Undo_PutsBackAFavouriteOnlyIfItsStillAsTheEditLeftIt()
+    {
+        var editor = RequireEditor();
+        var a = Photo("a.jpg");
+        var b = Photo("b.jpg");
+        var set = await editor.SetFavouriteAsync([a, b], true, cancellationToken: Ct);
+        await editor.SetFavouriteAsync([b], false, cancellationToken: Ct); // unfavourited since
+
+        var undone = await editor.UndoAsync(set.Written, cancellationToken: Ct);
+
+        Assert.Equal((1, 1, 1), (undone.Changed, undone.Unchanged, undone.ChangedSince));
+        Assert.False(PhotoMetadata.Read(a).IsFavourite);
+        Assert.False(PhotoMetadata.Read(b).IsFavourite);
     }
 
     [Fact]
@@ -190,23 +221,29 @@ public sealed class BulkMetadataEditorTests(ExifToolFixture fixture) : IClassFix
     }
 
     [Fact]
-    public async Task Undo_PutsBackTitlesAndDescriptions_UnlessEditedSince()
+    public async Task Undo_PutsBackTitlesAndDescriptions_UnlessChangedSince()
     {
         var writer = fixture.RequireWriter();
         var editor = new BulkMetadataEditor(writer);
         var a = Photo("a.jpg");
         var b = Photo("b.jpg");
         var c = Photo("c.jpg");
+        var d = Photo("d.jpg");
         await writer.WriteAsync(a, new MetadataChanges { Title = "Old", Description = "Kept?" }, Ct);
+        await writer.WriteAsync(c, new MetadataChanges { Description = "Old too" }, Ct);
 
-        var set = await editor.SetTextAsync([a, b, c], "New", "", cancellationToken: Ct);
-        await writer.WriteAsync(c, new MetadataChanges { Description = "Written since" }, Ct);
+        var set = await editor.SetTextAsync([a, b, c, d], "New", "", cancellationToken: Ct);
+        await writer.WriteAsync(c, new MetadataChanges { Title = "Theirs", Description = "Written since" }, Ct);
+        await writer.WriteAsync(d, new MetadataChanges { Description = "Not touched by the edit" }, Ct);
         var undone = await editor.UndoAsync(set.Written, cancellationToken: Ct);
 
-        Assert.Equal((2, 1), (undone.Changed, undone.ChangedSince));
+        Assert.Equal((3, 1, 1), (undone.Changed, undone.Unchanged, undone.ChangedSince)); // nothing left to undo on c
         Assert.Equal(("Old", "Kept?"), (PhotoMetadata.Read(a).Title, PhotoMetadata.Read(a).Description));
         Assert.Null(PhotoMetadata.Read(b).Title);
-        Assert.Equal(("New", "Written since"), (PhotoMetadata.Read(c).Title, PhotoMetadata.Read(c).Description));
+        // c: both fields were changed since, so both stay as the other PC left them.
+        Assert.Equal(("Theirs", "Written since"), (PhotoMetadata.Read(c).Title, PhotoMetadata.Read(c).Description));
+        // d: its title goes back; its description wasn't part of the edit.
+        Assert.Equal((null, "Not touched by the edit"), (PhotoMetadata.Read(d).Title, PhotoMetadata.Read(d).Description));
     }
 
     /// <summary>A photo tagged as Lightroom would: flat tags plus nested ones.</summary>
