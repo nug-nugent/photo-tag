@@ -66,13 +66,9 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         Operations = new BulkOperations(writer, _keywordSuggestions, _peopleSuggestions);
         Operations.Summary += (_, summary) => StatusText = summary;
         Operations.Completed += (_, result) => _ = Library.PhotosChangedAsync(result.After);
-        Operations.PhotoSaved += (_, _) =>
-        {
-            // "14 of 21 tagged" follows a bulk edit as it goes, a few times a second at most.
-            if (_sinceHeading.ElapsedMilliseconds < 250) return;
-            _sinceHeading.Restart();
-            UpdateHeading();
-        };
+        // "14 of 21 tagged" follows a bulk edit as it goes, a few times a second at most.
+        _headingSoon = new Throttle(TimeSpan.FromMilliseconds(250), UpdateHeading);
+        Operations.PhotoSaved += (_, _) => _headingSoon.Run();
         TagManager = new TagManagerViewModel(Library, Operations, () => RootPath, () => Photos);
 
         Library.FilesChanged += (_, changes) => _ = OnFilesChangedAsync(changes);
@@ -162,7 +158,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private static readonly TimeSpan SlowFolder = TimeSpan.FromSeconds(1);
 
     private int _openVersion;
-    private readonly Stopwatch _sinceHeading = Stopwatch.StartNew();
+    private readonly Throttle _headingSoon;
 
     /// <summary>
     /// Opens a folder tree. Checking it's there happens off the UI thread: a NAS that's asleep can take
@@ -1016,6 +1012,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     {
         _photosLoad?.Cancel();
         _photosLoad?.Dispose();
+        _headingSoon.Dispose();
         Library.Dispose();
         Viewer?.Dispose();
         (Details as IDisposable)?.Dispose();
