@@ -4,6 +4,7 @@ using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
 using Avalonia.Input;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using PhotoTag.App.ViewModels;
 using PhotoTag.Core;
 
@@ -41,7 +42,7 @@ public sealed class ViewerTests : UiTestBase
 
         // T jumps to the tag box; typing there doesn't move or favourite.
         Press(window, PhysicalKey.T);
-        var tagBox = Find<AutoCompleteBox>(window, "ViewerTagBox");
+        var tagBox = InViewer<AutoCompleteBox>(window, "NewTagBox");
         Assert.True(IsFocusWithin(window, tagBox));
         window.KeyTextInput("Harbour");
         Press(window, PhysicalKey.Enter);
@@ -59,6 +60,54 @@ public sealed class ViewerTests : UiTestBase
         Assert.Same(photo, vm.CurrentPhoto);
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task Viewer_EditsPeopleAndPlaces_AsTheSidePanelDoes()
+    {
+        await using var exifTool = RequireExifTool();
+        for (var i = 0; i < 2; i++) Photo($"p{i}.jpg");
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        ClickTile(window, 0);
+        Press(window, PhysicalKey.Space);
+        var photo = vm.Photos[0];
+        var details = Assert.IsType<PhotoDetailsViewModel>(vm.Details);
+        await WaitForAsync(() => details.CanEdit);
+
+        // A person, typed into the viewer's own box, saved with Enter.
+        InViewer<AutoCompleteBox>(window, "NewPersonBox").Focus();
+        window.KeyTextInput("Mary Smith");
+        Press(window, PhysicalKey.Enter);
+        await details.SaveCompletion;
+
+        // A town, and a title: saved as the box is left (Esc goes back to the photo).
+        InViewer<AutoCompleteBox>(window, "CityBox").Focus();
+        window.KeyTextInput("Penzance");
+        Press(window, PhysicalKey.Escape);
+        InViewer<TextBox>(window, "TitleBox").Focus();
+        window.KeyTextInput("Harbour at dusk");
+        Press(window, PhysicalKey.Escape);
+        await details.SaveCompletion;
+        Assert.NotNull(vm.Viewer); // Esc only left the box
+
+        var saved = PhotoMetadata.Read(photo.Path);
+        Assert.Equal(["Mary Smith"], saved.People);
+        Assert.Equal("Penzance", saved.City);
+        Assert.Equal("Harbour at dusk", saved.Title);
+
+        // The next photo starts empty: the boxes follow the viewer.
+        Press(window, PhysicalKey.ArrowRight);
+        var next = Assert.IsType<PhotoDetailsViewModel>(vm.Details);
+        await WaitForAsync(() => next.CanEdit);
+        Assert.Empty(next.People);
+        Assert.Equal("", InViewer<AutoCompleteBox>(window, "CityBox").Text ?? "");
+        Assert.Empty(PhotoMetadata.Read(vm.Photos[1].Path).People);
+        window.Close();
+    }
+
+    /// <summary>A control in the viewer's panel: the side panel, under it, has one of the same name.</summary>
+    private static T InViewer<T>(Window window, string name) where T : Control =>
+        Find<Grid>(window, "ViewerPanel").GetVisualDescendants().OfType<T>().FirstOrDefault(c => c.Name == name)
+        ?? throw new InvalidOperationException($"No {typeof(T).Name} named {name} in the viewer.");
 
     [AvaloniaFact]
     public async Task DoubleClickingATile_OpensTheViewer_AndTheFilmstripMovesIt()

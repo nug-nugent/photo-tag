@@ -153,7 +153,9 @@ public partial class MainWindow : Window
             case Key.F: _ = vm.ToggleSelectedFavouritesAsync(); break;
             case Key.T:
                 // After the key's own text input has gone by, or the box would start with a "t".
-                Dispatcher.UIThread.Post(() => FindNamed("ViewerTagBox")?.Focus(), DispatcherPriority.Background);
+                // The viewer's editor: the side panel's, under it, has one of the same name.
+                Dispatcher.UIThread.Post(() => ViewerPanel.GetVisualDescendants().OfType<Control>()
+                    .FirstOrDefault(c => c.Name == "NewTagBox")?.Focus(), DispatcherPriority.Background);
                 break;
             case Key.Escape when viewer.IsFullScreen: viewer.IsFullScreen = false; break;
             case Key.Escape: vm.CloseViewer(); break;
