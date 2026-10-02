@@ -32,6 +32,9 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     [ObservableProperty] public partial string? UndoToolTip { get; private set; }
     [ObservableProperty] public partial double ProgressPercent { get; private set; }
 
+    /// <summary>Raised on the UI thread as each photo on screen is saved, so it shows straight away.</summary>
+    public event EventHandler<PhotoItemViewModel>? PhotoSaved;
+
     /// <summary>Raised on the UI thread after an operation finishes, so panels can refresh.</summary>
     public event EventHandler<BulkResult>? Completed;
 
@@ -134,11 +137,18 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
         ProgressText = $"{verb} {Photos(files.Count)}…";
 
         // Progress<T> posts back to the UI thread.
+        var onScreen = shown.DistinctBy(p => p.Path, PathComparer).ToDictionary(p => p.Path, PathComparer);
         var progress = new Progress<BulkProgress>(p =>
         {
+            // Each photo shows its new tags as soon as it's saved: on a network share a big edit takes minutes.
+            if (p is { Photo: { } path, After: { } after } && onScreen.TryGetValue(path, out var photo))
+            {
+                photo.ShowSaved(after);
+                PhotoSaved?.Invoke(this, photo);
+            }
             if (cts.IsCancellationRequested) return;
             ProgressPercent = 100.0 * p.Done / p.Total;
-            ProgressText = $"{verb} {Photos(p.Total)}… {p.Done:N0} done";
+            ProgressText = $"{verb} {Photos(p.Total)}… {p.Done:N0} of {p.Total:N0} done";
         });
 
         try
@@ -147,10 +157,7 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
 
             foreach (var photo in shown)
                 if (result.After.TryGetValue(photo.Path, out var metadata))
-                {
-                    photo.Metadata = metadata;
-                    photo.IsFavourite = metadata.IsFavourite;
-                }
+                    photo.ShowSaved(metadata);
 
             if (!isUndo && result.Written.Count > 0)
             {
@@ -191,4 +198,7 @@ public partial class BulkOperations(PhotoMetadataWriter? writer, KeywordSuggesti
     }
 
     private static string Photos(int count) => count == 1 ? "1 photo" : $"{count:N0} photos";
+
+    private static readonly StringComparer PathComparer =
+        OperatingSystem.IsLinux() ? StringComparer.Ordinal : StringComparer.OrdinalIgnoreCase;
 }

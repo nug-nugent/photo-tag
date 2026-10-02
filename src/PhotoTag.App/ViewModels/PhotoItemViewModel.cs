@@ -94,6 +94,16 @@ public partial class PhotoItemViewModel(PhotoFile file, int index, ThumbnailCach
         City = summary.City;
     }
 
+    /// <summary>PhotoTag has just saved the photo: show what it has now, before the index catches up.</summary>
+    public void ShowSaved(PhotoMetadata metadata)
+    {
+        Metadata = metadata;
+        IsFavourite = metadata.IsFavourite;
+        if (!Keywords.SequenceEqual(metadata.Keywords)) Keywords = metadata.Keywords;
+        Title = metadata.Title;
+        City = metadata.City;
+    }
+
     /// <summary>Called on the UI thread when a tile showing this photo becomes visible.</summary>
     public void Realize()
     {

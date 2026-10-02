@@ -546,6 +546,17 @@
                                         </Style>
                                     </Border.Styles>
                                     <DockPanel>
+                                        <!-- A bulk edit on a network share can take minutes: show how far it's got, here as well as in the status bar. -->
+                                        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="0,8,0,0"
+                                              IsVisible="{Binding Operations.IsBusy}">
+                                            <StackPanel Spacing="6" VerticalAlignment="Center">
+                                                <TextBlock x:Name="CommandBarProgressText" Text="{Binding Operations.ProgressText}" FontSize="13"
+                                                           TextTrimming="CharacterEllipsis" />
+                                                <ProgressBar Classes="thin" Minimum="0" Maximum="100" Value="{Binding Operations.ProgressPercent}" />
+                                            </StackPanel>
+                                            <Button Grid.Column="1" x:Name="CommandBarCancel" Classes="flat bar" Content="Cancel"
+                                                    Command="{Binding Operations.CancelCommand}" />
+                                        </Grid>
                                         <Button DockPanel.Dock="Right" x:Name="CommandBarClear" Classes="flat bar" Content="Clear" Opacity="0.85"
                                                 Click="CommandBarClear_Click" ToolTip.Tip="Clear the selection (Esc)" />
                                         <WrapPanel ItemSpacing="4" LineSpacing="4" VerticalAlignment="Center">
@@ -815,6 +826,16 @@
                                         </Grid>
                                         <TextBlock Text="{Binding LoadingText}" Classes="muted" TextWrapping="Wrap"
                                                    IsVisible="{Binding LoadingText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        <Border Classes="notice" IsVisible="{Binding Operations.IsBusy}">
+                                            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                                                <StackPanel Spacing="6" VerticalAlignment="Center">
+                                                    <TextBlock x:Name="BulkProgressText" Text="{Binding Operations.ProgressText}" FontSize="13" TextWrapping="Wrap" />
+                                                    <ProgressBar Classes="thin" Minimum="0" Maximum="100" Value="{Binding Operations.ProgressPercent}" />
+                                                </StackPanel>
+                                                <Button Grid.Column="1" x:Name="BulkCancelButton" Classes="flat outline" Content="Cancel"
+                                                        VerticalAlignment="Center" Command="{Binding Operations.CancelCommand}" />
+                                            </Grid>
+                                        </Border>
                                         <Border Classes="notice" IsVisible="{Binding ExifToolMissing}">
                                             <TextBlock TextWrapping="Wrap" FontSize="12"
                                                        Text="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).ExifToolMissingText}" />

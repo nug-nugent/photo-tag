@@ -1,6 +1,10 @@
 namespace PhotoTag.Core;
 
-public readonly record struct BulkProgress(int Done, int Total);
+/// <summary>
+/// How far a bulk edit has got. <paramref name="Photo"/> is the photo just done and <paramref name="After"/> its
+/// metadata now, so the screen can show it straight away; null if it couldn't be read or saved.
+/// </summary>
+public readonly record struct BulkProgress(int Done, int Total, string? Photo = null, PhotoMetadata? After = null);
 
 public sealed record BulkFailure(string Path, string Error);
 
@@ -311,7 +315,7 @@ public sealed class BulkMetadataEditor(PhotoMetadataWriter writer)
                 failures.Add(new BulkFailure(photo.Path, e.Message));
             }
 
-            progress?.Report(new BulkProgress(++done, photos.Count));
+            progress?.Report(new BulkProgress(++done, photos.Count, photo.Path, after.GetValueOrDefault(photo.Path)));
         }
 
         return new BulkResult { Changed = changed, Unchanged = unchanged, Failures = failures, After = after, Written = written };

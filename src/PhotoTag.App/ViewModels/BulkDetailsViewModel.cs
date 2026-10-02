@@ -34,9 +34,15 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
         _textFields = [TitleField, DescriptionField, LocationField, CityField, StateField, CountryField];
         _operations.PropertyChanged += OnOperationsChanged;
         _operations.Completed += OnOperationCompleted;
+        _operations.PhotoSaved += OnPhotoSaved;
+        _selected = [.. photos];
     }
 
     public IReadOnlyList<PhotoItemViewModel> Photos { get; }
+    private readonly HashSet<PhotoItemViewModel> _selected;
+
+    /// <summary>The edit running now, if any, for its progress and Cancel button.</summary>
+    public BulkOperations Operations => _operations;
     public string Heading => $"{Photos.Count:N0} photos selected";
     public bool ExifToolMissing => !_operations.IsAvailable;
     public ObservableCollection<string> KeywordSuggestions => _suggestions.Items;
@@ -303,6 +309,7 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
 
     private void Refresh()
     {
+        _sinceRefresh.Restart();
         var metadata = Photos.Select(p => p.Metadata ?? new PhotoMetadata()).ToList();
 
         ShowCounts(Keywords, metadata.Select(m => m.Keywords), _suggestions);
@@ -344,10 +351,23 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
         if (IsLoaded) Refresh();
     }
 
+    private readonly System.Diagnostics.Stopwatch _sinceRefresh = System.Diagnostics.Stopwatch.StartNew();
+
+    /// <summary>
+    /// One of these photos was just saved: the counts follow the edit as it goes. At most a few times a second, as
+    /// a refresh counts every selected photo's tags; the one when it finishes catches up with the rest.
+    /// </summary>
+    private void OnPhotoSaved(object? sender, PhotoItemViewModel photo)
+    {
+        if (!IsLoaded || !_selected.Contains(photo) || _sinceRefresh.ElapsedMilliseconds < 250) return;
+        Refresh();
+    }
+
     public void Dispose()
     {
         _operations.PropertyChanged -= OnOperationsChanged;
         _operations.Completed -= OnOperationCompleted;
+        _operations.PhotoSaved -= OnPhotoSaved;
         _cts.Cancel();
         _cts.Dispose();
     }
