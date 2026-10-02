@@ -1,5 +1,6 @@
 using Avalonia.Headless.XUnit;
 using PhotoTag.App.ViewModels;
+using PhotoTag.Core;
 using PhotoTag.Core.Tests;
 
 namespace PhotoTag.App.Tests;
@@ -139,4 +140,43 @@ public sealed class OutsideChangesTests : UiTestBase
         Assert.Equal(["Mine"], details.Keywords);
         window.Close();
     }
+
+    [AvaloniaTheory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task ATagTheOtherPcAddedJustBefore_IsKeptWhenThisPanelSaves(bool adding)
+    {
+        await using var exifTool = RequireExifTool();
+        var photo = Photo("a.jpg", "Beach");
+        // The other PC's version of the photo: "Boat" added. Made outside the library, so nothing notices it yet.
+        using var otherPc = new TempDir();
+        var theirs = Path.Combine(otherPc.Path, "a.jpg");
+        File.Copy(photo, theirs);
+        await new PhotoMetadataWriter(exifTool).WriteAsync(theirs, new MetadataChanges { Keywords = ["Beach", "Boat"] }, Ct);
+
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        await vm.Library.ScanCompletion;
+        var details = await SelectSingleAsync(window, vm, 0);
+        Assert.Equal(["Beach"], details.Keywords);
+
+        // The other PC saves, and this panel saves before anything has reloaded it.
+        File.Copy(theirs, photo, overwrite: true);
+        if (adding)
+        {
+            details.NewKeyword = "Mine";
+            await details.AddKeywordCommand.ExecuteAsync(null);
+        }
+        else
+        {
+            await details.RemoveKeywordCommand.ExecuteAsync("Beach");
+        }
+        await details.SaveCompletion;
+
+        string[] expected = adding ? ["Beach", "Boat", "Mine"] : ["Boat"];
+        Assert.Equal(expected, PhotoMetadata.Read(photo).Keywords);
+        Assert.Equal(expected, details.Keywords); // and the panel shows it
+        window.Close();
+    }
+
+    private static CancellationToken Ct => TestContext.Current.CancellationToken;
 }
