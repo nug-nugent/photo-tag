@@ -30,13 +30,6 @@ clear message and loses nothing from the index; and that other apps' changes on 
 or the 30-second poll). Tune the scan's parallelism for network drives (`LibraryIndex`, now 8) if needed. The log
 (⚙ Settings → Show log) records how long each folder took to answer and each scan took, and what failed.
 
-### 2.3 Undo doesn't overwrite the other PC's later edits (S)
-**Why:** undoing a bulk edit puts back each photo's earlier values. If the other PC has changed the same field on some of
-those photos since, undo replaces their change.
-**What:** before undoing a photo, check its field still holds what the bulk edit wrote (`BulkChange.After`); if not,
-leave that photo alone, and say so in the summary ("Undid 40 photos; 2 changed since on another PC were left").
-**Where:** `BulkMetadataEditor.UndoAsync`, `BulkOperations.UndoAsync` (status text).
-
 ## 5. Housekeeping
 
 ### 5.1 Unpin xunit.v3 (S, blocked)

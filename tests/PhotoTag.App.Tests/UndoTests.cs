@@ -67,7 +67,7 @@ public sealed class UndoTests : UiTestBase
     }
 
     [AvaloniaFact]
-    public async Task Undo_LeavesPhotosEditedSinceAlone()
+    public async Task Undo_KeepsWhatWasChangedSince()
     {
         await using var exifTool = RequireExifTool();
         var a = Photo("a.jpg");
@@ -76,7 +76,7 @@ public sealed class UndoTests : UiTestBase
         await SelectAllAsync(window, vm);
         await AddToAllAsync(window, vm, "Beach");
 
-        // A later edit to one photo keeps the Undo offer, but that photo is then left alone.
+        // A later edit to one photo keeps the Undo offer, and survives it.
         var details = await SelectSingleAsync(window, vm, 0);
         Find<AutoCompleteBox>(window, "NewTagBox").Focus();
         window.KeyTextInput("Later");
@@ -86,9 +86,9 @@ public sealed class UndoTests : UiTestBase
 
         Click(window, Find<Button>(window, "UndoButton"));
         await WaitForBulkAsync(vm);
-        Assert.Equal(["Beach", "Later"], PhotoMetadata.Read(a).Keywords);
+        Assert.Equal(["Later"], PhotoMetadata.Read(a).Keywords);
         Assert.Empty(PhotoMetadata.Read(b).Keywords);
-        Assert.Equal("Undone: put back 1 photo, left 1 photo alone (edited again since).", vm.StatusText);
+        Assert.Equal("Undone: put back 2 photos, kept what was changed since on 1 photo.", vm.StatusText);
         window.Close();
     }
 }
