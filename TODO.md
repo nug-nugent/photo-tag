@@ -30,18 +30,6 @@ clear message and loses nothing from the index; and that other apps' changes on 
 or the 30-second poll). Tune the scan's parallelism for network drives (`LibraryIndex`, now 8) if needed. The log
 (⚙ Settings → Show log) records how long each folder took to answer and each scan took, and what failed.
 
-### 2.2 Tags and people added on both PCs always merge (S)
-**Why:** the single-photo panel saves its **whole** tag (or people) list. If the other PC added a tag to the same photo
-a few seconds earlier and this panel hadn't reloaded yet, the save writes the list without it, and that tag is lost.
-(Text fields are fine: a save writes only the field that changed. Bulk edits are fine: each photo is re-read just
-before it's changed.)
-**What:** make the panel's add and remove work like bulk editing: when saving, re-read the photo's current tags or
-people and add or remove only what was changed, then show the merged result. Same for "Add suggested tag" and
-removing a chip.
-**Where:** `PhotoDetailsViewModel.AddToListAsync`/`RemoveFromListAsync`, `PhotoMetadataWriter`, and `BulkMetadataEditor`'s
-read-then-plan approach to reuse. A test can play the other PC by writing the file directly, then adding a tag in the
-panel before the watcher reloads it.
-
 ### 2.3 Undo doesn't overwrite the other PC's later edits (S)
 **Why:** undoing a bulk edit puts back each photo's earlier values. If the other PC has changed the same field on some of
 those photos since, undo replaces their change.

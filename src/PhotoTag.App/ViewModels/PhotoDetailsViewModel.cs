@@ -335,14 +335,37 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
             .ToList();
         if (toAdd.Count == 0) return;
 
-        foreach (var value in toAdd) list.Add(value);
-        await SaveAsync(new MetadataChanges().With(field, [.. list]));
+        foreach (var value in toAdd) list.Add(value); // straight away; the save shows the merged list
+        await SaveListAsync(field, list, editor => editor.AddAsync([Photo.File], field, toAdd));
     }
 
     private async Task RemoveFromListAsync(ListField field, ObservableCollection<string> list, string value)
     {
         if (!list.Remove(value)) return;
-        await SaveAsync(new MetadataChanges().With(field, [.. list]));
+        await SaveListAsync(field, list, editor => editor.RemoveAsync([Photo.File], field, [value]));
+    }
+
+    /// <summary>
+    /// Saves one tag or person added or removed. Not the panel's whole list: the other PC may have added a tag to
+    /// this photo since the panel loaded, and writing the list would lose it. Like a bulk edit, the photo is re-read
+    /// just before it's changed and only this change is made; then the panel shows the list as it is in the file.
+    /// </summary>
+    private Task SaveListAsync(ListField field, ObservableCollection<string> list, Func<BulkMetadataEditor, Task<BulkResult>> edit)
+    {
+        if (_writer is null) return Task.CompletedTask;
+        return _lastSave = SaveCoreAsync(_writer, async writer =>
+        {
+            var result = await edit(new BulkMetadataEditor(writer));
+            if (result.Failures is [var failure, ..]) throw new IOException(failure.Error);
+            if (!result.After.TryGetValue(Photo.Path, out var after)) return new MetadataChanges();
+            var merged = after.Get(field);
+            if (!list.SequenceEqual(merged))
+            {
+                list.Clear();
+                foreach (var value in merged) list.Add(value);
+            }
+            return new MetadataChanges().With(field, merged);
+        });
     }
 
     partial void OnIsFavouriteChanged(bool value) => Photo.IsFavourite = value; // the grid tile's ♥
@@ -428,10 +451,15 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private Task SaveAsync(MetadataChanges changes)
     {
         if (_writer is null) return Task.CompletedTask;
-        return _lastSave = SaveCoreAsync(_writer, changes);
+        return _lastSave = SaveCoreAsync(_writer, async writer =>
+        {
+            await writer.WriteAsync(Photo.File, changes); // a RAW+JPEG pair gets both
+            return changes;
+        });
     }
 
-    private async Task SaveCoreAsync(PhotoMetadataWriter writer, MetadataChanges changes)
+    /// <param name="save">Writes the edit, returning what the photo now has for each field it changed.</param>
+    private async Task SaveCoreAsync(PhotoMetadataWriter writer, Func<PhotoMetadataWriter, Task<MetadataChanges>> save)
     {
         _pendingSaves++;
         SaveFailed = false;
@@ -442,7 +470,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         await _saveGate.WaitAsync();
         try
         {
-            await writer.WriteAsync(Photo.File, changes); // a RAW+JPEG pair gets both
+            var changes = await save(writer);
             Photo.Metadata = null; // re-read next time it's needed
             Saved?.Invoke(this, EventArgs.Empty);
             foreach (var field in TextFields.All)
