@@ -58,7 +58,7 @@ public sealed class PhotoFilesTests : IDisposable
     public async Task FindAsync_GivesSearchResultsTheirRawsAndListing_DroppingMissingOnes()
     {
         var sub = Directory.CreateDirectory(System.IO.Path.Combine(_dir.Path, "sub")).FullName;
-        foreach (var name in new[] { "a.jpg", "a.RAF", "b.jpg", "c.nef", "c.jpg" })
+        foreach (var name in new[] { "a.jpg", "a.RAF", "b.jpg", "c.nef", "c.jpg", "e.jpg" })
             File.WriteAllText(System.IO.Path.Combine(_dir.Path, name), "");
         File.WriteAllText(System.IO.Path.Combine(sub, "d.png"), "four");
         string P(string name) => System.IO.Path.Combine(_dir.Path, name);
@@ -70,14 +70,14 @@ public sealed class PhotoFilesTests : IDisposable
                 P("gone.jpg"),                                   // deleted since it was indexed
                 System.IO.Path.Combine(_dir.Path, "nowhere", "e.jpg"), // and its folder too
                 P("c.nef"),                                      // indexed on its own; its JPEG came later
-                P("A.JPG"),                                      // as the index spelt it (case-insensitive systems)
+                P("a.jpg"),
                 P("a.RAF"),                                      // the same photo again
+                P("E.JPG"),                                      // spelt differently: found where names ignore case
             ],
             TestContext.Current.CancellationToken);
 
-        var expected = OperatingSystem.IsLinux()
-            ? new[] { ("d.png", ""), ("b.jpg", ""), ("c.jpg", "c.nef") }
-            : new[] { ("d.png", ""), ("b.jpg", ""), ("c.jpg", "c.nef"), ("a.jpg", "a.RAF") };
+        (string, string)[] expected = [("d.png", ""), ("b.jpg", ""), ("c.jpg", "c.nef"), ("a.jpg", "a.RAF")];
+        if (!OperatingSystem.IsLinux()) expected = [.. expected, ("e.jpg", "")];
         Assert.Equal(expected, found.Select(p => (System.IO.Path.GetFileName(p.Path), string.Join(",", p.Companions.Select(System.IO.Path.GetFileName)))));
         Assert.Equal(4, found[0].Listed?.Size); // from the folder listing, for finding thumbnails
     }
