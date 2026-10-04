@@ -54,6 +54,15 @@
             </Button>
         </DataTemplate>
 
+        <!-- A one-click suggestion under the people: someone recently added to a photo, that this one doesn't have. -->
+        <DataTemplate x:Key="PersonSuggestionTemplate" x:DataType="x:String">
+            <Button Classes="flat suggestion" ToolTip.Tip="Add this person"
+                    IsEnabled="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).CanEdit}"
+                    Command="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).AddSuggestedPersonCommand}"
+                    CommandParameter="{Binding}"
+                    Content="{Binding}" />
+        </DataTemplate>
+
         <ItemsPanelTemplate x:Key="WrapPanelTemplate">
             <WrapPanel />
         </ItemsPanelTemplate>
@@ -93,7 +102,7 @@
                           ItemTemplate="{StaticResource SuggestionTemplate}" />
         </StackPanel>
 
-        <!-- People: names, edited like tags. -->
+        <!-- People: names, edited like tags, with the last few people added under them. -->
         <StackPanel Spacing="8">
             <TextBlock Classes="label" Text="PEOPLE" />
             <Border Classes="box" Padding="5,5,5,0" IsEnabled="{Binding CanEdit}">
@@ -128,6 +137,9 @@
                     </AutoCompleteBox>
                 </WrapPanel>
             </Border>
+            <ItemsControl x:Name="SuggestedPeople" ItemsSource="{Binding SuggestedPeople}"
+                          ItemsPanel="{StaticResource WrapPanelTemplate}"
+                          ItemTemplate="{StaticResource PersonSuggestionTemplate}" />
         </StackPanel>
 
         <StackPanel Spacing="6">
