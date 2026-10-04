@@ -331,7 +331,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         return AddToListAsync(ListField.People, People, text);
     }
 
-    /// <summary>The last few people added to a photo, that this photo doesn't have yet, for one-click adding.</summary>
+    /// <summary>The people last added to a photo (up to ten), that this photo doesn't have yet, for one-click adding.</summary>
     public ObservableCollection<string> SuggestedPeople { get; } = [];
 
     [RelayCommand]

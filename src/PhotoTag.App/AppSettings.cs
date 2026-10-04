@@ -46,7 +46,7 @@ public sealed class AppSettings
     /// <summary>How big the thumbnail cache may grow before the least recently used thumbnails are deleted.</summary>
     public long ThumbnailCacheLimit { get; set; } = ThumbnailCache.DefaultMaxBytes;
 
-    /// <summary>The last few people added to a photo, most recent first. See ViewModels.RecentPeople.</summary>
+    /// <summary>The people last added to a photo, most recent first. See ViewModels.RecentPeople.</summary>
     public List<string> RecentPeople { get; set; } = [];
 
     public static AppSettings Load(string? filePath = null)

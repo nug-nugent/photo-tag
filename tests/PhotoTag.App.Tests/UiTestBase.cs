@@ -171,6 +171,17 @@ public abstract class UiTestBase : IAsyncDisposable
         Settle();
         var centre = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)
                      ?? throw new InvalidOperationException("Control isn't in the window.");
+        // A window that has just opened may not be hit-testable yet (seen on macOS runners), and a click there
+        // goes nowhere: wait until the point lands on the control, but click anyway if it never does. A hit on
+        // an ancestor counts, since a TextBlock with no background lets the click through to its parent.
+        var stopwatch = Stopwatch.StartNew();
+        while (!(window.InputHitTest(centre) is Visual hit
+                 && (hit == control || control.IsVisualAncestorOf(hit) || hit.IsVisualAncestorOf(control)))
+               && stopwatch.ElapsedMilliseconds < 2000)
+        {
+            Thread.Sleep(10);
+            Settle();
+        }
         window.MouseDown(centre, MouseButton.Left, modifiers);
         window.MouseUp(centre, MouseButton.Left, modifiers);
         Dispatcher.UIThread.RunJobs();

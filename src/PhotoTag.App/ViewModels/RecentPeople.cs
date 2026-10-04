@@ -6,7 +6,10 @@ namespace PhotoTag.App.ViewModels;
 /// </summary>
 public sealed class RecentPeople(AppSettings settings)
 {
-    public const int MaxCount = 5;
+    public const int MaxCount = 30;
+
+    /// <summary>How many to suggest for one photo.</summary>
+    public const int ShownCount = 10;
 
     public IReadOnlyList<string> Items => settings.RecentPeople;
 
@@ -29,10 +32,10 @@ public sealed class RecentPeople(AppSettings settings)
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>The recent people that aren't in <paramref name="except"/>, most recent first.</summary>
+    /// <summary>The <see cref="ShownCount"/> most recent people that aren't in <paramref name="except"/>, most recent first.</summary>
     public IEnumerable<string> Suggest(IEnumerable<string> except)
     {
         var have = except.ToHashSet(StringComparer.OrdinalIgnoreCase);
-        return Items.Where(n => !have.Contains(n));
+        return Items.Where(n => !have.Contains(n)).Take(ShownCount);
     }
 }

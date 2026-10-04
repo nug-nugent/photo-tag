@@ -169,7 +169,7 @@ public sealed class PeopleTests : UiTestBase
     }
 
     [AvaloniaFact]
-    public async Task SuggestedPeople_AreTheLastFiveAdded_AddInOneClick_AndAreRemembered()
+    public async Task SuggestedPeople_AreTheLastTenAdded_AddInOneClick_AndAreRemembered()
     {
         await using var exifTool = RequireExifTool();
         var a = Photo("a.jpg");
@@ -177,34 +177,34 @@ public sealed class PeopleTests : UiTestBase
         var c = Photo("c.jpg");
         var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
 
-        // Six people on the first photo: the first one added drops off the end.
+        // Twelve people on the first photo.
         var details = await SelectSingleAsync(window, vm, 0);
         Assert.Empty(details.SuggestedPeople);
         Find<AutoCompleteBox>(window, "NewPersonBox").Focus();
         window.KeyTextInput("Tom");
         Press(window, PhysicalKey.Enter);
         await WaitForSaveAsync(details);
-        window.KeyTextInput("Ann; Bob; Cat; Dan; Eve");
+        window.KeyTextInput("Ann; Bob; Cat; Dan; Eve; Fay; Gus; Hal; Ivy; Jo; Kit");
         Press(window, PhysicalKey.Enter);
         await WaitForSaveAsync(details);
-        Assert.Equal(["Tom", "Ann", "Bob", "Cat", "Dan", "Eve"], PhotoMetadata.Read(a).People);
+        Assert.Equal(["Tom", "Ann", "Bob", "Cat", "Dan", "Eve", "Fay", "Gus", "Hal", "Ivy", "Jo", "Kit"], PhotoMetadata.Read(a).People);
         Assert.Empty(details.SuggestedPeople); // it has them all
 
-        // The next photo offers them, most recent first; a click adds one.
+        // The next photo offers the last ten, most recent first; a click adds one and the next one along takes its place.
         details = await SelectSingleAsync(window, vm, 1);
-        Assert.Equal(["Eve", "Dan", "Cat", "Bob", "Ann"], details.SuggestedPeople);
+        Assert.Equal(["Kit", "Jo", "Ivy", "Hal", "Gus", "Fay", "Eve", "Dan", "Cat", "Bob"], details.SuggestedPeople);
         var cat = await WaitForControlAsync(() => FindAll<Button>(window)
             .FirstOrDefault(button => button.Classes.Contains("suggestion") && button.IsEffectivelyVisible && button.DataContext as string == "Cat"));
         Click(window, cat);
         await WaitForSaveAsync(details);
         Assert.Equal(["Cat"], PhotoMetadata.Read(b).People);
-        Assert.Equal(["Eve", "Dan", "Bob", "Ann"], details.SuggestedPeople);
+        Assert.Equal(["Kit", "Jo", "Ivy", "Hal", "Gus", "Fay", "Eve", "Dan", "Bob", "Ann"], details.SuggestedPeople);
         window.Close();
 
         // Still there after a restart, with the one just clicked first.
         (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
         details = await SelectSingleAsync(window, vm, 2);
-        Assert.Equal(["Cat", "Eve", "Dan", "Bob", "Ann"], details.SuggestedPeople);
+        Assert.Equal(["Cat", "Kit", "Jo", "Ivy", "Hal", "Gus", "Fay", "Eve", "Dan", "Bob"], details.SuggestedPeople);
         Assert.Empty(PhotoMetadata.Read(c).People);
         window.Close();
     }
