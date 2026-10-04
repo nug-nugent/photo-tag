@@ -16,6 +16,9 @@ public sealed class AdvancedSearchTests : UiTestBase
     {
         var button = Find<Button>(window, "AdvancedSearchButton");
         var flyout = (Flyout)button.Flyout!;
+        // A search still loading would move the button when it finishes (the heading beside the search box changes),
+        // and the headless mouse runs queued work between press and release, so the release could miss the button.
+        await vm.PhotosLoading;
         Click(window, button);
         Assert.True(flyout.IsOpen);
         await vm.AdvancedSearch.Loading;
@@ -81,7 +84,10 @@ public sealed class AdvancedSearchTests : UiTestBase
         Assert.Equal(1, InPopover<ComboBox>(flyout, "SearchYearBox").SelectedIndex);
         Assert.Equal(["Ann", "Bob"], vm.AdvancedSearch.People);
         Click(window, InPopover<Button>(flyout, "AdvancedSearchClearButton"));
+        Assert.False(flyout.IsOpen);
+        await vm.PhotosLoading;
         Assert.False(vm.AdvancedSearch.HasCriteria);
+        Assert.Equal(4, vm.Photos.Count); // the folder again: nothing left to search for
         flyout = await OpenPopoverAsync(window, vm);
         InPopover<AutoCompleteBox>(flyout, "SearchTagBox").Focus();
         window.KeyTextInput("cake; beach");
