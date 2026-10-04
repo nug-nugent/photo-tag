@@ -25,7 +25,7 @@ Early days. Today it can:
   it in one click, a dot for each tag, and a red mark if it has no tags yet. Sort by file name or date taken, or
   group by day with favourites at double size, so each day reads as its highlights (and jump from day to day)
 - Open a large viewer (double-click, Space or Enter) to go through photos one at a time: ← → to move, F to
-  favourite, T to add a tag, with a filmstrip that marks favourites in red
+  favourite, T to add a tag, P to add a person, with a filmstrip that marks favourites in red
 - Show a details panel for the selected photo: preview, date taken, camera, exposure, size, and GPS with an
   "Open in map" link (OpenStreetMap, in your browser)
 - Fill in places from GPS, offline: the nearest town, county/state and country, for one photo or many at once.

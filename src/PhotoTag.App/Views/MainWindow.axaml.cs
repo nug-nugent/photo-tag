@@ -153,18 +153,20 @@ public partial class MainWindow : Window
             case Key.Home: viewer.Move(-viewer.Photos.Count); break;
             case Key.End: viewer.Move(viewer.Photos.Count); break;
             case Key.F: _ = vm.ToggleSelectedFavouritesAsync(); break;
-            case Key.T:
-                // After the key's own text input has gone by, or the box would start with a "t".
-                // The viewer's editor: the side panel's, under it, has one of the same name.
-                Dispatcher.UIThread.Post(() => ViewerPanel.GetVisualDescendants().OfType<Control>()
-                    .FirstOrDefault(c => c.Name == "NewTagBox")?.Focus(), DispatcherPriority.Background);
-                break;
+            case Key.T: FocusInViewer("NewTagBox"); break;
+            case Key.P: FocusInViewer("NewPersonBox"); break;
             case Key.Escape when viewer.IsFullScreen: viewer.IsFullScreen = false; break;
             case Key.Escape: vm.CloseViewer(); break;
             default: return;
         }
         e.Handled = true;
     }
+
+    /// <summary>Focuses a box in the viewer's editor: the side panel's, under it, has one of the same name.</summary>
+    private void FocusInViewer(string name) =>
+        // After the key's own text input has gone by, or the box would start with that letter.
+        Dispatcher.UIThread.Post(() => ViewerPanel.GetVisualDescendants().OfType<Control>()
+            .FirstOrDefault(c => c.Name == name)?.Focus(), DispatcherPriority.Background);
 
     private void Grid_KeyDown(object? sender, KeyEventArgs e)
     {

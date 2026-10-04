@@ -1038,7 +1038,7 @@
                 <Border Grid.Column="1" Width="300" BorderBrush="{DynamicResource RuleBrush}" BorderThickness="2,0,0,0"
                         IsVisible="{Binding !Viewer.IsFullScreen}">
                     <DockPanel Margin="18,20">
-                        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
+                        <Grid DockPanel.Dock="Bottom" ColumnDefinitions="Auto,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto" ColumnSpacing="12" RowSpacing="8">
                             <Grid.Styles>
                                 <Style Selector="TextBlock">
                                     <Setter Property="FontSize" Value="12" />
@@ -1055,10 +1055,12 @@
                             <TextBlock Grid.Row="1" Grid.Column="1" Text="Toggle favourite" />
                             <TextBlock Grid.Row="2" Classes="shortcut" Text="T" />
                             <TextBlock Grid.Row="2" Grid.Column="1" Text="Add a tag" />
-                            <TextBlock Grid.Row="3" Classes="shortcut" Text="Esc" />
-                            <TextBlock Grid.Row="3" Grid.Column="1" Text="Back to grid" />
-                            <TextBlock Grid.Row="4" Classes="shortcut" Text="Click" />
-                            <TextBlock Grid.Row="4" Grid.Column="1" Text="Full screen (the photo)" />
+                            <TextBlock Grid.Row="3" Classes="shortcut" Text="P" />
+                            <TextBlock Grid.Row="3" Grid.Column="1" Text="Add a person" />
+                            <TextBlock Grid.Row="4" Classes="shortcut" Text="Esc" />
+                            <TextBlock Grid.Row="4" Grid.Column="1" Text="Back to grid" />
+                            <TextBlock Grid.Row="5" Classes="shortcut" Text="Click" />
+                            <TextBlock Grid.Row="5" Grid.Column="1" Text="Full screen (the photo)" />
                         </Grid>
                         <Rectangle DockPanel.Dock="Bottom" Height="2" Fill="{DynamicResource RuleBrush}" Margin="0,14" />
                         <!-- The scroll bar sits in the panel's margin, clear of the boxes. -->
