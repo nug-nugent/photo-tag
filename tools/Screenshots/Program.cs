@@ -179,6 +179,17 @@ try
         vm.OpenViewer();
         WaitUntil(() => vm.Viewer?.Preview is not null && vm.Details is PhotoDetailsViewModel { IsLoaded: true });
         Capture(window, $"{name}-9-viewer");
+
+        // Full screen, zoomed in on the right of the photo, as the wheel would there.
+        var viewer = vm.Viewer!;
+        viewer.IsFullScreen = true;
+        WaitUntil(() => true);
+        var photo = window.GetLogicalDescendants().OfType<Panel>().Single(p => p.Name == "ViewerPhoto");
+        var stage = window.GetLogicalDescendants().OfType<Grid>().Single(g => g.Name == "ViewerStage");
+        var shown = viewer.Preview;
+        viewer.ZoomBy(3, new Vector(photo.Bounds.Width / 4, 0), photo.Bounds.Size, stage.Bounds.Size);
+        WaitUntil(() => viewer.Preview is not null && viewer.Preview != shown); // the full-size copy
+        Capture(window, $"{name}-9-viewer-zoomed");
         vm.CloseViewer();
 
         // A year folder with no photos of its own: its subfolders' photos, by day.

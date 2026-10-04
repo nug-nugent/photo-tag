@@ -188,6 +188,86 @@ public sealed class ViewerTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task FullScreen_TheWheelZoomsAroundThePointer_AndADragMovesThePhoto()
+    {
+        for (var i = 0; i < 2; i++) Photo($"p{i}.jpg");
+        var (window, vm) = await OpenAsync(writer: null);
+        ClickTile(window, 0);
+        Press(window, PhysicalKey.Space);
+        var viewer = Assert.IsType<ViewerViewModel>(vm.Viewer);
+        var photo = await WaitForControlAsync(() => FindAll<Panel>(window).FirstOrDefault(p => p.Name == "ViewerPhoto"));
+        var zoomed = Find<Panel>(window, "ViewerZoom");
+        var centre = photo.TranslatePoint(new Point(photo.Bounds.Width / 2, photo.Bounds.Height / 2), window)!.Value;
+
+        // Not full screen: the wheel does nothing.
+        window.MouseWheel(centre, new Vector(0, 1));
+        Settle();
+        Assert.False(viewer.IsZoomed);
+
+        Click(window, photo);
+        Assert.True(viewer.IsFullScreen);
+        Settle();
+        centre = photo.TranslatePoint(new Point(photo.Bounds.Width / 2, photo.Bounds.Height / 2), window)!.Value;
+
+        // The part of the photo under the pointer stays under it.
+        var pointer = centre + new Vector(photo.Bounds.Width / 4, 0);
+        var under = window.TranslatePoint(pointer, zoomed)!.Value;
+        window.MouseWheel(pointer, new Vector(0, 3));
+        Settle();
+        Assert.True(viewer.IsZoomed);
+        Assert.Equal(Math.Pow(1.25, 3), viewer.Zoom, 6);
+        Assert.NotNull(zoomed.RenderTransform);
+        var stillUnder = window.TranslatePoint(pointer, zoomed)!.Value;
+        Assert.Equal(under.X, stillUnder.X, 3);
+        Assert.Equal(under.Y, stillUnder.Y, 3);
+
+        // A drag moves it (and doesn't leave full screen), but no further than its edges.
+        var before = viewer.Pan;
+        window.MouseDown(centre, MouseButton.Left);
+        window.MouseMove(centre + new Vector(-20, 0));
+        window.MouseUp(centre + new Vector(-20, 0), MouseButton.Left);
+        Settle();
+        Assert.True(viewer.IsFullScreen);
+        Assert.Equal(before.X - 20, viewer.Pan.X, 3);
+        window.MouseDown(centre, MouseButton.Left);
+        window.MouseMove(centre + new Vector(5000, 5000));
+        window.MouseUp(centre + new Vector(5000, 5000), MouseButton.Left);
+        Settle();
+        var stage = Find<Grid>(window, "ViewerStage").Bounds.Size;
+        Assert.Equal(Math.Max(0, (photo.Bounds.Width * viewer.Zoom - stage.Width) / 2), viewer.Pan.X, 3);
+        Assert.Equal(Math.Max(0, (photo.Bounds.Height * viewer.Zoom - stage.Height) / 2), viewer.Pan.Y, 3);
+
+        // It goes no further in than 8x, and no further out than the whole photo.
+        for (var i = 0; i < 20; i++) Press(window, PhysicalKey.Equal);
+        Assert.Equal(ViewerViewModel.MaxZoom, viewer.Zoom);
+        for (var i = 0; i < 20; i++) Press(window, PhysicalKey.Minus);
+        Assert.False(viewer.IsZoomed);
+        Assert.Equal(default, viewer.Pan);
+        Assert.Null(zoomed.RenderTransform);
+
+        // 0 shows the whole photo; so does moving to the next one.
+        Press(window, PhysicalKey.Equal);
+        Assert.True(viewer.IsZoomed);
+        Press(window, PhysicalKey.Digit0);
+        Assert.False(viewer.IsZoomed);
+        Press(window, PhysicalKey.Equal);
+        Press(window, PhysicalKey.ArrowRight);
+        Assert.Same(vm.Photos[1], viewer.Current);
+        Assert.False(viewer.IsZoomed);
+
+        // Zoomed in, the sharper copy replaces the preview; Esc zooms out, then leaves full screen.
+        Press(window, PhysicalKey.Equal);
+        await WaitForAsync(() => viewer.Preview is not null);
+        Press(window, PhysicalKey.Escape);
+        Assert.False(viewer.IsZoomed);
+        Assert.True(viewer.IsFullScreen);
+        Press(window, PhysicalKey.Equal);
+        viewer.IsFullScreen = false;
+        Assert.False(viewer.IsZoomed);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task ClickingThePreviewInTheDetailsPanel_OpensTheViewer()
     {
         for (var i = 0; i < 3; i++) Photo($"p{i}.jpg");
