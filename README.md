@@ -25,7 +25,7 @@ Early days. Today it can:
   it in one click, a dot for each tag, and a red mark if it has no tags yet. Sort by file name or date taken, or
   group by day with favourites at double size, so each day reads as its highlights (and jump from day to day)
 - Open a large viewer (double-click, Space or Enter) to go through photos one at a time: ← → to move, F to
-  favourite, T to add a tag, with a filmstrip that marks favourites in red
+  favourite, T to add a tag, P to add a person, with a filmstrip that marks favourites in red
 - Show a details panel for the selected photo: preview, date taken, camera, exposure, size, and GPS with an
   "Open in map" link (OpenStreetMap, in your browser)
 - Fill in places from GPS, offline: the nearest town, county/state and country, for one photo or many at once.
@@ -43,7 +43,8 @@ Early days. Today it can:
 - Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search across
   every subfolder by tag, person, title, description, place or file name, see every photo in the library, list the
   untagged photos or your favourites (on their own or with a search), and suggestions cover your whole library.
-  Under a photo's tags, the library's most used tags are one click away.
+  Under a photo's tags, the library's most used tags are one click away; under its people, the last five people
+  you added.
 - Search by several things at once from the popover in the search box: all of some people or any of them, all or
   any of some tags, part of a place, and the day, month and year taken, each optional. A day and month with any
   year finds a birthday over the years.

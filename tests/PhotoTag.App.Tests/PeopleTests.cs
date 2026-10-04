@@ -88,6 +88,34 @@ public sealed class PeopleTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task SeveralPhotos_PeopleAddedToThem_AreSuggestedAfterwards()
+    {
+        await using var exifTool = RequireExifTool();
+        var writer = new PhotoMetadataWriter(exifTool);
+        var a = Photo("a.jpg");
+        Photo("b.jpg");
+        Photo("c.jpg");
+        await writer.WriteAsync(a, new MetadataChanges { People = ["Mum"] }, Ct);
+        var (window, vm) = await OpenAsync(writer);
+        ClickTile(window, 0);
+        ClickTile(window, 1, CommandKey);
+        var bulk = Assert.IsType<BulkDetailsViewModel>(vm.Details);
+        await WaitForAsync(() => bulk.IsLoaded && bulk.CanEdit);
+
+        // Both ways of adding a person to several photos count: "+" for one only some have, and typing a name.
+        Click(window, FindAll<Button>(window).Single(x => x.Classes.Contains("personAddAll")));
+        await WaitForAsync(() => !vm.Operations.IsBusy);
+        Find<AutoCompleteBox>(window, "BulkPersonBox").Focus();
+        window.KeyTextInput("Dad");
+        Press(window, PhysicalKey.Enter);
+        await WaitForAsync(() => !vm.Operations.IsBusy);
+
+        var details = await SelectSingleAsync(window, vm, 2);
+        Assert.Equal(["Dad", "Mum"], details.SuggestedPeople);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Panel_PeopleSide_RenamesMergesAndDeletes_LeavingTagsAlone()
     {
         await using var exifTool = RequireExifTool();
@@ -137,6 +165,47 @@ public sealed class PeopleTests : UiTestBase
         tags.Open();
         await tags.Loading;
         Assert.Equal(["Mum"], tags.Tags.Select(t => t.Keyword));
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task SuggestedPeople_AreTheLastFiveAdded_AddInOneClick_AndAreRemembered()
+    {
+        await using var exifTool = RequireExifTool();
+        var a = Photo("a.jpg");
+        var b = Photo("b.jpg");
+        var c = Photo("c.jpg");
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+
+        // Six people on the first photo: the first one added drops off the end.
+        var details = await SelectSingleAsync(window, vm, 0);
+        Assert.Empty(details.SuggestedPeople);
+        Find<AutoCompleteBox>(window, "NewPersonBox").Focus();
+        window.KeyTextInput("Tom");
+        Press(window, PhysicalKey.Enter);
+        await WaitForSaveAsync(details);
+        window.KeyTextInput("Ann; Bob; Cat; Dan; Eve");
+        Press(window, PhysicalKey.Enter);
+        await WaitForSaveAsync(details);
+        Assert.Equal(["Tom", "Ann", "Bob", "Cat", "Dan", "Eve"], PhotoMetadata.Read(a).People);
+        Assert.Empty(details.SuggestedPeople); // it has them all
+
+        // The next photo offers them, most recent first; a click adds one.
+        details = await SelectSingleAsync(window, vm, 1);
+        Assert.Equal(["Eve", "Dan", "Cat", "Bob", "Ann"], details.SuggestedPeople);
+        var cat = await WaitForControlAsync(() => FindAll<Button>(window)
+            .FirstOrDefault(button => button.Classes.Contains("suggestion") && button.IsEffectivelyVisible && button.DataContext as string == "Cat"));
+        Click(window, cat);
+        await WaitForSaveAsync(details);
+        Assert.Equal(["Cat"], PhotoMetadata.Read(b).People);
+        Assert.Equal(["Eve", "Dan", "Bob", "Ann"], details.SuggestedPeople);
+        window.Close();
+
+        // Still there after a restart, with the one just clicked first.
+        (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        details = await SelectSingleAsync(window, vm, 2);
+        Assert.Equal(["Cat", "Eve", "Dan", "Bob", "Ann"], details.SuggestedPeople);
+        Assert.Empty(PhotoMetadata.Read(c).People);
         window.Close();
     }
 }

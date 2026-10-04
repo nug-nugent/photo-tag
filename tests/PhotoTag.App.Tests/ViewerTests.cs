@@ -73,8 +73,10 @@ public sealed class ViewerTests : UiTestBase
         var details = Assert.IsType<PhotoDetailsViewModel>(vm.Details);
         await WaitForAsync(() => details.CanEdit);
 
-        // A person, typed into the viewer's own box, saved with Enter.
-        InViewer<AutoCompleteBox>(window, "NewPersonBox").Focus();
+        // P jumps to the viewer's own person box (without typing a "p"); Enter saves.
+        Press(window, PhysicalKey.P);
+        var personBox = InViewer<AutoCompleteBox>(window, "NewPersonBox");
+        Assert.True(IsFocusWithin(window, personBox));
         window.KeyTextInput("Mary Smith");
         Press(window, PhysicalKey.Enter);
         await details.SaveCompletion;

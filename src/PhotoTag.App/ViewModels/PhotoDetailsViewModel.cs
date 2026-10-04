@@ -23,6 +23,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private readonly BulkOperations _operations;
     private readonly PhotoRenderer _renderer;
     private readonly PopularKeywords? _popular;
+    private readonly RecentPeople? _recentPeople;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private int _pendingSaves;
     private Task _lastSave = Task.CompletedTask;
@@ -32,7 +33,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions,
         KeywordSuggestions people, PlaceSuggestions places, BulkOperations operations, PhotoRenderer renderer,
-        PopularKeywords? popular = null, IExactPlaceLookup? placeLookup = null)
+        PopularKeywords? popular = null, IExactPlaceLookup? placeLookup = null, RecentPeople? recentPeople = null)
     {
         _placeLookup = placeLookup;
         _peopleSuggestions = people;
@@ -47,6 +48,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         _popular = popular;
         if (_popular is not null) _popular.Changed += OnPopularChanged;
         Keywords.CollectionChanged += (_, _) => UpdateSuggestedKeywords();
+        _recentPeople = recentPeople;
+        if (_recentPeople is not null) _recentPeople.Changed += OnRecentPeopleChanged;
+        People.CollectionChanged += (_, _) => UpdateSuggestedPeople();
     }
 
     public PhotoItemViewModel Photo { get; }
@@ -305,7 +309,11 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     private void OnPopularChanged(object? sender, EventArgs e) => UpdateSuggestedKeywords();
 
-    partial void OnIsLoadedChanged(bool value) => UpdateSuggestedKeywords();
+    partial void OnIsLoadedChanged(bool value)
+    {
+        UpdateSuggestedKeywords();
+        UpdateSuggestedPeople();
+    }
 
     private void UpdateSuggestedKeywords()
     {
@@ -323,6 +331,22 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         return AddToListAsync(ListField.People, People, text);
     }
 
+    /// <summary>The last few people added to a photo, that this photo doesn't have yet, for one-click adding.</summary>
+    public ObservableCollection<string> SuggestedPeople { get; } = [];
+
+    [RelayCommand]
+    private Task AddSuggestedPerson(string name) => AddToListAsync(ListField.People, People, name);
+
+    private void OnRecentPeopleChanged(object? sender, EventArgs e) => UpdateSuggestedPeople();
+
+    private void UpdateSuggestedPeople()
+    {
+        var suggested = IsLoaded && _recentPeople is not null ? _recentPeople.Suggest(People).ToList() : [];
+        if (suggested.SequenceEqual(SuggestedPeople)) return;
+        SuggestedPeople.Clear();
+        foreach (var name in suggested) SuggestedPeople.Add(name);
+    }
+
     [RelayCommand]
     private Task RemovePerson(string name) => RemoveFromListAsync(ListField.People, People, name);
 
@@ -333,6 +357,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         if (toAdd.Count == 0) return;
 
         foreach (var value in toAdd) list.Add(value); // straight away; the save shows the merged list
+        if (field == ListField.People) _recentPeople?.Add(toAdd);
         await SaveListAsync(field, list, editor => editor.AddAsync([Photo.File], field, toAdd));
     }
 
@@ -585,6 +610,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         _operations.PropertyChanged -= OnOperationsChanged;
         _operations.Completed -= OnOperationCompleted;
         if (_popular is not null) _popular.Changed -= OnPopularChanged;
+        if (_recentPeople is not null) _recentPeople.Changed -= OnRecentPeopleChanged;
         _cts.Cancel();
         _cts.Dispose();
         Preview?.Dispose();
