@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using PhotoTag.App.ViewModels;
 
@@ -28,6 +29,19 @@ public partial class PhotoEditor : UserControl
         {
             if (TagsSection.IsKeyboardFocusWithin) UpdateIsEditingTags();
         };
+    }
+
+    // A context menu opens in a popup outside the visual tree, where $parent can't find the photo's details.
+    private void RemoveSuggestedTag_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is PhotoDetailsViewModel details && sender is MenuItem { DataContext: string tag })
+            details.RemoveSuggestedKeywordCommand.Execute(tag);
+    }
+
+    private void RemoveSuggestedPerson_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is PhotoDetailsViewModel details && sender is MenuItem { DataContext: string name })
+            details.RemoveSuggestedPersonCommand.Execute(name);
     }
 
     private void UpdateIsEditingTags()

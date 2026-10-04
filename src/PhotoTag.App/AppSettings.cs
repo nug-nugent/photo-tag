@@ -52,6 +52,12 @@ public sealed class AppSettings
     /// <summary>The tags last added to a photo, most recent first. See ViewModels.RecentNames.</summary>
     public List<string> RecentTags { get; set; } = [];
 
+    /// <summary>
+    /// Tags taken out of the suggestions, so they aren't suggested as most used either, until they're added to a
+    /// photo again. See ViewModels.RecentNames.
+    /// </summary>
+    public List<string> HiddenTagSuggestions { get; set; } = [];
+
     public static AppSettings Load(string? filePath = null)
     {
         filePath ??= DefaultFilePath;

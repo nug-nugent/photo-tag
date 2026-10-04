@@ -134,6 +134,47 @@ public sealed class TagEditingTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task ASuggestedTag_CanBeRemovedFromTheSuggestions_EvenAMostUsedOne_UntilAddedAgain()
+    {
+        await using var exifTool = RequireExifTool();
+        Photo("a.jpg", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8");
+        Photo("b.jpg");
+        Photo("c.jpg");
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        await vm.Library.ScanCompletion;
+        await WaitForAsync(() => vm.AllCount == "3");
+
+        var details = await SelectSingleAsync(window, vm, 1);
+        Find<AutoCompleteBox>(window, "NewTagBox").Focus();
+        window.KeyTextInput("Gardne");
+        Press(window, PhysicalKey.Enter);
+        await WaitForSaveAsync(details);
+        details = await SelectSingleAsync(window, vm, 2);
+        await WaitForAsync(() => details.SuggestedKeywords.Count == 6);
+        Assert.Equal(["Gardne", "P1", "P2", "P3", "P4", "P5"], details.SuggestedKeywords);
+
+        // A recently added one and a most used one: both gone, the next most used taking their places.
+        foreach (var tag in new[] { "Gardne", "P2" })
+        {
+            var button = await WaitForControlAsync(() => FindAll<Button>(window)
+                .FirstOrDefault(b => b.Classes.Contains("suggestion") && b.IsEffectivelyVisible && b.DataContext as string == tag));
+            ChooseFromContextMenu(window, button, "Remove from suggestions");
+        }
+        Assert.Equal(["P1", "P3", "P4", "P5", "P6", "P7"], details.SuggestedKeywords);
+        Assert.Equal(["Gardne", "P2"], AppSettings.Load(SettingsPath).HiddenTagSuggestions);
+
+        // Added to a photo again, it's suggested again.
+        Find<AutoCompleteBox>(window, "NewTagBox").Focus();
+        window.KeyTextInput("P2");
+        Press(window, PhysicalKey.Enter);
+        await WaitForSaveAsync(details);
+        details = await SelectSingleAsync(window, vm, 1);
+        Assert.Equal(["P2", "P1", "P3", "P4", "P5", "P6"], details.SuggestedKeywords);
+        Assert.Equal(["Gardne"], AppSettings.Load(SettingsPath).HiddenTagSuggestions);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task SuggestedTags_MixRecentAndMostUsed_AndShowMoreWhileEditing()
     {
         await using var exifTool = RequireExifTool();

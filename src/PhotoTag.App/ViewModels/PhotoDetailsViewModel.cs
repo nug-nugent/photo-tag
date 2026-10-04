@@ -327,6 +327,10 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         return AddToListAsync(ListField.Tags, Keywords, keyword);
     }
 
+    /// <summary>Takes a tag out of the suggestions (recent and most used) until it's added to a photo again.</summary>
+    [RelayCommand]
+    private void RemoveSuggestedKeyword(string keyword) => _recentTags?.Remove(keyword);
+
     private void OnPopularChanged(object? sender, EventArgs e) => UpdateSuggestedKeywords();
 
     partial void OnIsLoadedChanged(bool value)
@@ -352,7 +356,8 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         var (recentCount, total) = IsEditingTags || _usedSuggestedKeyword ? (5, 10) : (2, 6);
         var recent = _recentTags?.Suggest(Keywords, total).ToList() ?? [];
         var firstRecent = recent.Take(recentCount).ToList();
-        var popular = (_popular?.Suggest(Keywords.Concat(firstRecent), total) ?? []).Take(total - firstRecent.Count).ToList();
+        var except = Keywords.Concat(firstRecent).Concat(_recentTags?.Hidden ?? []);
+        var popular = (_popular?.Suggest(except, total) ?? []).Take(total - firstRecent.Count).ToList();
         var moreRecent = recent.Skip(recentCount).Except(popular, StringComparer.OrdinalIgnoreCase)
             .Take(total - firstRecent.Count - popular.Count);
         return [.. firstRecent, .. moreRecent, .. popular];
@@ -371,6 +376,10 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private Task AddSuggestedPerson(string name) => AddToListAsync(ListField.People, People, name);
+
+    /// <summary>Takes a person out of the suggestions (a mistyped name, say) until they're added to a photo again.</summary>
+    [RelayCommand]
+    private void RemoveSuggestedPerson(string name) => _recentPeople?.Remove(name);
 
     private void OnRecentPeopleChanged(object? sender, EventArgs e) => UpdateSuggestedPeople();
 
