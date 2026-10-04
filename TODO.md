@@ -30,8 +30,8 @@ clear message and loses nothing from the index; and that other apps' changes on 
 or the 30-second poll). Tune the scan's parallelism for network drives (`LibraryIndex`, now 8) if needed. The log
 (⚙ Settings → Show log) records how long each folder took to answer and each scan took, and what failed.
 
-## 5. Housekeeping
+## 3. Housekeeping
 
-### 5.1 Unpin xunit.v3 (S, blocked)
+### 3.1 Unpin xunit.v3 (S, blocked)
 `Directory.Packages.props` pins `xunit.v3` to 3.2.2 because `Avalonia.Headless.XUnit` 12 fails with 4.x. Upgrade when
 Avalonia ships a compatible version.

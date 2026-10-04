@@ -16,8 +16,6 @@ public sealed class PhotoRenderer(RawPreviewExtractor? rawPreviews)
     /// <summary>A renderer for ordinary images only.</summary>
     public static PhotoRenderer ImagesOnly { get; } = new(null);
 
-    public bool CanRenderRaw => rawPreviews is not null;
-
     /// <summary>Encoded bytes (JPEG, or PNG with alpha) whose longest edge is at most <paramref name="maxSize"/>.</summary>
     public async Task<byte[]> RenderAsync(string path, int maxSize, CancellationToken cancellationToken = default)
     {

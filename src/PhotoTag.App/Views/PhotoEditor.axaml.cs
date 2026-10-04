@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using PhotoTag.App.ViewModels;
 
@@ -10,9 +11,16 @@ public partial class PhotoEditor : UserControl
     public PhotoEditor()
     {
         InitializeComponent();
-        // More tag suggestions while the tags are being edited. Not straight away: focus also moves when the
-        // suggestions are being replaced (the focused one goes), and they can't be changed again mid-change.
+        // More tag suggestions while the tags are being edited: from when the Tags box gets focus until focus leaves
+        // the Tags section (so moving on to a suggestion keeps them). A suggestion getting focus doesn't start it:
+        // a press focuses the button, and replacing the list under the pointer would lose the click. Not straight
+        // away either: focus also moves when the suggestions are being replaced (the focused one goes), and they
+        // can't be changed again mid-change.
         TagsSection.PropertyChanged += (_, e) =>
+        {
+            if (e.Property == IsKeyboardFocusWithinProperty) Dispatcher.UIThread.Post(UpdateIsEditingTags);
+        };
+        NewTagBox.PropertyChanged += (_, e) =>
         {
             if (e.Property == IsKeyboardFocusWithinProperty) Dispatcher.UIThread.Post(UpdateIsEditingTags);
         };
@@ -23,8 +31,23 @@ public partial class PhotoEditor : UserControl
         };
     }
 
+    // A context menu opens in a popup outside the visual tree, where $parent can't find the photo's details.
+    private void RemoveSuggestedTag_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is PhotoDetailsViewModel details && sender is MenuItem { DataContext: string tag })
+            details.RemoveSuggestedKeywordCommand.Execute(tag);
+    }
+
+    private void RemoveSuggestedPerson_Click(object? sender, RoutedEventArgs e)
+    {
+        if (DataContext is PhotoDetailsViewModel details && sender is MenuItem { DataContext: string name })
+            details.RemoveSuggestedPersonCommand.Execute(name);
+    }
+
     private void UpdateIsEditingTags()
     {
-        if (DataContext is PhotoDetailsViewModel details) details.IsEditingTags = TagsSection.IsKeyboardFocusWithin;
+        if (DataContext is not PhotoDetailsViewModel details) return;
+        if (!TagsSection.IsKeyboardFocusWithin) details.IsEditingTags = false;
+        else if (NewTagBox.IsKeyboardFocusWithin) details.IsEditingTags = true;
     }
 }

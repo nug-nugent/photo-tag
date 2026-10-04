@@ -1,8 +1,5 @@
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless.XUnit;
-using Avalonia.Input;
-using Avalonia.VisualTree;
 using PhotoTag.App.ViewModels;
 using PhotoTag.Core;
 
@@ -93,16 +90,6 @@ public sealed class UpdatesTests : UiTestBase
 
         Click(settings, checkNow);
         await WaitForAsync(() => checkNow.IsEffectivelyEnabled);
-        if (status.Text is null)
-        {
-            var centre = checkNow.TranslatePoint(new Avalonia.Point(checkNow.Bounds.Width / 2, checkNow.Bounds.Height / 2), settings);
-            var hit = centre is { } p ? settings.InputHitTest(p) : null;
-            Assert.Fail($"DIAG checks={updater.Checks} vmStatus={vm.Updates.CheckStatus ?? "null"} " +
-                        $"settingsUpdatesSame={ReferenceEquals(((SettingsViewModel)settings.DataContext!).Updates, vm.Updates)} " +
-                        $"client={settings.ClientSize} bounds={checkNow.Bounds} centre={centre} hit={hit} " +
-                        $"hitParent={(hit as Avalonia.Visual)?.GetVisualParent()} pressed={checkNow.IsPressed} over={checkNow.IsPointerOver} " +
-                        $"canExec={checkNow.Command?.CanExecute(null)} active={settings.IsActive} mainEnabled={window.IsEnabled}");
-        }
         Assert.Equal("Couldn't check for a new version. Are you online?", status.Text);
 
         updater.Fails = false;

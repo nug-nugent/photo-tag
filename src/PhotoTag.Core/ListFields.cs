@@ -13,8 +13,6 @@ public enum ListField
 /// <summary>Gets and sets a <see cref="ListField"/> on metadata and changes, so code can serve both.</summary>
 public static class ListFields
 {
-    public static IReadOnlyList<ListField> All { get; } = Enum.GetValues<ListField>();
-
     public static IReadOnlyList<string> Get(this PhotoMetadata metadata, ListField field) => field switch
     {
         ListField.Tags => metadata.Keywords,

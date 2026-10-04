@@ -4,6 +4,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using PhotoTag.App.ViewModels;
@@ -182,9 +183,33 @@ public abstract class UiTestBase : IAsyncDisposable
             Thread.Sleep(10);
             Settle();
         }
+        // A real click gives the UI time between press and release: anything the press set off (focus moving,
+        // a list being rebuilt) happens before the release, which only clicks if it lands on the same control.
         window.MouseDown(centre, MouseButton.Left, modifiers);
+        Settle();
         window.MouseUp(centre, MouseButton.Left, modifiers);
         Dispatcher.UIThread.RunJobs();
+    }
+
+    /// <summary>
+    /// Right-clicks a control and chooses an item from its context menu. The menu opens in a popup of its own, so
+    /// its item is invoked rather than clicked.
+    /// </summary>
+    protected static void ChooseFromContextMenu(Window window, Control control, string header)
+    {
+        Settle();
+        var centre = control.TranslatePoint(new Point(control.Bounds.Width / 2, control.Bounds.Height / 2), window)
+                     ?? throw new InvalidOperationException("Control isn't in the window.");
+        window.MouseDown(centre, MouseButton.Right);
+        Settle();
+        window.MouseUp(centre, MouseButton.Right);
+        Settle();
+        var menu = control.ContextMenu ?? throw new InvalidOperationException("The control has no context menu.");
+        Assert.True(menu.IsOpen, "The context menu didn't open.");
+        var item = menu.Items.OfType<MenuItem>().Single(i => i.Header as string == header);
+        item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent));
+        menu.Close();
+        Settle();
     }
 
     protected static T Find<T>(Window window, string name) where T : Control =>

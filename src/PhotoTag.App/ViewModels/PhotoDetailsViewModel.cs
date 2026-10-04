@@ -48,9 +48,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         _operations.PropertyChanged += OnOperationsChanged;
         _operations.Completed += OnOperationCompleted;
         _popular = popular;
-        if (_popular is not null) _popular.Changed += OnPopularChanged;
+        if (_popular is not null) _popular.Changed += OnSuggestedKeywordsSourceChanged;
         _recentTags = recentTags;
-        if (_recentTags is not null) _recentTags.Changed += OnPopularChanged;
+        if (_recentTags is not null) _recentTags.Changed += OnSuggestedKeywordsSourceChanged;
         Keywords.CollectionChanged += (_, _) => UpdateSuggestedKeywords();
         _recentPeople = recentPeople;
         if (_recentPeople is not null) _recentPeople.Changed += OnRecentPeopleChanged;
@@ -311,7 +311,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     /// </summary>
     public ObservableCollection<string> SuggestedKeywords { get; } = [];
 
-    /// <summary>Whether the Tags box (or one of the suggestions under it) has focus; set by the view.</summary>
+    /// <summary>Whether the tags are being edited (the Tags box has had focus, and it hasn't left them); set by the view.</summary>
     [ObservableProperty]
     public partial bool IsEditingTags { get; set; }
 
@@ -327,7 +327,11 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         return AddToListAsync(ListField.Tags, Keywords, keyword);
     }
 
-    private void OnPopularChanged(object? sender, EventArgs e) => UpdateSuggestedKeywords();
+    /// <summary>Takes a tag out of the suggestions (recent and most used) until it's added to a photo again.</summary>
+    [RelayCommand]
+    private void RemoveSuggestedKeyword(string keyword) => _recentTags?.Remove(keyword);
+
+    private void OnSuggestedKeywordsSourceChanged(object? sender, EventArgs e) => UpdateSuggestedKeywords();
 
     partial void OnIsLoadedChanged(bool value)
     {
@@ -352,7 +356,8 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         var (recentCount, total) = IsEditingTags || _usedSuggestedKeyword ? (5, 10) : (2, 6);
         var recent = _recentTags?.Suggest(Keywords, total).ToList() ?? [];
         var firstRecent = recent.Take(recentCount).ToList();
-        var popular = (_popular?.Suggest(Keywords.Concat(firstRecent), total) ?? []).Take(total - firstRecent.Count).ToList();
+        var except = Keywords.Concat(firstRecent).Concat(_recentTags?.Hidden ?? []);
+        var popular = (_popular?.Suggest(except, total) ?? []).Take(total - firstRecent.Count).ToList();
         var moreRecent = recent.Skip(recentCount).Except(popular, StringComparer.OrdinalIgnoreCase)
             .Take(total - firstRecent.Count - popular.Count);
         return [.. firstRecent, .. moreRecent, .. popular];
@@ -371,6 +376,10 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     [RelayCommand]
     private Task AddSuggestedPerson(string name) => AddToListAsync(ListField.People, People, name);
+
+    /// <summary>Takes a person out of the suggestions (a mistyped name, say) until they're added to a photo again.</summary>
+    [RelayCommand]
+    private void RemoveSuggestedPerson(string name) => _recentPeople?.Remove(name);
 
     private void OnRecentPeopleChanged(object? sender, EventArgs e) => UpdateSuggestedPeople();
 
@@ -644,9 +653,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     {
         _operations.PropertyChanged -= OnOperationsChanged;
         _operations.Completed -= OnOperationCompleted;
-        if (_popular is not null) _popular.Changed -= OnPopularChanged;
+        if (_popular is not null) _popular.Changed -= OnSuggestedKeywordsSourceChanged;
         if (_recentPeople is not null) _recentPeople.Changed -= OnRecentPeopleChanged;
-        if (_recentTags is not null) _recentTags.Changed -= OnPopularChanged;
+        if (_recentTags is not null) _recentTags.Changed -= OnSuggestedKeywordsSourceChanged;
         _cts.Cancel();
         _cts.Dispose();
         Preview?.Dispose();

@@ -208,4 +208,43 @@ public sealed class PeopleTests : UiTestBase
         Assert.Empty(PhotoMetadata.Read(c).People);
         window.Close();
     }
+
+    [AvaloniaFact]
+    public async Task ASuggestedPerson_CanBeRemovedFromTheSuggestions_UntilAddedAgain()
+    {
+        await using var exifTool = RequireExifTool();
+        Photo("a.jpg");
+        var b = Photo("b.jpg");
+        Photo("c.jpg");
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+
+        // A mistyped name, taken off the photo again: it's still suggested.
+        var details = await SelectSingleAsync(window, vm, 0);
+        Find<AutoCompleteBox>(window, "NewPersonBox").Focus();
+        window.KeyTextInput("Ann; Bbo; Bob");
+        Press(window, PhysicalKey.Enter);
+        await WaitForSaveAsync(details);
+        details = await SelectSingleAsync(window, vm, 1);
+        Assert.Equal(["Bob", "Bbo", "Ann"], details.SuggestedPeople);
+
+        // Right-click, Remove from suggestions: gone, and still gone after a restart.
+        var typo = await WaitForControlAsync(() => FindAll<Button>(window)
+            .FirstOrDefault(button => button.Classes.Contains("suggestion") && button.IsEffectivelyVisible && button.DataContext as string == "Bbo"));
+        ChooseFromContextMenu(window, typo, "Remove from suggestions");
+        Assert.Equal(["Bob", "Ann"], details.SuggestedPeople);
+        Assert.Empty(PhotoMetadata.Read(b).People); // nothing written
+        window.Close();
+        (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        details = await SelectSingleAsync(window, vm, 1);
+        Assert.Equal(["Bob", "Ann"], details.SuggestedPeople);
+
+        // Added to a photo again, it's suggested again.
+        Find<AutoCompleteBox>(window, "NewPersonBox").Focus();
+        window.KeyTextInput("Bbo");
+        Press(window, PhysicalKey.Enter);
+        await WaitForSaveAsync(details);
+        details = await SelectSingleAsync(window, vm, 2);
+        Assert.Equal(["Bbo", "Bob", "Ann"], details.SuggestedPeople);
+        window.Close();
+    }
 }
