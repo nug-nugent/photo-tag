@@ -45,14 +45,36 @@ public sealed record PhotoSummary
     public string? City { get; init; }
 }
 
-/// <summary>What to search for. Keywords and terms must all match (AND), ignoring case.</summary>
+/// <summary>
+/// What to search for. Every criterion given must match (AND), ignoring case; within the tags or people, all of
+/// them unless <see cref="AnyKeywords"/> or <see cref="AnyPeople"/> says one is enough.
+/// </summary>
 public sealed record PhotoQuery
 {
     /// <summary>Whole tags only.</summary>
     public IReadOnlyList<string> Keywords { get; init; } = [];
 
+    /// <summary>A photo needs only one of <see cref="Keywords"/>, not all of them.</summary>
+    public bool AnyKeywords { get; init; }
+
     /// <summary>Whole names only.</summary>
     public IReadOnlyList<string> People { get; init; } = [];
+
+    /// <summary>A photo needs only one of <see cref="People"/>, not all of them.</summary>
+    public bool AnyPeople { get; init; }
+
+    /// <summary>Appears anywhere in the location, city, state/province or country.</summary>
+    public string? Place { get; init; }
+
+    /// <summary>
+    /// The year, month (1-12) and day of the month the photo was taken. Each is optional, so a day and month
+    /// without a year finds a birthday in every year. Photos with no date taken never match.
+    /// </summary>
+    public int? Year { get; init; }
+
+    public int? Month { get; init; }
+
+    public int? Day { get; init; }
 
     /// <summary>
     /// Each term matches a whole tag, or appears anywhere in a person's name, the title, description,
@@ -335,7 +357,8 @@ public sealed class LibraryIndex : IDisposable
             if (wanted.Count == 0) continue;
             var (table, column) = ListTable(field);
             var names = wanted.Select((_, i) => $"@{column}{i}").ToList();
-            conditions.Add($"(SELECT COUNT(*) FROM {table} l WHERE l.photo_id = p.id AND l.{column} IN ({string.Join(",", names)})) = {wanted.Count}");
+            var any = field == ListField.Tags ? query.AnyKeywords : query.AnyPeople;
+            conditions.Add($"(SELECT COUNT(*) FROM {table} l WHERE l.photo_id = p.id AND l.{column} IN ({string.Join(",", names)})) {(any ? ">= 1" : $"= {wanted.Count}")}");
             for (var i = 0; i < wanted.Count; i++) command.Parameters.AddWithValue(names[i], wanted[i]);
         }
         var terms = PhotoMetadataWriter.NormalizeKeywords(query.Terms);
@@ -351,6 +374,21 @@ public sealed class LibraryIndex : IDisposable
                 """);
             command.Parameters.AddWithValue(name, terms[i]);
         }
+        if (query.Place?.Trim() is { Length: > 0 } place)
+        {
+            conditions.Add("""
+                (contains_text(p.location, @place) OR contains_text(p.city, @place) OR contains_text(p.state, @place)
+                 OR contains_text(p.country, @place))
+                """);
+            command.Parameters.AddWithValue("@place", place);
+        }
+        // date_taken is stored as yyyy-MM-ddTHH:mm:ss; a photo without one gives NULL and never matches.
+        foreach (var (value, start, length, name) in new[] { (query.Year, 1, 4, "@year"), (query.Month, 6, 2, "@month"), (query.Day, 9, 2, "@day") })
+        {
+            if (value is not { } number) continue;
+            conditions.Add($"CAST(substr(p.date_taken, {start}, {length}) AS INTEGER) = {name}");
+            command.Parameters.AddWithValue(name, number);
+        }
         if (query.UntaggedOnly) conditions.Add("p.keyword_count = 0");
         if (query.FavouritesOnly)
         {
@@ -365,6 +403,22 @@ public sealed class LibraryIndex : IDisposable
         using var reader = command.ExecuteReader();
         while (reader.Read()) results.Add(reader.GetString(0));
         return results;
+    });
+
+    /// <summary>The years photos under <paramref name="root"/> were taken in, newest first.</summary>
+    public Task<IReadOnlyList<int>> GetYearsAsync(string root) => Task.Run<IReadOnlyList<int>>(() =>
+    {
+        using var connection = Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"""
+            SELECT DISTINCT CAST(substr(date_taken, 1, 4) AS INTEGER) AS year FROM photos
+            WHERE {UnderFolder("folder")} AND date_taken IS NOT NULL ORDER BY year DESC
+            """;
+        AddFolderParameters(command, NormalizeFolder(root));
+        var years = new List<int>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read()) years.Add(reader.GetInt32(0));
+        return years;
     });
 
     /// <summary>Paths of every favourite under <paramref name="root"/>, so the grid can mark them without reading files.</summary>

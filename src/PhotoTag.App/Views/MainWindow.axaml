@@ -56,15 +56,158 @@
                             <PathIcon Width="16" Height="16" Data="{StaticResource IconSearch}" Margin="10,0,0,0" />
                         </AutoCompleteBox.InnerLeftContent>
                         <AutoCompleteBox.InnerRightContent>
-                            <Panel Margin="0,0,8,0">
-                                <Border Classes="key" x:Name="SearchShortcutHint" IsVisible="{Binding !IsSearching}">
-                                    <TextBlock x:Name="SearchShortcutText" Text="Ctrl K" />
-                                </Border>
-                                <Button x:Name="ClearSearchButton" Classes="flat searchClear" ToolTip.Tip="Clear search (Esc)"
-                                        IsVisible="{Binding IsSearching}" Command="{Binding ClearSearchCommand}">
-                                    <PathIcon Data="{StaticResource IconClose}" />
+                            <StackPanel Orientation="Horizontal" Spacing="6" Margin="0,0,8,0">
+                                <Button x:Name="AdvancedSearchButton" Classes="flat searchClear advancedSearch"
+                                        Classes.active="{Binding AdvancedSearch.HasCriteria}"
+                                        ToolTip.Tip="Search by people, tags, place and date: all of them or any, or a day and month over the years">
+                                    <PathIcon Data="{StaticResource IconTune}" />
+                                    <Button.Flyout>
+                                        <Flyout Placement="BottomEdgeAlignedRight" Opened="AdvancedSearchFlyout_Opened">
+                                            <StackPanel x:Name="AdvancedSearchPanel" Width="400" Spacing="16"
+                                                        DataContext="{Binding AdvancedSearch}" x:DataType="vm:AdvancedSearchViewModel">
+                                                <StackPanel Spacing="2">
+                                                    <TextBlock Text="Search by" FontWeight="ExtraBold" FontSize="16" />
+                                                    <TextBlock Classes="caption" TextWrapping="Wrap"
+                                                               Text="Photos must match everything you fill in here, as well as the words in the search box and Favourites." />
+                                                </StackPanel>
+
+                                                <StackPanel Spacing="8">
+                                                    <DockPanel>
+                                                        <ComboBox x:Name="PeopleMatchBox" DockPanel.Dock="Right" MinHeight="28" FontSize="12"
+                                                                  ItemsSource="{x:Static vm:AdvancedSearchViewModel.MatchChoices}"
+                                                                  SelectedIndex="{Binding PeopleMatch, Mode=TwoWay}" />
+                                                        <TextBlock Classes="label" Text="PEOPLE" VerticalAlignment="Center" />
+                                                    </DockPanel>
+                                                    <Border Classes="box" Padding="5,5,5,0">
+                                                        <WrapPanel>
+                                                            <ItemsControl ItemsSource="{Binding People}" ItemsPanel="{StaticResource WrapPanelTemplate}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate x:DataType="x:String">
+                                                                        <Border Classes="chip person">
+                                                                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                                                                <TextBlock Text="{Binding}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                                                                <Button Classes="flat chipRemove" ToolTip.Tip="Remove"
+                                                                                        Command="{Binding $parent[ItemsControl].((vm:AdvancedSearchViewModel)DataContext).RemovePersonCommand}"
+                                                                                        CommandParameter="{Binding}">
+                                                                                    <PathIcon Data="{StaticResource IconClose}" />
+                                                                                </Button>
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <AutoCompleteBox x:Name="SearchPersonBox" Classes="inline" MinWidth="110" Margin="0,0,0,5"
+                                                                             PlaceholderText="Add a person"
+                                                                             Text="{Binding NewPerson, Mode=TwoWay}"
+                                                                             views:CommitOnLeave.Command="{Binding AddPersonCommand}"
+                                                                             ItemsSource="{Binding PeopleSuggestions}"
+                                                                             FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
+                                                                <AutoCompleteBox.KeyBindings>
+                                                                    <KeyBinding Gesture="Enter" Command="{Binding AddPersonCommand}" />
+                                                                </AutoCompleteBox.KeyBindings>
+                                                            </AutoCompleteBox>
+                                                        </WrapPanel>
+                                                    </Border>
+                                                </StackPanel>
+
+                                                <StackPanel Spacing="8">
+                                                    <DockPanel>
+                                                        <ComboBox x:Name="TagsMatchBox" DockPanel.Dock="Right" MinHeight="28" FontSize="12"
+                                                                  ItemsSource="{x:Static vm:AdvancedSearchViewModel.MatchChoices}"
+                                                                  SelectedIndex="{Binding TagsMatch, Mode=TwoWay}" />
+                                                        <TextBlock Classes="label" Text="TAGS" VerticalAlignment="Center" />
+                                                    </DockPanel>
+                                                    <Border Classes="box" Padding="5,5,5,0">
+                                                        <WrapPanel>
+                                                            <ItemsControl ItemsSource="{Binding Tags}" ItemsPanel="{StaticResource WrapPanelTemplate}">
+                                                                <ItemsControl.ItemTemplate>
+                                                                    <DataTemplate x:DataType="x:String">
+                                                                        <Border Classes="chip">
+                                                                            <Border.Background>
+                                                                                <MultiBinding Converter="{x:Static views:TagColors.Instance}" ConverterParameter="Background">
+                                                                                    <Binding />
+                                                                                    <Binding Path="$parent[TopLevel].ActualThemeVariant" />
+                                                                                </MultiBinding>
+                                                                            </Border.Background>
+                                                                            <StackPanel Orientation="Horizontal" Spacing="2">
+                                                                                <TextBlock x:Name="ChipText" Text="{Binding}" FontSize="13" FontWeight="SemiBold" VerticalAlignment="Center">
+                                                                                    <TextBlock.Foreground>
+                                                                                        <MultiBinding Converter="{x:Static views:TagColors.Instance}" ConverterParameter="Foreground">
+                                                                                            <Binding />
+                                                                                            <Binding Path="$parent[TopLevel].ActualThemeVariant" />
+                                                                                        </MultiBinding>
+                                                                                    </TextBlock.Foreground>
+                                                                                </TextBlock>
+                                                                                <Button Classes="flat chipRemove" ToolTip.Tip="Remove" Foreground="{Binding #ChipText.Foreground}"
+                                                                                        Command="{Binding $parent[ItemsControl].((vm:AdvancedSearchViewModel)DataContext).RemoveTagCommand}"
+                                                                                        CommandParameter="{Binding}">
+                                                                                    <PathIcon Data="{StaticResource IconClose}" />
+                                                                                </Button>
+                                                                            </StackPanel>
+                                                                        </Border>
+                                                                    </DataTemplate>
+                                                                </ItemsControl.ItemTemplate>
+                                                            </ItemsControl>
+                                                            <AutoCompleteBox x:Name="SearchTagBox" Classes="inline" MinWidth="110" Margin="0,0,0,5"
+                                                                             PlaceholderText="Add a tag"
+                                                                             Text="{Binding NewTag, Mode=TwoWay}"
+                                                                             views:CommitOnLeave.Command="{Binding AddTagCommand}"
+                                                                             ItemsSource="{Binding TagSuggestions}"
+                                                                             FilterMode="ContainsOrdinal" MinimumPrefixLength="1">
+                                                                <AutoCompleteBox.KeyBindings>
+                                                                    <KeyBinding Gesture="Enter" Command="{Binding AddTagCommand}" />
+                                                                </AutoCompleteBox.KeyBindings>
+                                                            </AutoCompleteBox>
+                                                        </WrapPanel>
+                                                    </Border>
+                                                </StackPanel>
+
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Classes="label" Text="PLACE" />
+                                                    <TextBox x:Name="SearchPlaceBox" PlaceholderText="Part of the location, city, state/province or country"
+                                                             Text="{Binding Place, Mode=TwoWay}">
+                                                        <TextBox.KeyBindings>
+                                                            <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />
+                                                        </TextBox.KeyBindings>
+                                                    </TextBox>
+                                                </StackPanel>
+
+                                                <StackPanel Spacing="8">
+                                                    <TextBlock Classes="label" Text="DATE TAKEN" />
+                                                    <Grid ColumnDefinitions="*,1.6*,*" ColumnSpacing="8">
+                                                        <ComboBox x:Name="SearchDayBox" HorizontalAlignment="Stretch" MaxDropDownHeight="320"
+                                                                  ItemsSource="{x:Static vm:AdvancedSearchViewModel.DayChoices}"
+                                                                  SelectedIndex="{Binding DayIndex, Mode=TwoWay}" />
+                                                        <ComboBox Grid.Column="1" x:Name="SearchMonthBox" HorizontalAlignment="Stretch" MaxDropDownHeight="320"
+                                                                  ItemsSource="{x:Static vm:AdvancedSearchViewModel.MonthChoices}"
+                                                                  SelectedIndex="{Binding MonthIndex, Mode=TwoWay}" />
+                                                        <ComboBox Grid.Column="2" x:Name="SearchYearBox" HorizontalAlignment="Stretch" MaxDropDownHeight="320"
+                                                                  ItemsSource="{Binding YearChoices}"
+                                                                  SelectedIndex="{Binding YearIndex, Mode=TwoWay}" />
+                                                    </Grid>
+                                                    <TextBlock Classes="caption" TextWrapping="Wrap"
+                                                               Text="Leave the year as Any year to find a day over the years, like a birthday. Photos with no date taken aren't found." />
+                                                </StackPanel>
+
+                                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                                    <Button x:Name="AdvancedSearchGoButton" Classes="accent" Content="Search" Command="{Binding SearchCommand}" />
+                                                    <Button x:Name="AdvancedSearchClearButton" Content="Clear" Command="{Binding ClearAndSearchCommand}"
+                                                            IsEnabled="{Binding HasCriteria}" />
+                                                </StackPanel>
+                                            </StackPanel>
+                                        </Flyout>
+                                    </Button.Flyout>
                                 </Button>
-                            </Panel>
+                                <Panel>
+                                    <Border Classes="key" x:Name="SearchShortcutHint" IsVisible="{Binding !IsSearching}">
+                                        <TextBlock x:Name="SearchShortcutText" Text="Ctrl K" />
+                                    </Border>
+                                    <Button x:Name="ClearSearchButton" Classes="flat searchClear" ToolTip.Tip="Clear search (Esc)"
+                                            IsVisible="{Binding IsSearching}" Command="{Binding ClearSearchCommand}">
+                                        <PathIcon Data="{StaticResource IconClose}" />
+                                    </Button>
+                                </Panel>
+                            </StackPanel>
                         </AutoCompleteBox.InnerRightContent>
                         <AutoCompleteBox.KeyBindings>
                             <KeyBinding Gesture="Enter" Command="{Binding SearchCommand}" />

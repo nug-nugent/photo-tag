@@ -40,12 +40,14 @@ public partial class MainWindow : Window
         {
             _subscribed.GridLayoutChanged -= OnGridLayoutChanged;
             _subscribed.PropertyChanged -= OnViewModelChanged;
+            _subscribed.AdvancedSearch.Searched -= OnAdvancedSearched;
         }
         _subscribed = ViewModel;
         if (_subscribed is not null)
         {
             _subscribed.GridLayoutChanged += OnGridLayoutChanged;
             _subscribed.PropertyChanged += OnViewModelChanged;
+            _subscribed.AdvancedSearch.Searched += OnAdvancedSearched;
         }
     }
 
@@ -246,6 +248,12 @@ public partial class MainWindow : Window
             OpenSettings = null;
         }
     }
+
+    // --- Search popover --------------------------------------------------------------------
+
+    private void AdvancedSearchFlyout_Opened(object? sender, EventArgs e) => ViewModel?.AdvancedSearch.Open();
+
+    private void OnAdvancedSearched(object? sender, EventArgs e) => AdvancedSearchButton.Flyout?.Hide();
 
     // --- Tags panel ------------------------------------------------------------------------
 

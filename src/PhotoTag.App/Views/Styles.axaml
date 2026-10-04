@@ -206,6 +206,14 @@
         <Setter Property="Width" Value="11" />
         <Setter Property="Height" Value="11" />
     </Style>
+    <!-- The search popover's button: blue while it has criteria, as "where you are" is. -->
+    <Style Selector="Button.advancedSearch PathIcon">
+        <Setter Property="Width" Value="15" />
+        <Setter Property="Height" Value="15" />
+    </Style>
+    <Style Selector="Button.advancedSearch.active">
+        <Setter Property="Foreground" Value="{DynamicResource BlueBrush}" />
+    </Style>
     <Style Selector="Button.suggestion">
         <Setter Property="BorderThickness" Value="1.5" />
         <Setter Property="BorderBrush" Value="{DynamicResource SoftBrush}" />

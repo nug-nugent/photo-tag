@@ -44,6 +44,9 @@ Early days. Today it can:
   every subfolder by tag, person, title, description, place or file name, see every photo in the library, list the
   untagged photos or your favourites (on their own or with a search), and suggestions cover your whole library.
   Under a photo's tags, the library's most used tags are one click away.
+- Search by several things at once from the popover in the search box: all of some people or any of them, all or
+  any of some tags, part of a place, and the day, month and year taken, each optional. A day and month with any
+  year finds a birthday over the years.
 - Work with photos on a NAS or another computer's shared folder: nothing waits on the network on the UI thread,
   a share that's asleep or unplugged gets a clear message (and its photos stay in the index for when it's back),
   and the first scan reads more photos at once over the network
