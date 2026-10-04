@@ -15,13 +15,15 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     private readonly KeywordSuggestions _suggestions;
     private readonly KeywordSuggestions _peopleSuggestions;
     private readonly PlaceSuggestions _places;
-    private readonly RecentPeople? _recentPeople;
+    private readonly RecentNames? _recentPeople;
+    private readonly RecentNames? _recentTags;
     private readonly CancellationTokenSource _cts = new();
 
     public BulkDetailsViewModel(IReadOnlyList<PhotoItemViewModel> photos, BulkOperations operations, KeywordSuggestions suggestions,
-        KeywordSuggestions people, PlaceSuggestions places, RecentPeople? recentPeople = null)
+        KeywordSuggestions people, PlaceSuggestions places, RecentNames? recentPeople = null, RecentNames? recentTags = null)
     {
         _recentPeople = recentPeople;
+        _recentTags = recentTags;
         _peopleSuggestions = people;
         Photos = photos;
         _operations = operations;
@@ -283,12 +285,18 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     {
         var keywords = ListInput.Split(NewKeyword);
         NewKeyword = "";
-        if (keywords.Count > 0) await _operations.AddAsync(Photos, ListField.Tags, keywords);
+        if (keywords.Count == 0) return;
+        _recentTags?.Add(keywords);
+        await _operations.AddAsync(Photos, ListField.Tags, keywords);
     }
 
     /// <summary>Adds a tag that only some photos have to the rest of them.</summary>
     [RelayCommand]
-    private Task ApplyToAll(BulkKeywordViewModel keyword) => _operations.AddAsync(Photos, ListField.Tags, [keyword.Keyword]);
+    private Task ApplyToAll(BulkKeywordViewModel keyword)
+    {
+        _recentTags?.Add([keyword.Keyword]);
+        return _operations.AddAsync(Photos, ListField.Tags, [keyword.Keyword]);
+    }
 
     [RelayCommand]
     private Task RemoveKeyword(BulkKeywordViewModel keyword) => _operations.RemoveAsync(Photos, ListField.Tags, [keyword.Keyword]);
