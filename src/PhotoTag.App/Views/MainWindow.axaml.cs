@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -16,6 +17,12 @@ public partial class MainWindow : Window
     private ViewerViewModel? _viewer;
     private WindowState? _stateBeforeFullScreen;
 
+    /// <summary>Where the last drag of a zoomed photo got to.</summary>
+    private Point? _dragFrom;
+
+    /// <summary>One notch of the mouse wheel (or a press of + or -).</summary>
+    private const double ZoomStep = 1.25;
+
     public MainWindow()
     {
         InitializeComponent();
@@ -23,6 +30,7 @@ public partial class MainWindow : Window
         AddHandler(KeyDownEvent, Window_KeyDown, RoutingStrategies.Tunnel);
         SearchShortcutText.Text = CommandModifier == KeyModifiers.Meta ? "⌘ K" : "Ctrl K";
         Activated += OnWindowActivated;
+        ViewerStage.AddHandler(InputElement.PointerTouchPadGestureMagnifyEvent, ViewerStage_Magnify);
     }
 
     private MainWindowViewModel? ViewModel => DataContext as MainWindowViewModel;
@@ -63,6 +71,7 @@ public partial class MainWindow : Window
         if (_viewer is not null) _viewer.PropertyChanged -= OnViewerChanged;
         SetFullScreen(false);
         _viewer = ViewModel?.Viewer;
+        ShowZoom();
         if (_viewer is not null)
         {
             _viewer.PropertyChanged += OnViewerChanged;
@@ -84,6 +93,16 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName == nameof(ViewerViewModel.Current)) ScrollFilmstrip();
         if (e.PropertyName == nameof(ViewerViewModel.IsFullScreen)) SetFullScreen(_viewer?.IsFullScreen == true);
+        if (e.PropertyName is nameof(ViewerViewModel.Zoom) or nameof(ViewerViewModel.Pan)) ShowZoom();
+    }
+
+    /// <summary>Scales the photo about its centre, then moves it.</summary>
+    private void ShowZoom()
+    {
+        var (zoom, pan) = _viewer is { } viewer ? (viewer.Zoom, viewer.Pan) : (1, default);
+        ViewerZoom.RenderTransform = zoom == 1 ? null
+            : new MatrixTransform(Matrix.CreateScale(zoom, zoom) * Matrix.CreateTranslation(pan));
+        ViewerPhoto.Cursor = new Cursor(zoom == 1 ? StandardCursorType.Hand : StandardCursorType.SizeAll);
     }
 
     /// <summary>The viewer's full screen fills the screen, not just the window; leaving puts the window back as it was.</summary>
@@ -101,13 +120,59 @@ public partial class MainWindow : Window
         }
     }
 
-    private void ViewerPhoto_PointerPressed(object? sender, PointerPressedEventArgs e)
+    /// <summary>A click on the photo goes full screen and back; zoomed in, a drag moves the photo instead.</summary>
+    private void ViewerStage_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed || ViewModel?.Viewer is not { } viewer) return;
-        viewer.IsFullScreen = !viewer.IsFullScreen;
+        if (viewer.IsZoomed)
+        {
+            _dragFrom = e.GetPosition(ViewerStage);
+            e.Pointer.Capture(ViewerStage);
+        }
+        else if (e.Source is Visual source && (source == ViewerPhoto || ViewerPhoto.IsVisualAncestorOf(source)))
+            viewer.IsFullScreen = !viewer.IsFullScreen;
+        else return;
         ViewerPanel.Focus();
         e.Handled = true;
     }
+
+    private void ViewerStage_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (_dragFrom is not { } from || ViewModel?.Viewer is not { } viewer) return;
+        var to = e.GetPosition(ViewerStage);
+        viewer.PanBy(to - from, ViewerPhoto.Bounds.Size, ViewerStage.Bounds.Size);
+        _dragFrom = to;
+    }
+
+    private void ViewerStage_PointerReleased(object? sender, PointerReleasedEventArgs e)
+    {
+        if (_dragFrom is null) return;
+        _dragFrom = null;
+        e.Pointer.Capture(null);
+    }
+
+    private void ViewerStage_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e) => _dragFrom = null;
+
+    /// <summary>Full screen, the wheel zooms in and out around the pointer.</summary>
+    private void ViewerStage_PointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (ViewModel?.Viewer is not { IsFullScreen: true } viewer || e.Delta.Y == 0) return;
+        var centre = new Point(ViewerPhoto.Bounds.Width / 2, ViewerPhoto.Bounds.Height / 2);
+        ZoomViewer(viewer, Math.Pow(ZoomStep, e.Delta.Y), e.GetPosition(ViewerPhoto) - centre);
+        e.Handled = true;
+    }
+
+    /// <summary>A pinch on a trackpad (macOS).</summary>
+    private void ViewerStage_Magnify(object? sender, PointerDeltaEventArgs e)
+    {
+        if (ViewModel?.Viewer is not { IsFullScreen: true } viewer) return;
+        var centre = new Point(ViewerPhoto.Bounds.Width / 2, ViewerPhoto.Bounds.Height / 2);
+        ZoomViewer(viewer, 1 + e.Delta.X, e.GetPosition(ViewerPhoto) - centre);
+        e.Handled = true;
+    }
+
+    private void ZoomViewer(ViewerViewModel viewer, double factor, Vector fromCentre = default) =>
+        viewer.ZoomBy(factor, fromCentre, ViewerPhoto.Bounds.Size, ViewerStage.Bounds.Size);
 
     private async void OpenFolder_Click(object? sender, RoutedEventArgs e)
     {
@@ -144,6 +209,11 @@ public partial class MainWindow : Window
             e.Handled = true;
             return;
         }
+        if (ZoomKey(viewer, e))
+        {
+            e.Handled = true;
+            return;
+        }
         if (e.KeyModifiers != KeyModifiers.None) return;
 
         switch (e.Key)
@@ -155,11 +225,25 @@ public partial class MainWindow : Window
             case Key.F: _ = vm.ToggleSelectedFavouritesAsync(); break;
             case Key.T: FocusInViewer("NewTagBox"); break;
             case Key.P: FocusInViewer("NewPersonBox"); break;
+            case Key.Escape when viewer.IsZoomed: viewer.ResetZoom(); break;
             case Key.Escape when viewer.IsFullScreen: viewer.IsFullScreen = false; break;
             case Key.Escape: vm.CloseViewer(); break;
             default: return;
         }
         e.Handled = true;
+    }
+
+    /// <summary>Full screen, + and - zoom (+ may need Shift) and 0 shows the whole photo again.</summary>
+    private bool ZoomKey(ViewerViewModel viewer, KeyEventArgs e)
+    {
+        if (!viewer.IsFullScreen || e.KeyModifiers is not (KeyModifiers.None or KeyModifiers.Shift)) return false;
+        switch (e.Key)
+        {
+            case Key.OemPlus or Key.Add: ZoomViewer(viewer, ZoomStep * ZoomStep); return true;
+            case Key.OemMinus or Key.Subtract: ZoomViewer(viewer, 1 / (ZoomStep * ZoomStep)); return true;
+            case Key.D0 or Key.NumPad0: viewer.ResetZoom(); return true;
+            default: return false;
+        }
     }
 
     /// <summary>Focuses a box in the viewer's editor: the side panel's, under it, has one of the same name.</summary>
