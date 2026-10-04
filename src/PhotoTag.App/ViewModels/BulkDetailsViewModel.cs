@@ -15,11 +15,13 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     private readonly KeywordSuggestions _suggestions;
     private readonly KeywordSuggestions _peopleSuggestions;
     private readonly PlaceSuggestions _places;
+    private readonly RecentPeople? _recentPeople;
     private readonly CancellationTokenSource _cts = new();
 
     public BulkDetailsViewModel(IReadOnlyList<PhotoItemViewModel> photos, BulkOperations operations, KeywordSuggestions suggestions,
-        KeywordSuggestions people, PlaceSuggestions places)
+        KeywordSuggestions people, PlaceSuggestions places, RecentPeople? recentPeople = null)
     {
+        _recentPeople = recentPeople;
         _peopleSuggestions = people;
         Photos = photos;
         _operations = operations;
@@ -296,12 +298,18 @@ public partial class BulkDetailsViewModel : ViewModelBase, IDisposable
     {
         var names = ListInput.Split(NewPerson);
         NewPerson = "";
-        if (names.Count > 0) await _operations.AddAsync(Photos, ListField.People, names);
+        if (names.Count == 0) return;
+        _recentPeople?.Add(names);
+        await _operations.AddAsync(Photos, ListField.People, names);
     }
 
     /// <summary>Adds a person that only some photos have to the rest of them.</summary>
     [RelayCommand]
-    private Task ApplyPersonToAll(BulkKeywordViewModel person) => _operations.AddAsync(Photos, ListField.People, [person.Keyword]);
+    private Task ApplyPersonToAll(BulkKeywordViewModel person)
+    {
+        _recentPeople?.Add([person.Keyword]);
+        return _operations.AddAsync(Photos, ListField.People, [person.Keyword]);
+    }
 
     [RelayCommand]
     private Task RemovePerson(BulkKeywordViewModel person) => _operations.RemoveAsync(Photos, ListField.People, [person.Keyword]);

@@ -778,7 +778,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 _ = details.LoadAsync();
                 break;
             default:
-                var bulk = new BulkDetailsViewModel(SelectedPhotos, Operations, _keywordSuggestions, _peopleSuggestions, _placeSuggestions);
+                var bulk = new BulkDetailsViewModel(SelectedPhotos, Operations, _keywordSuggestions, _peopleSuggestions, _placeSuggestions,
+                    _recentPeople);
                 Details = bulk;
                 _ = bulk.LoadAsync();
                 break;

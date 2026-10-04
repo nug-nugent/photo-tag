@@ -88,6 +88,34 @@ public sealed class PeopleTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task SeveralPhotos_PeopleAddedToThem_AreSuggestedAfterwards()
+    {
+        await using var exifTool = RequireExifTool();
+        var writer = new PhotoMetadataWriter(exifTool);
+        var a = Photo("a.jpg");
+        Photo("b.jpg");
+        Photo("c.jpg");
+        await writer.WriteAsync(a, new MetadataChanges { People = ["Mum"] }, Ct);
+        var (window, vm) = await OpenAsync(writer);
+        ClickTile(window, 0);
+        ClickTile(window, 1, CommandKey);
+        var bulk = Assert.IsType<BulkDetailsViewModel>(vm.Details);
+        await WaitForAsync(() => bulk.IsLoaded && bulk.CanEdit);
+
+        // Both ways of adding a person to several photos count: "+" for one only some have, and typing a name.
+        Click(window, FindAll<Button>(window).Single(x => x.Classes.Contains("personAddAll")));
+        await WaitForAsync(() => !vm.Operations.IsBusy);
+        Find<AutoCompleteBox>(window, "BulkPersonBox").Focus();
+        window.KeyTextInput("Dad");
+        Press(window, PhysicalKey.Enter);
+        await WaitForAsync(() => !vm.Operations.IsBusy);
+
+        var details = await SelectSingleAsync(window, vm, 2);
+        Assert.Equal(["Dad", "Mum"], details.SuggestedPeople);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task Panel_PeopleSide_RenamesMergesAndDeletes_LeavingTagsAlone()
     {
         await using var exifTool = RequireExifTool();
