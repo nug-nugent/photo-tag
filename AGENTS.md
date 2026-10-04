@@ -14,6 +14,7 @@ The [README](README.md) describes features and design; [TODO.md](TODO.md) lists 
 | `tests/PhotoTag.App.Tests` | Headless UI tests (Avalonia.Headless.XUnit) that drive the real `MainWindow` with keyboard and mouse. `UiTestBase` has the helpers. |
 | `tools/Screenshots` | Renders the main window to PNGs for design work (see "How we work"). |
 | `build/` | `BundleExifTool.cs` (release bundling), `MakeIcons.cs` (app icon), `MakePlaces.cs` (GeoNames place data for "Fill from GPS", committed as `src/PhotoTag.Core/Places/places.bin`), `exiftool.json` (pinned ExifTool + checksums). |
+| `Git/` | `Release.ps1`: tags and pushes the next release (see "How we work"). |
 | `.github/workflows/` | `ci.yml` (build + test on 3 OSes), `release.yml` (installers for 5 platforms). |
 
 ## Build and test
@@ -45,7 +46,8 @@ dotnet run --project src/PhotoTag.App   # a Debug build: its own settings and in
   appears, no input) in each state (folder, one photo, several, a bulk edit under way, Tags panel, settings, search, the search popover, by day, a year folder by day, viewer, smallest size, moved library), light
   and dark, into `artifacts/screenshots`. It builds a sample library from `tests/.samples` (run the tests once first)
   and needs ExifTool. Look at the PNGs before and after any UI change.
-- **Releases:** push a `vX.Y.Z` tag. PRs touching packaging run `release.yml` as a trial (no publishing). Each package
+- **Releases:** push a `vX.Y.Z` tag, with `Git/Release.ps1` (`-Bump Minor`/`Major`, or `-Version x.y.z`): it tags
+  origin/main as the next version after showing what's changed and CI's result, and asks first. PRs touching packaging run `release.yml` as a trial (no publishing). Each package
   runs `PhotoTag --self-check` on a matching runner before anything is published.
 - Keep Core free of UI code, and keep the photo grid virtualized (`ItemsRepeater` with `PhotoGridLayout`, which only
   creates tiles near the viewport); folders can hold thousands of photos. The grid's items are a `ResettableList`: a
