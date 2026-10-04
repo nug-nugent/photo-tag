@@ -10,14 +10,19 @@ public sealed class UpdatesTests : UiTestBase
     private sealed class FakeUpdater(string? available, bool fails = false) : IAppUpdater
     {
         public int Checks { get; private set; }
+        public string? Available { get; set; } = available;
+        public bool Fails { get; set; } = fails;
+        /// <summary>When set, checks wait for it to complete.</summary>
+        public TaskCompletionSource? Gate { get; set; }
         public bool Restarted { get; private set; }
         public bool IsInstalled => true;
         public string? CurrentVersion => "0.1.0";
 
-        public Task<string?> DownloadNewVersionAsync(CancellationToken cancellationToken)
+        public async Task<string?> DownloadNewVersionAsync(CancellationToken cancellationToken)
         {
             Checks++;
-            return fails ? Task.FromException<string?>(new HttpRequestException("offline")) : Task.FromResult(available);
+            if (Gate is { } gate) await gate.Task;
+            return Fails ? throw new HttpRequestException("offline") : Available;
         }
 
         public void RestartToUpdate() => Restarted = true;
@@ -70,6 +75,70 @@ public sealed class UpdatesTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task CheckNow_InSettings_SaysWhatItFound()
+    {
+        Photo("a.jpg");
+        var updater = new FakeUpdater(available: null, fails: true);
+        var (window, vm) = await OpenAsync(writer: null, updater: updater);
+        vm.Updates.CheckAutomatically = false;
+
+        var settings = OpenSettings(window);
+        var checkNow = Find<Button>(settings, "CheckNowButton");
+        var status = Find<TextBlock>(settings, "UpdateStatusText");
+        Assert.True(checkNow.IsEffectivelyEnabled);
+        Assert.Null(status.Text);
+
+        Click(settings, checkNow);
+        await WaitForAsync(() => checkNow.IsEffectivelyEnabled);
+        Assert.Equal("Couldn't check for a new version. Are you online?", status.Text);
+
+        updater.Fails = false;
+        Click(settings, checkNow);
+        await WaitForAsync(() => checkNow.IsEffectivelyEnabled);
+        Assert.Equal("PhotoTag is up to date.", status.Text);
+        Assert.False(vm.Updates.IsUpdateReady);
+
+        // While it checks, it says so and can't be clicked again.
+        updater.Available = "0.2.0";
+        updater.Gate = new TaskCompletionSource();
+        Click(settings, checkNow);
+        Assert.Equal("Checking for a new version…", status.Text);
+        Assert.False(checkNow.IsEffectivelyEnabled);
+        updater.Gate.SetResult();
+        await WaitForAsync(() => checkNow.IsEffectivelyEnabled);
+        Assert.Equal("PhotoTag 0.2.0 is ready to install. Restart PhotoTag to install it.", status.Text);
+        Assert.True(Find<Button>(window, "RestartToUpdateButton").IsEffectivelyVisible);
+        Assert.Equal(3, updater.Checks);
+
+        // Once one is downloaded, checking again doesn't download it again.
+        Click(settings, checkNow);
+        await WaitForAsync(() => checkNow.IsEffectivelyEnabled);
+        Assert.Equal(3, updater.Checks);
+        window.Close();
+    }
+
+    [AvaloniaFact]
+    public async Task CheckNow_DuringTheStartupCheck_SharesIt()
+    {
+        Photo("a.jpg");
+        var updater = new FakeUpdater("0.2.0") { Gate = new TaskCompletionSource() };
+        var (window, vm) = await OpenAsync(writer: null, updater: updater);
+
+        var startup = vm.Updates.CheckOnStartupAsync();
+        var settings = OpenSettings(window);
+        var checkNow = Find<Button>(settings, "CheckNowButton");
+        Click(settings, checkNow);
+        updater.Gate.SetResult();
+        await startup;
+        await WaitForAsync(() => checkNow.IsEffectivelyEnabled);
+
+        Assert.Equal(1, updater.Checks);
+        Assert.Equal("PhotoTag 0.2.0 is ready to install. Restart PhotoTag to install it.",
+            Find<TextBlock>(settings, "UpdateStatusText").Text);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task DevelopmentBuilds_HaveNothingToUpdate()
     {
         Photo("a.jpg");
@@ -79,6 +148,7 @@ public sealed class UpdatesTests : UiTestBase
 
         Assert.False(vm.Updates.CanUpdate);
         Assert.EndsWith("(development build)", vm.Updates.VersionText);
+        Assert.False(Find<Button>(OpenSettings(window), "CheckNowButton").IsEffectivelyEnabled);
         window.Close();
     }
 

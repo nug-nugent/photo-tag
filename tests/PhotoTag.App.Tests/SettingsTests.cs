@@ -106,13 +106,6 @@ public sealed class SettingsTests : UiTestBase
         window.Close();
     }
 
-    private static SettingsWindow OpenSettings(MainWindow window)
-    {
-        Click(window, Find<Button>(window, "SettingsButton"));
-        Settle();
-        return window.OpenSettings ?? throw new InvalidOperationException("The settings window didn't open.");
-    }
-
     [AvaloniaFact]
     public async Task SavedSetting_IsAppliedAtStartup()
     {

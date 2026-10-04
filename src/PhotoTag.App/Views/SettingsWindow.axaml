@@ -42,6 +42,11 @@
             <CheckBox x:Name="CheckForUpdatesBox" IsEnabled="{Binding Updates.CanUpdate}"
                       IsChecked="{Binding Updates.CheckAutomatically, Mode=TwoWay}"
                       Content="Check for new versions when PhotoTag starts" />
+            <StackPanel Orientation="Horizontal" Spacing="10">
+                <Button x:Name="CheckNowButton" Content="Check now" Command="{Binding Updates.CheckNowCommand}" />
+                <TextBlock x:Name="UpdateStatusText" Text="{Binding Updates.CheckStatus}" VerticalAlignment="Center"
+                           TextWrapping="Wrap" MaxWidth="330" />
+            </StackPanel>
             <TextBlock Text="{Binding Updates.VersionText}" Classes="caption" />
 
             <Separator Margin="0,6" />

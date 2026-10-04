@@ -8,7 +8,7 @@ namespace PhotoTag.App.ViewModels;
 /// <summary>
 /// Quietly checks for a new release at startup (if enabled), downloads it in the background, and
 /// offers "Restart to update" in the status bar. Offline or failed checks are silently ignored;
-/// the next launch tries again.
+/// the next launch tries again. Settings has "Check now", which says how a check went.
 /// </summary>
 public partial class UpdatesViewModel(IAppUpdater updater, AppSettings settings) : ViewModelBase
 {
@@ -26,6 +26,12 @@ public partial class UpdatesViewModel(IAppUpdater updater, AppSettings settings)
     public bool IsUpdateReady => ReadyVersion is not null;
     public string? ReadyText => ReadyVersion is { } v ? $"PhotoTag {v} is ready to install." : null;
 
+    /// <summary>How the last "Check now" went, shown beside the button; null before one.</summary>
+    [ObservableProperty]
+    public partial string? CheckStatus { get; private set; }
+
+    private Task<bool?>? _check;
+
     public bool CheckAutomatically
     {
         get => settings.CheckForUpdates;
@@ -42,9 +48,31 @@ public partial class UpdatesViewModel(IAppUpdater updater, AppSettings settings)
     /// <summary>Called at startup; does nothing if automatic checks are off or this is a development build.</summary>
     public Task CheckOnStartupAsync() => settings.CheckForUpdates ? CheckAsync() : Task.CompletedTask;
 
-    private async Task CheckAsync()
+    /// <summary>"Check now" in Settings: like the automatic check, but says what it found.</summary>
+    [RelayCommand(CanExecute = nameof(CanUpdate))]
+    private async Task CheckNowAsync()
     {
-        if (!updater.IsInstalled || IsUpdateReady) return;
+        CheckStatus = "Checking for a new version…";
+        CheckStatus = await CheckAsync() switch
+        {
+            true => ReadyText + " Restart PhotoTag to install it.",
+            false => "PhotoTag is up to date.",
+            null => "Couldn't check for a new version. Are you online?",
+        };
+    }
+
+    /// <summary>True if a new version is ready, false if up to date, null if the check failed.</summary>
+    private Task<bool?> CheckAsync()
+    {
+        if (!updater.IsInstalled) return Task.FromResult<bool?>(false);
+        if (IsUpdateReady) return Task.FromResult<bool?>(true);
+        // Share a check already under way (the startup one, say) rather than downloading twice.
+        if (_check is not { IsCompleted: false }) _check = DownloadAsync();
+        return _check;
+    }
+
+    private async Task<bool?> DownloadAsync()
+    {
         Log.Info($"Checking for updates (running {updater.CurrentVersion})");
         try
         {
@@ -53,16 +81,16 @@ public partial class UpdatesViewModel(IAppUpdater updater, AppSettings settings)
                 Log.Info($"Downloaded PhotoTag {version}, ready to install");
                 ReadyVersion = version;
                 OnPropertyChanged(nameof(ReadyText));
+                return true;
             }
-            else
-            {
-                Log.Info("Up to date");
-            }
+            Log.Info("Up to date");
+            return false;
         }
         catch (Exception e) when (e is HttpRequestException or IOException or TaskCanceledException or InvalidOperationException)
         {
             // Offline, rate-limited or similar: try again next launch.
             Log.Warn("Couldn't check for updates", e);
+            return null;
         }
     }
 

@@ -127,6 +127,13 @@ public abstract class UiTestBase : IAsyncDisposable
         Dispatcher.UIThread.RunJobs();
     }
 
+    protected static SettingsWindow OpenSettings(MainWindow window)
+    {
+        Click(window, Find<Button>(window, "SettingsButton"));
+        Settle();
+        return window.OpenSettings ?? throw new InvalidOperationException("The settings window didn't open.");
+    }
+
     protected static async Task WaitForAsync(Func<bool> condition, int timeoutMs = 15000)
     {
         var stopwatch = Stopwatch.StartNew();
