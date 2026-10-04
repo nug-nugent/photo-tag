@@ -78,7 +78,7 @@
         </Border>
 
         <!-- Tags: chips in a box with room to type more (Enter, or comma-separated), and suggestions under it
-             (more of them while the box or a suggestion has focus). -->
+             (more of them from when the box gets focus until focus leaves the section). -->
         <StackPanel x:Name="TagsSection" Spacing="8">
             <TextBlock Classes="label" Text="TAGS" />
             <Border Classes="box" Padding="5,5,5,0" IsEnabled="{Binding CanEdit}"

@@ -182,7 +182,10 @@ public abstract class UiTestBase : IAsyncDisposable
             Thread.Sleep(10);
             Settle();
         }
+        // A real click gives the UI time between press and release: anything the press set off (focus moving,
+        // a list being rebuilt) happens before the release, which only clicks if it lands on the same control.
         window.MouseDown(centre, MouseButton.Left, modifiers);
+        Settle();
         window.MouseUp(centre, MouseButton.Left, modifiers);
         Dispatcher.UIThread.RunJobs();
     }

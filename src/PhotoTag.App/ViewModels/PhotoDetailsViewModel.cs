@@ -311,7 +311,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     /// </summary>
     public ObservableCollection<string> SuggestedKeywords { get; } = [];
 
-    /// <summary>Whether the Tags box (or one of the suggestions under it) has focus; set by the view.</summary>
+    /// <summary>Whether the tags are being edited (the Tags box has had focus, and it hasn't left them); set by the view.</summary>
     [ObservableProperty]
     public partial bool IsEditingTags { get; set; }
 

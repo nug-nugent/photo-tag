@@ -110,6 +110,30 @@ public sealed class TagEditingTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public async Task ASuggestedTag_ClickedWithoutTheTagsBoxFocused_IsAdded()
+    {
+        await using var exifTool = RequireExifTool();
+        Photo("a.jpg", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8");
+        var b = Photo("b.jpg");
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        await vm.Library.ScanCompletion;
+        await WaitForAsync(() => vm.AllCount == "2");
+
+        // Straight from the grid: pressing the suggestion focuses it, which mustn't rebuild the list under the
+        // pointer before the release (the click would go nowhere).
+        var details = await SelectSingleAsync(window, vm, 1);
+        await WaitForAsync(() => details.SuggestedKeywords.Count == 6);
+        var p3 = await WaitForControlAsync(() => FindAll<Button>(window)
+            .FirstOrDefault(button => button.Classes.Contains("suggestion") && button.IsEffectivelyVisible
+                                      && button.DataContext as string == "P3"));
+        Click(window, p3);
+        await WaitForSaveAsync(details);
+        Assert.Equal(["P3"], details.Keywords);
+        Assert.Equal(["P3"], PhotoMetadata.Read(b).Keywords);
+        window.Close();
+    }
+
+    [AvaloniaFact]
     public async Task SuggestedTags_MixRecentAndMostUsed_AndShowMoreWhileEditing()
     {
         await using var exifTool = RequireExifTool();
