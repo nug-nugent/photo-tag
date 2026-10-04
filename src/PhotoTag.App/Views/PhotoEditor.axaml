@@ -34,7 +34,7 @@
             </Border>
         </DataTemplate>
 
-        <!-- A one-click suggestion under the tags: the library's most used tags this photo doesn't have. -->
+        <!-- A one-click suggestion under the tags: a tag added recently, or one of the library's most used, that this photo doesn't have. -->
         <DataTemplate x:Key="SuggestionTemplate" x:DataType="x:String">
             <Button Classes="flat suggestion" ToolTip.Tip="Add this tag (right-click to remove it from the suggestions)"
                     IsEnabled="{Binding $parent[ItemsControl].((vm:PhotoDetailsViewModel)DataContext).CanEdit}"

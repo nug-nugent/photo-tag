@@ -48,9 +48,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         _operations.PropertyChanged += OnOperationsChanged;
         _operations.Completed += OnOperationCompleted;
         _popular = popular;
-        if (_popular is not null) _popular.Changed += OnPopularChanged;
+        if (_popular is not null) _popular.Changed += OnSuggestedKeywordsSourceChanged;
         _recentTags = recentTags;
-        if (_recentTags is not null) _recentTags.Changed += OnPopularChanged;
+        if (_recentTags is not null) _recentTags.Changed += OnSuggestedKeywordsSourceChanged;
         Keywords.CollectionChanged += (_, _) => UpdateSuggestedKeywords();
         _recentPeople = recentPeople;
         if (_recentPeople is not null) _recentPeople.Changed += OnRecentPeopleChanged;
@@ -331,7 +331,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private void RemoveSuggestedKeyword(string keyword) => _recentTags?.Remove(keyword);
 
-    private void OnPopularChanged(object? sender, EventArgs e) => UpdateSuggestedKeywords();
+    private void OnSuggestedKeywordsSourceChanged(object? sender, EventArgs e) => UpdateSuggestedKeywords();
 
     partial void OnIsLoadedChanged(bool value)
     {
@@ -653,9 +653,9 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     {
         _operations.PropertyChanged -= OnOperationsChanged;
         _operations.Completed -= OnOperationCompleted;
-        if (_popular is not null) _popular.Changed -= OnPopularChanged;
+        if (_popular is not null) _popular.Changed -= OnSuggestedKeywordsSourceChanged;
         if (_recentPeople is not null) _recentPeople.Changed -= OnRecentPeopleChanged;
-        if (_recentTags is not null) _recentTags.Changed -= OnPopularChanged;
+        if (_recentTags is not null) _recentTags.Changed -= OnSuggestedKeywordsSourceChanged;
         _cts.Cancel();
         _cts.Dispose();
         Preview?.Dispose();

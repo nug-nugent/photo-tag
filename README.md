@@ -14,9 +14,9 @@ included, is bundled, and installed copies update themselves (you can turn that 
 PhotoTag isn't code-signed yet, so the first launch shows a warning. On Windows click **More info → Run anyway**; on
 macOS open **System Settings → Privacy & Security** and click **Open Anyway**. The release notes have the details.
 
-## Status
+## Features
 
-Early days. Today it can:
+PhotoTag can:
 
 - Browse a folder tree (subfolders load lazily, off the UI thread)
 - See a folder's subfolders' photos with it (*Subfolders*), so a year folder shows the whole year, by day if you like;
@@ -35,7 +35,8 @@ Early days. Today it can:
   at the photo's GPS position. It's only sent when you click, and you see the answer before anything is saved.
   (© OpenStreetMap contributors.)
 - Edit tags, people, title, description and place (location, city, state/province, country), and mark favourites
-  (♥). Changes are written straight into the photo file.
+  (♥). Changes are written straight into the photo file. Type several tags or people at once, separated by `;` or
+  `,`; what you've typed is added when you press Enter or move on.
 - Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and tag them, add people, favourite them, or
   give them a title, description or place, all at once, with progress and Cancel in the status bar, and Undo (or
   Ctrl/⌘+Z) afterwards
@@ -52,11 +53,12 @@ Early days. Today it can:
   year finds a birthday over the years.
 - Work with photos on a NAS or another computer's shared folder: nothing waits on the network on the UI thread,
   a share that's asleep or unplugged gets a clear message (and its photos stay in the index for when it's back),
-  and the first scan reads more photos at once over the network
+  and the first scan reads more photos at once over the network. Two computers can tag the same photos on a share:
+  each saves only what you changed, so neither undoes the other's edits
 - Keep up with changes made outside PhotoTag: photos copied in, deleted or retagged by another app, and folders
   added, renamed or deleted, show up by themselves without losing your place or selection
 - Notice when photos it already knows turn up at another path (copied to a NAS, or the same share opened as `Z:\`
-  one day and `\nas\photos` the next) and, if you say they've moved, bring their index along instead of reading
+  one day and `\\nas\photos` the next) and, if you say they've moved, bring their index along instead of reading
   every photo again
 - Manage tags and people across the library (**Manage tags**): see each with its count, rename or merge them
   (including tidying "beach" and "Beach" into one), or delete one from every photo. These can be undone too.
@@ -124,10 +126,11 @@ Run [`Git/Release.ps1`](Git/Release.ps1) and GitHub Actions does the rest:
 ```
 
 It works out the next version from the latest `vX.Y.Z` tag, lists what's been merged into origin/main since, shows
-CI's result for that commit, and asks before tagging it and pushing the tag. The [release workflow](.github/workflows/release.yml) builds all five packages on matching machines, bundles the
-ExifTool pinned in `build/exiftool.json` (checksum-verified), runs each packaged app's `--self-check`, and only then
-publishes the GitHub Release that installed copies update from. Pull requests that touch packaging run the same
-workflow as a trial, without publishing. The icon is drawn by `dotnet run build/MakeIcons.cs`.
+CI's result for that commit, and asks before tagging it and pushing the tag. The
+[release workflow](.github/workflows/release.yml) builds all five packages on matching machines, bundles the ExifTool
+pinned in `build/exiftool.json` (checksum-verified), runs each packaged app's `--self-check`, and only then publishes
+the GitHub Release that installed copies update from. Pull requests that touch packaging run the same workflow as a
+trial, without publishing. The icon is drawn by `dotnet run build/MakeIcons.cs`.
 
 ## How it's put together
 
@@ -140,7 +143,8 @@ workflow as a trial, without publishing. The icon is drawn by `dotnet run build/
 
 ### Why it's fast
 
-- **Only on-screen tiles exist.** `ItemsRepeater` with `UniformGridLayout` virtualizes the grid. Thumbnails load
+- **Only on-screen tiles exist.** `ItemsRepeater` with a custom layout (`PhotoGridLayout`) virtualizes the grid: it
+  works out every tile's position, which is cheap, but only creates the tiles near the viewport. Thumbnails load
   when a tile appears (`ElementPrepared`) and are freed when it scrolls away (`ElementClearing`).
 - **Photos are never fully decoded for a thumbnail.** JPEGs are decoded at 1/8–1/2 scale via libjpeg's DCT
   scaling (SkiaSharp), then resized and rotated per EXIF orientation. TIFFs, which Skia can't read, are decoded
@@ -160,5 +164,4 @@ workflow as a trial, without publishing. The icon is drawn by `dotnet run build/
 
 ## Roadmap
 
-See [TODO.md](TODO.md) for what's next, from publishing the first release and code signing to NAS support, tag
-management and a full-screen viewer. Contributors (human or AI) should start with [AGENTS.md](AGENTS.md).
+See [TODO.md](TODO.md) for what's next. Contributors (human or AI) should start with [AGENTS.md](AGENTS.md).
