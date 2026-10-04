@@ -23,7 +23,8 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     private readonly BulkOperations _operations;
     private readonly PhotoRenderer _renderer;
     private readonly PopularKeywords? _popular;
-    private readonly RecentPeople? _recentPeople;
+    private readonly RecentNames? _recentPeople;
+    private readonly RecentNames? _recentTags;
     private readonly SemaphoreSlim _saveGate = new(1, 1);
     private int _pendingSaves;
     private Task _lastSave = Task.CompletedTask;
@@ -33,7 +34,8 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     public PhotoDetailsViewModel(PhotoItemViewModel photo, PhotoMetadataWriter? writer, KeywordSuggestions suggestions,
         KeywordSuggestions people, PlaceSuggestions places, BulkOperations operations, PhotoRenderer renderer,
-        PopularKeywords? popular = null, IExactPlaceLookup? placeLookup = null, RecentPeople? recentPeople = null)
+        PopularKeywords? popular = null, IExactPlaceLookup? placeLookup = null, RecentNames? recentPeople = null,
+        RecentNames? recentTags = null)
     {
         _placeLookup = placeLookup;
         _peopleSuggestions = people;
@@ -47,6 +49,8 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         _operations.Completed += OnOperationCompleted;
         _popular = popular;
         if (_popular is not null) _popular.Changed += OnPopularChanged;
+        _recentTags = recentTags;
+        if (_recentTags is not null) _recentTags.Changed += OnPopularChanged;
         Keywords.CollectionChanged += (_, _) => UpdateSuggestedKeywords();
         _recentPeople = recentPeople;
         if (_recentPeople is not null) _recentPeople.Changed += OnRecentPeopleChanged;
@@ -301,11 +305,27 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private Task RemoveKeyword(string keyword) => RemoveFromListAsync(ListField.Tags, Keywords, keyword);
 
-    /// <summary>The library's most used tags that this photo doesn't have yet, for one-click adding.</summary>
+    /// <summary>
+    /// Tags this photo doesn't have yet, for one-click adding: the ones added most recently, then the library's
+    /// most used. A few of each, and more while the tags are being edited.
+    /// </summary>
     public ObservableCollection<string> SuggestedKeywords { get; } = [];
 
+    /// <summary>Whether the Tags box (or one of the suggestions under it) has focus; set by the view.</summary>
+    [ObservableProperty]
+    public partial bool IsEditingTags { get; set; }
+
+    partial void OnIsEditingTagsChanged(bool value) => UpdateSuggestedKeywords();
+
+    /// <summary>Once a suggestion has been used, the longer list stays for this photo.</summary>
+    private bool _usedSuggestedKeyword;
+
     [RelayCommand]
-    private Task AddSuggestedKeyword(string keyword) => AddToListAsync(ListField.Tags, Keywords, keyword);
+    private Task AddSuggestedKeyword(string keyword)
+    {
+        _usedSuggestedKeyword = true;
+        return AddToListAsync(ListField.Tags, Keywords, keyword);
+    }
 
     private void OnPopularChanged(object? sender, EventArgs e) => UpdateSuggestedKeywords();
 
@@ -317,10 +337,25 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     private void UpdateSuggestedKeywords()
     {
-        var suggested = IsLoaded && _popular is not null ? _popular.Suggest(Keywords, 6).ToList() : [];
+        var suggested = IsLoaded ? MixSuggestedKeywords() : [];
         if (suggested.SequenceEqual(SuggestedKeywords)) return;
         SuggestedKeywords.Clear();
         foreach (var keyword in suggested) SuggestedKeywords.Add(keyword);
+    }
+
+    /// <summary>
+    /// 2 recently added tags then 4 most used, or 5 and 5 while editing tags. If there aren't enough most used
+    /// tags, more recent ones make up the numbers (and the other way round).
+    /// </summary>
+    private List<string> MixSuggestedKeywords()
+    {
+        var (recentCount, total) = IsEditingTags || _usedSuggestedKeyword ? (5, 10) : (2, 6);
+        var recent = _recentTags?.Suggest(Keywords, total).ToList() ?? [];
+        var firstRecent = recent.Take(recentCount).ToList();
+        var popular = (_popular?.Suggest(Keywords.Concat(firstRecent), total) ?? []).Take(total - firstRecent.Count).ToList();
+        var moreRecent = recent.Skip(recentCount).Except(popular, StringComparer.OrdinalIgnoreCase)
+            .Take(total - firstRecent.Count - popular.Count);
+        return [.. firstRecent, .. moreRecent, .. popular];
     }
 
     [RelayCommand]
@@ -341,7 +376,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
 
     private void UpdateSuggestedPeople()
     {
-        var suggested = IsLoaded && _recentPeople is not null ? _recentPeople.Suggest(People).ToList() : [];
+        var suggested = IsLoaded && _recentPeople is not null ? _recentPeople.Suggest(People, 10).ToList() : [];
         if (suggested.SequenceEqual(SuggestedPeople)) return;
         SuggestedPeople.Clear();
         foreach (var name in suggested) SuggestedPeople.Add(name);
@@ -357,7 +392,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         if (toAdd.Count == 0) return;
 
         foreach (var value in toAdd) list.Add(value); // straight away; the save shows the merged list
-        if (field == ListField.People) _recentPeople?.Add(toAdd);
+        (field == ListField.People ? _recentPeople : _recentTags)?.Add(toAdd);
         await SaveListAsync(field, list, editor => editor.AddAsync([Photo.File], field, toAdd));
     }
 
@@ -611,6 +646,7 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         _operations.Completed -= OnOperationCompleted;
         if (_popular is not null) _popular.Changed -= OnPopularChanged;
         if (_recentPeople is not null) _recentPeople.Changed -= OnRecentPeopleChanged;
+        if (_recentTags is not null) _recentTags.Changed -= OnPopularChanged;
         _cts.Cancel();
         _cts.Dispose();
         Preview?.Dispose();

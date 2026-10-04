@@ -69,6 +69,7 @@ try
         using var index = new LibraryIndex(Path.Combine(appData, "library.db"));
         var settings = AppSettings.Load(Path.Combine(appData, "settings.json"));
         settings.RecentPeople = ["Grandma", "Mary Smith", "Tom", "Dad", "Aunt Jo", "Sam", "Uncle Pete", "Lily", "Mum", "Ben", "Nana"];
+        settings.RecentTags = ["Rock pools", "Lighthouse", "Picnic", "Surfing", "Boats", "Ice cream"];
         var vm = new MainWindowViewModel(thumbnails, settings, writer, index, renderer, placeLookup: new CannedPlaceLookup())
         {
             LogPath = Path.Combine(appData, "log.txt"),
@@ -94,6 +95,9 @@ try
         WaitUntil(() => single.IsLoaded && single.Preview is not null);
         Capture(window, $"{name}-2-photo");
         CaptureTall(window, $"{name}-2-photo-full");
+        single.IsEditingTags = true; // as while the Tags box has focus: more suggestions
+        CaptureTall(window, $"{name}-2-photo-adding-tags");
+        single.IsEditingTags = false;
         WaitFor(single.LookUpExactPlaceCommand.ExecuteAsync(null));
         CaptureTall(window, $"{name}-2-photo-lookup");
         single.CloseLookupCommand.Execute(null);

@@ -44,8 +44,9 @@ Early days. Today it can:
 - Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search across
   every subfolder by tag, person, title, description, place or file name, see every photo in the library, list the
   untagged photos or your favourites (on their own or with a search), and suggestions cover your whole library.
-  Under a photo's tags, the library's most used tags are one click away; under its people, the last ten people
-  you added that it doesn't have yet.
+  Under a photo's tags, the tags you added last and the library's most used are one click away (two and four,
+  or five and five while you're adding tags); under its people, the last ten people you added that it doesn't
+  have yet.
 - Search by several things at once from the popover in the search box: all of some people or any of them, all or
   any of some tags, part of a place, and the day, month and year taken, each optional. A day and month with any
   year finds a birthday over the years.

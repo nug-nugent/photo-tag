@@ -36,7 +36,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private readonly PlaceSuggestions _placeSuggestions = new();
     private readonly KeywordSuggestions _peopleSuggestions = new();
     private readonly PopularKeywords _popularKeywords = new();
-    private readonly RecentPeople _recentPeople;
+    private readonly RecentNames _recentPeople;
+    private readonly RecentNames _recentTags;
     private readonly HashSet<PhotoItemViewModel> _selection = [];
     private CancellationTokenSource? _photosLoad;
     private int _anchorIndex = -1;
@@ -58,7 +59,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _renderer = renderer ?? PhotoRenderer.ImagesOnly;
         _thumbnails = thumbnails;
         _settings = settings;
-        _recentPeople = new RecentPeople(settings);
+        _recentPeople = new RecentNames(settings, ListField.People);
+        _recentTags = new RecentNames(settings, ListField.Tags);
         _writer = writer;
         if (writer is not null) writer.PreserveModifiedTime = settings.PreserveModifiedTime;
         Settings = new SettingsViewModel(settings, writer, thumbnails, Updates);
@@ -772,14 +774,14 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             case 1:
                 var photo = _selection.First();
                 var details = new PhotoDetailsViewModel(photo, _writer, _keywordSuggestions, _peopleSuggestions, _placeSuggestions,
-                    Operations, _renderer, _popularKeywords, _placeLookup, _recentPeople);
+                    Operations, _renderer, _popularKeywords, _placeLookup, _recentPeople, _recentTags);
                 details.Saved += (_, _) => _ = Library.PhotoChangedAsync(photo.Path);
                 Details = details;
                 _ = details.LoadAsync();
                 break;
             default:
                 var bulk = new BulkDetailsViewModel(SelectedPhotos, Operations, _keywordSuggestions, _peopleSuggestions, _placeSuggestions,
-                    _recentPeople);
+                    _recentPeople, _recentTags);
                 Details = bulk;
                 _ = bulk.LoadAsync();
                 break;

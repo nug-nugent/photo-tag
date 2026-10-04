@@ -108,4 +108,50 @@ public sealed class TagEditingTests : UiTestBase
         await WaitForAsync(() => saves.IsCompleted);
         Assert.False(details.SaveFailed, details.SaveStatus);
     }
+
+    [AvaloniaFact]
+    public async Task SuggestedTags_MixRecentAndMostUsed_AndShowMoreWhileEditing()
+    {
+        await using var exifTool = RequireExifTool();
+        Photo("a.jpg", "P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8");
+        Photo("b.jpg");
+        var c = Photo("c.jpg");
+        Photo("d.jpg");
+        var (window, vm) = await OpenAsync(new PhotoMetadataWriter(exifTool));
+        await vm.Library.ScanCompletion;
+        await WaitForAsync(() => vm.AllCount == "4");
+
+        // Nothing added yet: the six most used.
+        var details = await SelectSingleAsync(window, vm, 1);
+        await WaitForAsync(() => details.SuggestedKeywords.Count == 6);
+        Assert.Equal(["P1", "P2", "P3", "P4", "P5", "P6"], details.SuggestedKeywords);
+        Find<AutoCompleteBox>(window, "NewTagBox").Focus();
+        window.KeyTextInput("R1; R2; R3; R4; R5; R6");
+        Press(window, PhysicalKey.Enter);
+        await WaitForSaveAsync(details);
+
+        // The next photo: the two added last, then the four most used.
+        details = await SelectSingleAsync(window, vm, 2);
+        Assert.False(details.IsEditingTags);
+        Assert.Equal(["R6", "R5", "P1", "P2", "P3", "P4"], details.SuggestedKeywords);
+
+        // While the Tags box has focus: five and five.
+        Find<AutoCompleteBox>(window, "NewTagBox").Focus();
+        Settle();
+        Assert.True(details.IsEditingTags);
+        Assert.Equal(["R6", "R5", "R4", "R3", "R2", "P1", "P2", "P3", "P4", "P5"], details.SuggestedKeywords);
+
+        // A click on one adds it, and the longer list stays for this photo.
+        var p1 = await WaitForControlAsync(() => FindAll<Button>(window)
+            .FirstOrDefault(b => b.Classes.Contains("suggestion") && b.IsEffectivelyVisible && b.DataContext as string == "P1"));
+        Click(window, p1);
+        await WaitForSaveAsync(details);
+        Assert.Equal(["P1"], PhotoMetadata.Read(c).Keywords);
+        Assert.Equal(["R6", "R5", "R4", "R3", "R2", "P2", "P3", "P4", "P5", "P6"], details.SuggestedKeywords);
+
+        // The one just clicked is now the most recent.
+        details = await SelectSingleAsync(window, vm, 3);
+        Assert.Equal(["P1", "R6", "P2", "P3", "P4", "P5"], details.SuggestedKeywords);
+        window.Close();
+    }
 }
