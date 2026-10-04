@@ -80,7 +80,8 @@
         <!-- Tags: chips in a box with room to type more (Enter, or comma-separated), and suggestions under it. -->
         <StackPanel Spacing="8">
             <TextBlock Classes="label" Text="TAGS" />
-            <Border Classes="box" Padding="5,5,5,0" IsEnabled="{Binding CanEdit}">
+            <Border Classes="box" Padding="5,5,5,0" IsEnabled="{Binding CanEdit}"
+                    views:ClickToFocus.Target="{Binding #NewTagBox}">
                 <WrapPanel>
                     <ItemsControl ItemsSource="{Binding Keywords}" ItemsPanel="{StaticResource WrapPanelTemplate}"
                                   ItemTemplate="{StaticResource TagChipTemplate}" />
@@ -105,7 +106,8 @@
         <!-- People: names, edited like tags, with the last few people added under them. -->
         <StackPanel Spacing="8">
             <TextBlock Classes="label" Text="PEOPLE" />
-            <Border Classes="box" Padding="5,5,5,0" IsEnabled="{Binding CanEdit}">
+            <Border Classes="box" Padding="5,5,5,0" IsEnabled="{Binding CanEdit}"
+                    views:ClickToFocus.Target="{Binding #NewPersonBox}">
                 <WrapPanel>
                     <ItemsControl ItemsSource="{Binding People}" ItemsPanel="{StaticResource WrapPanelTemplate}">
                         <ItemsControl.ItemTemplate>
