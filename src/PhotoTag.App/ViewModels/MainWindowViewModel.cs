@@ -70,6 +70,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         _headingSoon = new Throttle(TimeSpan.FromMilliseconds(250), UpdateHeading);
         Operations.PhotoSaved += (_, _) => _headingSoon.Run();
         TagManager = new TagManagerViewModel(Library, Operations, () => RootPath, () => Photos);
+        AdvancedSearch = new AdvancedSearchViewModel(index, () => RootPath, _keywordSuggestions.Items, _peopleSuggestions.Items, Search);
 
         Library.FilesChanged += (_, changes) => _ = OnFilesChangedAsync(changes);
         Library.IsWriting = () => Operations.IsBusy || Details is PhotoDetailsViewModel { IsSaving: true };
@@ -80,6 +81,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     public BulkOperations Operations { get; }
     public LibraryViewModel Library { get; }
     public TagManagerViewModel TagManager { get; }
+    public AdvancedSearchViewModel AdvancedSearch { get; }
     public UpdatesViewModel Updates { get; }
 
     /// <summary>For the settings window.</summary>
@@ -366,6 +368,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
                 (_, true, true, _) => "Untagged favourites",
                 (_, true, _, _) => "Favourites",
                 (_, _, true, _) => "Untagged",
+                _ when AdvancedSearch.HasCriteria => "Search results", // what was searched for is in the status bar
                 _ => "All photos",
             };
             var photos = Photos.Count == 1 ? "1 photo" : $"{Photos.Count:N0} photos";
@@ -569,7 +572,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     // is the library without any filter, so any filter switches it off.
     private bool _changingFilters;
 
-    /// <summary>Enter in the search box.</summary>
+    /// <summary>Enter in the search box, or Search in the search popover.</summary>
     [RelayCommand]
     private void Search()
     {
@@ -587,6 +590,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         {
             _changingFilters = true;
             SearchText = null;
+            AdvancedSearch.Clear();
             ShowUntagged = false;
             ShowFavourites = false;
             _changingFilters = false;
@@ -601,6 +605,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         {
             _changingFilters = true;
             SearchText = null;
+            AdvancedSearch.Clear();
             ShowAllPhotos = false;
             _changingFilters = false;
             RunSearch();
@@ -626,7 +631,8 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
     private void RunSearch()
     {
         var terms = PhotoMetadataWriter.NormalizeKeywords((SearchText ?? "").Split(','));
-        if (RootPath is null || (terms.Count == 0 && !ShowUntagged && !ShowFavourites && !ShowAllPhotos))
+        var criteria = AdvancedSearch.Describe();
+        if (RootPath is null || (terms.Count == 0 && criteria is null && !ShowUntagged && !ShowFavourites && !ShowAllPhotos))
         {
             ClearSearch();
             return;
@@ -635,7 +641,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         IsSearching = true;
         SelectedFolder = null; // the grid now shows results from the whole library, not one folder
         var root = RootPath;
-        var query = new PhotoQuery { Terms = terms, UntaggedOnly = ShowUntagged, FavouritesOnly = ShowFavourites };
+        var query = AdvancedSearch.AddTo(new PhotoQuery { Terms = terms, UntaggedOnly = ShowUntagged, FavouritesOnly = ShowFavourites });
         var description = (ShowUntagged, ShowFavourites, terms.Count > 0) switch
         {
             (true, true, _) => "untagged favourites",
@@ -645,6 +651,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             (false, false, true) => $"photos matching {string.Join(" + ", terms)}",
             _ => "photos",
         };
+        if (criteria is not null) description += $"{(terms.Count > 0 ? "," : "")} {criteria}";
 
         PhotosLoading = ShowPhotosAsync(async () =>
             {
@@ -663,6 +670,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
         IsSearching = false;
         _changingFilters = true;
         SearchText = null;
+        AdvancedSearch.Clear();
         ShowUntagged = false;
         ShowFavourites = false;
         ShowAllPhotos = false;
@@ -785,6 +793,7 @@ public partial class MainWindowViewModel : ViewModelBase, IDisposable
             IsSearching = false;
             _changingFilters = true;
             SearchText = null;
+            AdvancedSearch.Clear();
             ShowUntagged = false;
             ShowFavourites = false;
             ShowAllPhotos = false;

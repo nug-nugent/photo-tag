@@ -12,6 +12,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.LogicalTree;
+using Avalonia.VisualTree;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using PhotoTag.App;
@@ -136,6 +137,23 @@ try
         WaitForThumbnails(vm);
         Capture(window, $"{name}-6-search");
 
+        // The search popover: a person, tags (any of them) and a year, then its results.
+        vm.ClearSearchCommand.Execute(null);
+        ShowFlyout(window, "AdvancedSearchButton");
+        WaitFor(vm.AdvancedSearch.Loading);
+        vm.AdvancedSearch.NewPerson = "Mary Smith";
+        vm.AdvancedSearch.AddPersonCommand.Execute(null);
+        vm.AdvancedSearch.NewTag = "beach; harbour";
+        vm.AdvancedSearch.AddTagCommand.Execute(null);
+        vm.AdvancedSearch.TagsMatch = 1;
+        vm.AdvancedSearch.YearIndex = Math.Max(0, vm.AdvancedSearch.YearChoices.ToList().IndexOf("2024")); // the sample photos' year
+        Pump(100);
+        Capture(window, $"{name}-6-search-popover");
+        vm.AdvancedSearch.SearchCommand.Execute(null);
+        WaitFor(vm.PhotosLoading);
+        WaitForThumbnails(vm);
+        Capture(window, $"{name}-6-search-advanced");
+
         // Every photo, grouped by day, favourites at double size.
         vm.ClearSearchCommand.Execute(null);
         vm.ShowAllPhotos = true;
@@ -229,14 +247,15 @@ void CaptureTall(Window window, string file)
 
 static void ShowFlyout(Window window, string buttonName)
 {
-    var button = window.GetLogicalDescendants().OfType<Button>().Single(b => b.Name == buttonName);
+    // Visual, not logical: the search popover's button is inside the search box's template.
+    var button = window.GetVisualDescendants().OfType<Button>().Single(b => b.Name == buttonName);
     button.Flyout!.ShowAt(button);
     Pump(200);
 }
 
 static void HideFlyouts(Window window)
 {
-    foreach (var button in window.GetLogicalDescendants().OfType<Button>())
+    foreach (var button in window.GetVisualDescendants().OfType<Button>())
         button.Flyout?.Hide();
     Pump(100);
 }

@@ -237,6 +237,44 @@ public sealed class LibraryIndexTests : IDisposable
     }
 
     [Fact]
+    public async Task Search_AnyOrAllTagsAndPeople_Place_AndDayMonthYear()
+    {
+        var birthday2019 = Photo("a.jpg");
+        var birthday2021 = Photo(Path.Combine("2021", "b.jpg"));
+        var dayAfter = Photo(Path.Combine("2021", "c.jpg"));
+        var undated = Photo("d.jpg");
+        await _index.ScanAsync(_library, cancellationToken: Ct);
+        await _index.UpdateAsync([
+            (birthday2019, new PhotoMetadata { DateTaken = new DateTime(2019, 7, 14, 10, 0, 0), People = ["Ann", "Bob"], Keywords = ["Cake"], City = "St Ives" }),
+            (birthday2021, new PhotoMetadata { DateTaken = new DateTime(2021, 7, 14, 23, 59, 0), People = ["Ann"], Keywords = ["Beach"] }),
+            (dayAfter, new PhotoMetadata { DateTaken = new DateTime(2021, 7, 15, 0, 1, 0), People = ["Bob"], Keywords = ["Cake", "Beach"] }),
+            (undated, new PhotoMetadata { People = ["Ann"], Country = "France" }),
+        ]);
+
+        // Ann's birthday over the years: a day and month without a year.
+        Assert.Equal([birthday2019, birthday2021], await _index.SearchAsync(_library, new PhotoQuery { People = ["ann"], Day = 14, Month = 7 }));
+        Assert.Equal([birthday2021, dayAfter], await _index.SearchAsync(_library, new PhotoQuery { Year = 2021 }));
+        Assert.Equal([birthday2021, dayAfter], await _index.SearchAsync(_library, new PhotoQuery { Year = 2021, Month = 7 }));
+        Assert.Empty(await _index.SearchAsync(_library, new PhotoQuery { Month = 8 }));
+        Assert.Equal([dayAfter], await _index.SearchAsync(_library, new PhotoQuery { Day = 15 }));
+
+        Assert.Equal([birthday2019], await _index.SearchAsync(_library, new PhotoQuery { People = ["Ann", "Bob"] }));
+        Assert.Equal([birthday2019, undated, birthday2021, dayAfter],
+            await _index.SearchAsync(_library, new PhotoQuery { People = ["Ann", "Bob"], AnyPeople = true }));
+        Assert.Equal([dayAfter], await _index.SearchAsync(_library, new PhotoQuery { Keywords = ["cake", "beach"] }));
+        Assert.Equal([birthday2019, birthday2021, dayAfter],
+            await _index.SearchAsync(_library, new PhotoQuery { Keywords = ["cake", "beach"], AnyKeywords = true }));
+        Assert.Equal([birthday2021], await _index.SearchAsync(_library,
+            new PhotoQuery { Keywords = ["cake", "beach"], AnyKeywords = true, People = ["Ann"], Year = 2021 }));
+
+        Assert.Equal([birthday2019], await _index.SearchAsync(_library, new PhotoQuery { Place = "ives" }));
+        Assert.Equal([undated], await _index.SearchAsync(_library, new PhotoQuery { Place = "FRANCE" }));
+
+        Assert.Equal([2021, 2019], await _index.GetYearsAsync(_library));
+        Assert.Equal([2021], await _index.GetYearsAsync(Path.Combine(_library, "2021")));
+    }
+
+    [Fact]
     public async Task Search_Untagged()
     {
         Photo("tagged.jpg", "Beach");
