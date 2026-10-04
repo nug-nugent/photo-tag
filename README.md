@@ -115,14 +115,16 @@ To use a specific ExifTool, set `PHOTOTAG_EXIFTOOL` to its full path.
 
 ## Releasing
 
-Push a version tag and GitHub Actions does the rest:
+Run [`Git/Release.ps1`](Git/Release.ps1) and GitHub Actions does the rest:
 
-```bash
-git tag v0.2.0
-git push origin v0.2.0
+```powershell
+./Git/Release.ps1              # the next patch version
+./Git/Release.ps1 -Bump Minor  # or Major
+./Git/Release.ps1 -Version 0.2.0
 ```
 
-The [release workflow](.github/workflows/release.yml) builds all five packages on matching machines, bundles the
+It works out the next version from the latest `vX.Y.Z` tag, lists what's been merged into origin/main since, shows
+CI's result for that commit, and asks before tagging it and pushing the tag. The [release workflow](.github/workflows/release.yml) builds all five packages on matching machines, bundles the
 ExifTool pinned in `build/exiftool.json` (checksum-verified), runs each packaged app's `--self-check`, and only then
 publishes the GitHub Release that installed copies update from. Pull requests that touch packaging run the same
 workflow as a trial, without publishing. The icon is drawn by `dotnet run build/MakeIcons.cs`.
