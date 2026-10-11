@@ -34,8 +34,9 @@
             </StackPanel>
             <TextBlock Classes="caption" TextWrapping="Wrap"
                        Text="Beyond that, thumbnails of the photos you've looked at least recently are deleted, and made again if you go back to them. Each takes about 20 KB, so 2 GB is about 100,000 photos. If your photos are on a NAS, keep enough for all of them: making thumbnails again over the network is slow." />
-            <TextBlock x:Name="ThumbnailSizeText" Classes="caption" Text="{Binding ThumbnailSizeText}"
-                       IsVisible="{Binding ThumbnailSizeText, Converter={x:Static ObjectConverters.IsNotNull}}" />
+            <!-- Shown from the start, so the line arriving doesn't move everything below it as someone clicks. -->
+            <TextBlock x:Name="ThumbnailSizeText" Classes="caption"
+                       Text="{Binding ThumbnailSizeText, TargetNullValue='Measuring thumbnails…'}" />
 
             <Separator Margin="0,6" />
             <TextBlock Text="Updates" FontWeight="ExtraBold" />
