@@ -249,6 +249,10 @@ public partial class PhotoDetailsViewModel : ViewModelBase, IDisposable
         }
     }
 
+    /// <summary>
+    /// Reads the photo's metadata and its preview, both at once and off the UI thread. A file that can't be read
+    /// sets <see cref="Error"/> rather than throwing.
+    /// </summary>
     public async Task LoadAsync()
     {
         var token = _cts.Token;

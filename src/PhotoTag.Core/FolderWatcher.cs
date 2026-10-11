@@ -27,6 +27,8 @@ public sealed class FolderWatcher : IDisposable
     private DateTime _batchStarted;
     private bool _disposed;
 
+    /// <param name="quietPeriod">How long nothing must change before a batch is reported. One second by default.</param>
+    /// <param name="maxDelay">The longest a change waits to be reported while others keep coming. Five seconds by default.</param>
     public FolderWatcher(string root, TimeSpan? quietPeriod = null, TimeSpan? maxDelay = null)
     {
         Root = root;

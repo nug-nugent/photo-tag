@@ -11,6 +11,10 @@ using PhotoTag.App.ViewModels;
 
 namespace PhotoTag.App.Views;
 
+/// <summary>
+/// What the view model can't do from bindings: keyboard shortcuts, clicks and selection in the grid, zooming and
+/// dragging in the viewer, full screen, and telling the grid which tiles need thumbnails.
+/// </summary>
 public partial class MainWindow : Window
 {
     private MainWindowViewModel? _subscribed;

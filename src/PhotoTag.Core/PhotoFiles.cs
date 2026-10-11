@@ -309,6 +309,10 @@ public static class PhotoFiles
         return folders;
     }
 
+    /// <summary>
+    /// Whether the folder tree should show an expand arrow: true if there's a subfolder other than a NAS's
+    /// housekeeping ones, false if there isn't or it can't be read.
+    /// </summary>
     public static bool HasSubfolders(string folder)
     {
         try

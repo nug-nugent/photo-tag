@@ -61,6 +61,11 @@ public sealed class PhotoMetadataWriter(ExifTool exifTool)
         foreach (var path in photo.AllPaths) await WriteAsync(path, changes, cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Writes the changes to one file. A RAW file's go in its sidecar, which is made on the first edit and starts
+    /// with the tags already in the RAW. Does nothing if <paramref name="changes"/> is empty.
+    /// </summary>
+    /// <exception cref="FileNotFoundException">The photo isn't there any more.</exception>
     public Task WriteAsync(string path, MetadataChanges changes, CancellationToken cancellationToken = default) =>
         // On the thread pool from the start: working out the write reads the file, which is slow on a network share
         // and mustn't hold up the UI thread that saves from the details panel.

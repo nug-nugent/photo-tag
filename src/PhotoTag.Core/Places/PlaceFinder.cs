@@ -57,6 +57,11 @@ public sealed class PlaceFinder
     /// <summary>The bundled data, loaded once in the background (about a quarter of a second).</summary>
     public static Task<PlaceFinder> LoadAsync() => Bundled.Value;
 
+    /// <summary>
+    /// The town or village at this position. When it's inside more than one (a village on a city's edge), the one
+    /// it's nearest the middle of, for its size; when it's inside none, the nearest. Null if that's more than
+    /// <see cref="MaxDistanceKm"/> away.
+    /// </summary>
     public FoundPlace? Find(double latitude, double longitude)
     {
         // Half a degree of latitude is 55 km, so the cells around this one cover everything within 30 km

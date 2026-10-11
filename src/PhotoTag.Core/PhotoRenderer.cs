@@ -58,6 +58,10 @@ public sealed class RawPreviewExtractor(ExifTool exifTool)
     // ExifTool's names for embedded JPEGs across formats. ThumbnailImage (160 px) is too small to use.
     private static readonly string[] PreviewTags = ["PreviewImage", "OtherImage", "JpgFromRaw"];
 
+    /// <summary>
+    /// The smallest preview whose longest edge is at least <paramref name="minSize"/> pixels, or the biggest there
+    /// is if none is that big; null if the file has none.
+    /// </summary>
     public async Task<RawPreview?> ExtractAsync(string path, int minSize, CancellationToken cancellationToken = default)
     {
         List<string> args = ["-charset", "filename=utf8", "-json", "-b", "-Orientation#"];
