@@ -37,9 +37,9 @@ PhotoTag can:
 - Edit tags, people, title, description and place (location, city, state/province, country), and mark favourites
   (♥). Changes are written straight into the photo file. Type several tags or people at once, separated by `;` or
   `,`; what you've typed is added when you press Enter or move on.
-- Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A) and tag them, add people, favourite them, or
-  give them a title, description or place, all at once, with progress and Cancel in the status bar, and Undo (or
-  Ctrl/⌘+Z) afterwards
+- Select many photos (Ctrl/⌘-click, Shift-click, arrow keys, Ctrl/⌘+A; Esc clears the selection) and tag them, add
+  people, favourite them (F), or give them a title, description or place, all at once, with progress and Cancel in
+  the status bar, and Undo (or Ctrl/⌘+Z) afterwards
 - Show and tag camera RAW files (Canon CR2/CR3, Nikon NEF, Sony ARW, Fujifilm RAF, Olympus ORF, Panasonic RW2,
   Pentax PEF, DNG…). RAW+JPEG pairs appear as one photo. Also JPEG, PNG, WebP and TIFF.
 - Keep a library index (SQLite), so the folder tree shows photo and tagged counts, you can search across
@@ -106,6 +106,10 @@ dotnet run --project src/PhotoTag.App
 You can also pass a folder on the command line: `dotnet run --project src/PhotoTag.App -- "D:\Photos"`.
 Otherwise it reopens the last folder you used.
 
+A Debug build like this one keeps its settings, index and log in `PhotoTag-Dev` (beside the data folder above) and
+says "(dev)" in its title, so trying out a change never touches an installed copy's data. To use another folder,
+set `PHOTOTAG_DATA` to its path.
+
 ```bash
 dotnet test --solution PhotoTag.slnx
 ```
@@ -159,8 +163,15 @@ trial, without publishing. The icon is drawn by `dotnet run build/MakeIcons.cs`.
   folders they're in are looked at again. The grid keeps its tiles, thumbnails and selection. Notifications can go
   missing (especially from network shares), so the folder on screen is also checked whenever you switch back to
   PhotoTag, and every 30 seconds on a network share.
-- **Loading is bounded and cancellable.** At most (cores − 1) thumbnails are generated at once. Requests for tiles
-  that scroll off screen are cancelled before any work is done.
+- **Loading is bounded and cancellable.** Thumbnails are rendered on threads of their own, one fewer than the
+  computer has cores (but at least two). Requests for tiles that scroll off screen are cancelled before any work is
+  done.
+- **Thumbnails fill in from the top.** They're made in the order the grid asks for them, so a folder on a NAS fills in
+  top to bottom, as you'd read it. While a JPEG waits its turn, its tile shows the small preview the camera stored in
+  its EXIF (one 64 KB read), so a slow share shows something straight away.
+- **Search checks folders, not photos.** Before showing results, PhotoTag makes sure the photos are still there by
+  listing each folder once, several at a time. Asking about each photo took about 20 ms a time on a NAS, so "All
+  photos" for a 26,000-photo library took 9 minutes; listing its 421 folders takes 3 seconds.
 
 ## Roadmap
 
