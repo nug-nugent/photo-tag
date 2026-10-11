@@ -94,6 +94,22 @@ public sealed class SettingsTests : UiTestBase
     }
 
     [AvaloniaFact]
+    public void ThumbnailSize_HasItsLineBeforeItsMeasured_SoNothingMovesWhenItArrives()
+    {
+        // The window grew by a line when the size arrived, moving "Check now" and "Show log" down: a click as it
+        // arrived missed (and UpdatesTests failed on slow CI runners).
+        var settings = AppSettings.Load(SettingsPath);
+        using var thumbnails = new ThumbnailCache(ThumbnailsPath(0));
+        var vm = new SettingsViewModel(settings, null, thumbnails, new UpdatesViewModel(new NoUpdates(), settings));
+        var window = new SettingsWindow { DataContext = vm }; // not shown, so nothing is measured yet
+        Assert.Null(vm.ThumbnailSizeText);
+
+        var sizeText = window.FindControl<TextBlock>("ThumbnailSizeText")!;
+        Assert.True(sizeText.IsVisible);
+        Assert.Equal("Measuring thumbnails…", sizeText.Text);
+    }
+
+    [AvaloniaFact]
     public async Task ThumbnailLimit_ShowsTheNearestChoice_ForAnyOtherValue()
     {
         var saved = AppSettings.Load(SettingsPath);
