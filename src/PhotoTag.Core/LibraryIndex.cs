@@ -331,6 +331,7 @@ public sealed class LibraryIndex : IDisposable
 
     // --- Queries ---------------------------------------------------------------------------
 
+    /// <summary>How many photos are in <paramref name="folder"/> and all its subfolders, and how many of them have tags.</summary>
     public Task<FolderCounts> GetFolderCountsAsync(string folder) => Task.Run(() =>
     {
         using var connection = Open();

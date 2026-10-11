@@ -27,6 +27,7 @@ public static class Log
 
     public static void Stop() => _file = null;
 
+    /// <summary>Something that happened, for following what PhotoTag was doing (a folder opened, a scan finished).</summary>
     public static void Info(string message) => _file?.Write(LogLevel.Info, message);
 
     /// <summary>Something failed in a way PhotoTag expects and copes with (a locked file, a share that's asleep).</summary>

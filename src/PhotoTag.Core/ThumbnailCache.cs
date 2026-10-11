@@ -4,18 +4,15 @@ using System.Text;
 namespace PhotoTag.Core;
 
 /// <summary>
-/// Generates thumbnails on demand and keeps them in an on-disk cache, so a folder only
-/// has to be decoded once. Cache entries are keyed on path + size + last-write time, so
-/// editing a photo invalidates its thumbnail automatically.
+/// Makes thumbnails when asked and keeps them on disk, so each photo only has to be decoded once. A thumbnail is
+/// found by the photo's path, size and modified time, so editing a photo gets it a new one.
 ///
-/// Requests are served in the order they're made, which is the grid's order: top to bottom. Each is first
-/// looked up in the cache, then if need be rendered, at most <c>maxConcurrency</c> at once. Both stages have
-/// their own threads, so a lookup never waits behind a render, and neither waits for the thread pool (which
-/// the index scan keeps busy reading photos). Waiting requests can be cancelled (e.g. when the tile scrolls
-/// out of view) before they cost anything.
-///
-/// While a JPEG waits to be rendered, a third stage can read the small thumbnail its EXIF block carries
-/// (<see cref="EmbeddedThumbnail"/>) from the start of the file, to show until the real one is ready.
+/// Requests are served in the order they're made, which is the grid's order: top to bottom. Each is looked up
+/// in the cache first, and rendered only if it isn't there, at most <c>maxConcurrency</c> at once. While a JPEG
+/// waits to be rendered, the small thumbnail in its EXIF block (<see cref="EmbeddedThumbnail"/>) can be shown
+/// instead. Looking up, rendering and reading EXIF thumbnails each have threads of their own, so none waits
+/// behind another, or for the thread pool (which the index scan keeps busy). A request that's no longer wanted
+/// (its tile scrolled away) can be cancelled before it costs anything.
 ///
 /// Nothing is deleted as it goes stale (an edited photo's old thumbnail, a folder since deleted):
 /// <see cref="CleanUpAsync"/> removes the least recently used thumbnails once the cache is too big.
@@ -31,6 +28,8 @@ public sealed class ThumbnailCache : IDisposable
     private readonly Stage _renders;
     private long _requests;
 
+    /// <param name="size">The longest edge of each thumbnail, in pixels.</param>
+    /// <param name="maxConcurrency">How many to render at once: by default one fewer than the cores, but at least two.</param>
     public ThumbnailCache(string cacheDirectory, PhotoRenderer? renderer = null, int size = 320, int? maxConcurrency = null)
         : this(cacheDirectory, (renderer ?? PhotoRenderer.ImagesOnly).Render, size, maxConcurrency)
     {

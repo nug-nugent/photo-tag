@@ -26,6 +26,11 @@ public enum SelectionGesture
 /// <summary>One step of the path above the grid: "Photos / 2024 / Cornwall".</summary>
 public sealed record BreadcrumbItem(string Name, string? Path, bool IsLast);
 
+/// <summary>
+/// The main window: the folder tree, the grid and what's selected in it, the details panel, the viewer and search.
+/// Bulk edits, the library index, Manage tags, the search popover, updates and settings each have a view model of
+/// their own, reached from here. Without a <see cref="PhotoMetadataWriter"/> (no ExifTool) it only browses.
+/// </summary>
 public partial class MainWindowViewModel : ViewModelBase, IDisposable
 {
     private readonly ThumbnailCache _thumbnails;
